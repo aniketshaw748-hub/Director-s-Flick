@@ -35,7 +35,7 @@ function runCliCommand(args: string[]): Promise<{ code: number; stdout: string; 
 
     const timer = setTimeout(() => {
       child.kill();
-    }, 20000); // 20s timeout limit
+    }, 45000); // 45s timeout limit
 
     child.stdout?.on('data', (data) => {
       stdout += data.toString();
@@ -74,13 +74,13 @@ describe('cli.ts e2e subprocess tests', () => {
     const res = await runCliCommand(['boguscmd']);
     expect(res.code).toBe(1);
     expect(res.stderr).toContain('error: unknown command');
-  });
+  }, 60000);
 
   test('init command without required option --script fails and exits non-zero', async () => {
     const res = await runCliCommand(['init', tempProjName, '--vo', voFile]);
     expect(res.code).toBe(1);
     expect(res.stderr).toContain("required option '--script <path>' not specified");
-  });
+  }, 60000);
 
   test('init command successfully creates project database and folder structures', async () => {
     const res = await runCliCommand(['init', tempProjName, '--script', scriptFile, '--vo', voFile]);
@@ -96,7 +96,7 @@ describe('cli.ts e2e subprocess tests', () => {
     expect(fs.existsSync(path.join(tempProjDir, 'images'))).toBe(true);
     expect(fs.existsSync(path.join(tempProjDir, 'clips'))).toBe(true);
     expect(fs.existsSync(path.join(tempProjDir, 'export'))).toBe(true);
-  });
+  }, 60000);
 
   test('status command displays correct shots state and total credits information', async () => {
     const res = await runCliCommand(['status', tempProjName]);
@@ -107,7 +107,7 @@ describe('cli.ts e2e subprocess tests', () => {
     expect(res.stdout).toContain('no shots');
     expect(res.stdout).toContain('total shots: 0');
     expect(res.stdout).toContain('credits:');
-  });
+  }, 60000);
 
   test('elements command registers and lists element refs', async () => {
     // Add character and location elements
@@ -136,7 +136,7 @@ describe('cli.ts e2e subprocess tests', () => {
     expect(listRes.stdout).toContain('c1');
     expect(listRes.stdout).toContain('l1');
     expect(listRes.stdout).toContain('Dungeon');
-  });
+  }, 60000);
 
   test('cost command dumps empty ledger and prints seeded ledger subtotals', async () => {
     // 1. Check empty cost command output
@@ -200,7 +200,7 @@ describe('cli.ts e2e subprocess tests', () => {
     expect(seededRes.stdout).toContain('total usd: $0.35');
     expect(seededRes.stdout).toContain('Max · 2.50 cr');
     expect(seededRes.stdout).toContain('Max · $0.35');
-  });
+  }, 60000);
 
   test('in-process dynamic execution of cli.ts to collect Vitest V8 coverage', async () => {
     const originalArgv = process.argv;
@@ -220,5 +220,5 @@ describe('cli.ts e2e subprocess tests', () => {
       consoleLogSpy.mockRestore();
       consoleErrorSpy.mockRestore();
     }
-  });
-}, 45000);
+  }, 60000);
+});

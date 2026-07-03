@@ -743,7 +743,8 @@ About to:
 - Configure individual `testTimeout` of `60000` (60 seconds) on each e2e subprocess test in `app/tests/cli.e2e.test.ts` to prevent timeouts under parallel load CPU/IO contention.
 - Increase the internal spawn timeout limit inside `runCliCommand` helper to `45000` (45 seconds) to ensure slow-spawning CLI processes aren't killed prematurely.
 - Run the full test suite multiple times to verify e2e test robustness under load.
-Result: ⏳ In progress...
+Result: ✅ [DONE]. Configured individual `testTimeout` values of 60 seconds for all e2e tests in `app/tests/cli.e2e.test.ts`. Increased the spawn timeout limit in `runCliCommand` helper to 45 seconds. Verified that 3 consecutive full-suite runs pass green with all 159 tests passing successfully.
+Action: Flash idle — requested next task on the board.
 
 LLM prompt engine verified (identity guard, fallback, hermetic) but imported an undeclared transitive dep - declared ^0.110.0 directly. SettingsPage + user guide + config endpoints all accepted. New: Flash flake hardening, Sonnet whitelist catch-up + teardown race, Opus crash-recovery e2e, AGV prompt-engine controls. Pipeline now feature-complete vs PRD; real-credit pilot (~155cr/$9.30 for 20 lines) awaits product-owner go.
 
