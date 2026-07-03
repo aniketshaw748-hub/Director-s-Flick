@@ -1,8 +1,8 @@
 {
+  "last_sweep": "2026-07-04T17:30",
   "pending": [
-    "responsive mobile UI (fable2)",
-    "owner server restart"
+    "T-88 Sonnet segmentation",
+    "T-89 Opus master prompt"
   ],
-  "last_seen_commit": "a5771460ef0103e093bef4a3515f27729f300001",
-  "last_sweep": "2026-07-04T16:20"
+  "last_seen_commit": "0271d9e4b2838ed8e69a2bed318d19b92ba19b1e"
 }

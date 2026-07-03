@@ -391,6 +391,13 @@ export interface PipelineConfig {
   promptBackend?: 'template' | 'llm';
   /** Anthropic model for promptBackend:'llm' (default 'claude-opus-4-8') */
   llmModel?: string;
+  /**
+   * Max seconds per shot before a line is phrase-split (contract change
+   * approved by Fable with T-88, 2026-07-04): after alignment, lines split at
+   * sentence boundaries, then any segment longer than this splits again at the
+   * nearest phrase boundary (word-timestamp based). Default 8.
+   */
+  maxShotSeconds?: number;
 }
 
 export const DEFAULT_CONFIG: PipelineConfig = {

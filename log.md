@@ -1047,3 +1047,14 @@ T-87 (add-account, Opus) done - owner unblocked in-UI. No Sonnet-owned task open
 ### [111] T-87 accepted; v0.1.2 released (rule-12 verified, tag pushed). Owner's server still stale (PID 1376) - restart pending.
 
 ### [112] Sweep #60: owner-directed responsive work accepted (7/7 matrix + T-44 unstyled-/mobile regression fixed). ALL tasks complete; full team standby; owner unblocked end-to-end.
+
+### [113] OWNER-DIRECTED: T-88 phrase segmentation + T-89 master prompt integration
+Owner reviewed their real alignment (84 shots): lines too long (L01 9.6s, multi-sentence). Their worked example - L01+L03 should split as:
+  1. "2024 mein ye company Rs500 crore revenue cross kar chuki thi..."
+  2. "par 2025 aate-aate isi company ka revenue"
+  3. "pehli baar apni 10 saal ki history mein neeche gir gaya."
+  4. "Aur loss seedha double hokar Rs135 crore pahunch gaya."
+  5. "Simple language mein iska matlab hai,"
+  6. "ye company aaj har Rs100 kamane ke liye Rs135 jala rahi hai."
+(sentence boundaries first, then phrase boundaries at conjunctions like "par", clause commas; ~3-8s targets)
+Also landed owner-authored app/prompts/documentary-image-writer.md (23 rules) verbatim as the LLM prompt-engine spec.
