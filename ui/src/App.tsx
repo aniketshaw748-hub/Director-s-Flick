@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './index.css';
 import SetupPage from './pages/SetupPage';
 import TimelinePage from './pages/TimelinePage';
@@ -16,11 +16,11 @@ interface AccountRow {
   authenticated: boolean;
 }
 
-/** Real account list + cached balances (T-41: kill the demo money). */
-function useAccounts(): AccountRow[] {
+/** Real account list + cached balances (T-41: kill the demo money).
+ * Exposes refresh() so the switcher can reload after adding an account (T-87). */
+function useAccounts(): { accounts: AccountRow[]; refresh: () => void } {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     fetch('/api/accounts')
       .then((r) => r.json())
       .then(async (list: { name: string }[]) => {
@@ -33,14 +33,12 @@ function useAccounts(): AccountRow[] {
               .catch(() => ({ name: a.name, balance: null, authenticated: false })),
           ),
         );
-        if (alive) setAccounts(rows);
+        setAccounts(rows);
       })
       .catch(() => {});
-    return () => {
-      alive = false;
-    };
   }, []);
-  return accounts;
+  useEffect(() => load(), [load]);
+  return { accounts, refresh: load };
 }
 
 function ProjectSwitcher() {
@@ -99,9 +97,60 @@ function ProjectSwitcher() {
 }
 
 function AccountChip() {
-  const accounts = useAccounts();
+  const { accounts, refresh } = useAccounts();
   const [open, setOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const primary = accounts.find((a) => a.authenticated) ?? accounts[0];
+
+  // T-87: kick off the interactive server-side `higgsfield auth login` (POST
+  // returns immediately), then poll status until the login completes and reload.
+  async function handleAdd() {
+    const name = newName.trim();
+    if (!name || pendingName) return;
+    setError(null);
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        // T-69/T-71: a 4xx/5xx is a real error to surface, not "backend down".
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? `Add failed (HTTP ${res.status}).`);
+        return;
+      }
+      setNewName('');
+      setPendingName(name);
+      pollStatus(name, 0);
+    } catch {
+      setError('Could not reach the server — is it running?');
+    }
+  }
+
+  function pollStatus(name: string, tries: number) {
+    window.setTimeout(async () => {
+      try {
+        const s = (await fetch(`/api/accounts/${encodeURIComponent(name)}/status`).then((r) => r.json())) as {
+          authenticated?: boolean;
+        };
+        if (s?.authenticated) {
+          setPendingName(null);
+          refresh();
+          return;
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      if (tries < 60) pollStatus(name, tries + 1);
+      else {
+        setPendingName(null);
+        setError(`Timed out waiting for "${name}" to finish logging in.`);
+      }
+    }, 3000);
+  }
 
   return (
     <div style={{ position: 'relative' }}>
@@ -115,7 +164,7 @@ function AccountChip() {
         <div style={{ position: 'absolute', top: '50px', right: 0, width: '280px', background: 'var(--surface-1)', border: '1px solid var(--border-2)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-3)', display: 'flex', flexDirection: 'column', padding: 'var(--sp-2)', zIndex: 100 }}>
           {accounts.length === 0 && (
             <div style={{ padding: 'var(--sp-3)', color: 'var(--text-3)', fontSize: 'var(--fs-13)' }}>
-              No Higgsfield accounts configured. Add one below — it opens an interactive login on the server machine.
+              No Higgsfield accounts configured. Add one below — the login opens in the server's terminal.
             </div>
           )}
           {accounts.map((a) => (
@@ -131,6 +180,36 @@ function AccountChip() {
               </div>
             </div>
           ))}
+
+          {/* T-87: add-account control — present in BOTH empty and populated states */}
+          <div style={{ height: '1px', background: 'var(--border-1)', margin: 'var(--sp-2) 0' }}></div>
+          {pendingName ? (
+            <div style={{ padding: 'var(--sp-3)', color: 'var(--text-2)', fontSize: 'var(--fs-12)', lineHeight: 1.4 }}>
+              Login started for <strong style={{ color: 'var(--text-1)' }}>{pendingName}</strong>. Complete the Higgsfield
+              login prompt in the <strong>server's terminal</strong> — this updates automatically when it finishes.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 'var(--sp-2)', padding: 'var(--sp-3)', alignItems: 'center' }}>
+              <input
+                style={{ flex: 1, minWidth: 0, padding: 'var(--sp-2) var(--sp-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 'var(--r-md)', color: 'var(--text-1)', fontSize: 'var(--fs-13)' }}
+                value={newName}
+                placeholder="new account name"
+                aria-label="new account name"
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd(); }}
+              />
+              <button
+                style={{ padding: 'var(--sp-2) var(--sp-3)', borderRadius: 'var(--r-md)', background: 'var(--lime)', color: '#121600', fontSize: 'var(--fs-13)', fontWeight: 600, opacity: newName.trim() ? 1 : 0.45, cursor: newName.trim() ? 'pointer' : 'default' }}
+                disabled={!newName.trim()}
+                onClick={() => void handleAdd()}
+              >
+                Add
+              </button>
+            </div>
+          )}
+          {error && (
+            <div style={{ padding: '0 var(--sp-3) var(--sp-3)', color: 'var(--danger)', fontSize: 'var(--fs-12)' }}>{error}</div>
+          )}
         </div>
       )}
     </div>
