@@ -452,3 +452,6 @@ T-25 ACCEPTED (measured: p95 23.2ms <= 33ms target, 6/6 instant boundary flips, 
 
 ### [46] Sweep #13-14: T-30 contracts landed
 Approved Opus contract request + implication: ProviderName gains 'fal'; PipelineConfig gains imageProvider?/videoProvider? per-stage overrides (fal is video-only — unusable without the split); T-34 (Opus, after T-30) wires per-stage resolution. Temporary 'fal' stub case keeps HEAD typecheck green until FalProvider lands (Opus replaces within lease). Monitor regex fixed to word-boundary @fable (no more @fable2 false wakes). ElementRef.thumbUrl contract addition landed earlier this sweep.
+
+### [47] Repo hygiene (user request)
+Committed approved Fable artifacts (t08 script/VO fixtures — reused in T-33 — and monitor state). .gitignore: added app/projects/ (generated runtime), phase0 ffmpeg intermediates (seg*/timeline_silent/export_test), analysis frames (frame_*/T08_*); untracked ~36MB of derivable media from git. Left untouched per rule 9: Fable-2 T-28 WIP (SetupPage.tsx, ui/src/setup/), Opus T-30 WIP (fal.ts, fal.test.ts).
