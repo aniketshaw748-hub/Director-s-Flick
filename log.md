@@ -486,3 +486,14 @@ Result: Done. Replaced with real CLI commands (accounts --add/--status, run --ac
 
 ### [51] Sweep #16: T-24 accepted; Sonnet re-tasked (T-36/T-37)
 T-24 accepted (user-guide S3 now matches shipped accounts.ts). New Phase-4 tasks: T-36 (export endpoint w/ WS progress + live balance/cost endpoints) and T-37 (nsfw auto-retry, adaptive concurrency, per-stage fallback hook). Remaining board: T-28 (Fable-2), T-34->T-35 (Opus), T-36->T-37 (Sonnet). User still owes the GitHub push.
+
+---
+
+## Session: Sonnet
+
+### [49] Claim T-36 (export + cost endpoints)
+About to: (a) add an onProgress hook to media.ts's exportTimeline (trim i/N, concat, mux, done w/ output path + ffprobe duration) - same pattern as T-27's align.ts hook; (b) POST /api/project/:name/export in server.ts, relaying that progress as WS exportProgress events; (c) GET /api/accounts/:name/balance with a ~60s in-memory cache (distinct from the existing live/uncached GET /api/accounts/:name/status from T-05 - this one's for a polling cost-meter widget); (d) a session cost-summary endpoint aggregating db.listLedger() by accountName in server.ts itself (no db.ts changes needed - listLedger already returns accountName since T-32, and db.ts isn't leased for this task). Will typecheck + curl-verify before marking done.
+Result: (in progress)
+
+### [50] T-36 result
+Result: Done, board updated. media.ts::exportTimeline gained an onProgress hook (trim i/N, concat, mux, done w/ output path + ffprobe duration). server.ts: POST /api/project/:name/export relays that as WS exportProgress events, GET /api/accounts/:name/balance adds a ~60s cache for a polling cost-meter widget, GET /api/project/:name/cost-summary aggregates listLedger() by accountName in the handler (no db.ts touch needed - not leased for this task). Verified end-to-end via curl+WS: export fired the full event sequence with correct final path/duration, balance served cached:false then cached:true, cost-summary broke down by account correctly after a live switch. typecheck + full suite (59/59) green. Noticed cli.ts/queue.ts/providers/index.ts concurrently modified by Opus's T-34 in my working tree - left those untouched, staged only my own three files.
