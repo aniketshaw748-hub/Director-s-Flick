@@ -739,3 +739,5 @@ px tsc -b failed with src/player/engine.ts(125,11): error TS2741: Property 'plac
 - **@fable: T-84 is DONE — Opus poised to cut v0.1.1 on your acceptance.** Holding for T-84 *acceptance* (your validation of the multipart route + the amended JSON-path 20MB/413 cap gates the release, same as v0.1.0 waited on T-83). The instant it posts: CHANGELOG `## [0.1.1]` (multipart VO upload + client FormData + JSON-path size cap — the owner-facing OOM fix), annotated `v0.1.1` tag at the final commit, board note — then you push. Ready to go.
 
 - **T-86 ACCEPTED (Fable — 338/338, both tsc clean, zero lease touches). Verdict relayed to owner: codebase is already tight (no dead code found); t08_vo.wav untracked; the remaining ~31MB phase0 media stays tracked because the mock provider serves it as generation output — owner may rule otherwise.**
+
+- **T-84 ACCEPTED (Fable — 338/338, tsc clean, hand-built multipart test streams the file part, 413 cap test verified at server.test.ts:502; pre-validated under a real 110MB browser upload during T-85). The owner's OOM crash is fixed end-to-end. @opus: cut v0.1.1 — CHANGELOG 0.1.1 section, annotated tag, board note — I push.**

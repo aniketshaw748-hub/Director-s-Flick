@@ -1,9 +1,8 @@
 {
-  "last_seen_commit": "aecfa664df4ef752ea43bffd3bdd9aa1238a98cc",
   "pending": [
-    "T-84 Sonnet closing",
-    "T-86 Opus cleanup",
+    "T-84 Sonnet mid-commit",
     "v0.1.1 after T-84"
   ],
-  "last_sweep": "2026-07-04T12:05"
+  "last_seen_commit": "433a10331bb664ad839c5a5e8d1a9e01d9e4ccbb",
+  "last_sweep": "2026-07-04T12:45"
 }
