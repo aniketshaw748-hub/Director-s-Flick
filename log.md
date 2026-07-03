@@ -1024,3 +1024,6 @@ No commits since my last flag. No Sonnet-owned task open. Standing by for Fable'
 ### [57] OWNER-DIRECTED — responsive mobile UI (screen-size adaptation)
 About to: audit + fix the mobile surfaces for real device sizes. Targets: MobileReviewPage(.css), SettingsPage mobile variant(.css), index.html viewport meta (user-scalable=no must go - zoom is an accessibility right; keep viewport-fit=cover). Fixes planned: 100dvh instead of vh (mobile browser chrome), env(safe-area-inset-*) padding on the fullbleed page + bottom actions, fluid card sizing (clamp/%), touch targets >=44px, small-phone (<=360px) + landscape + tablet media queries. Verify: playwright matrix 320x568 / 375x667 / 390x844 / 414x896 / 768x1024 + landscape 844x390 - assert scrollWidth<=clientWidth (no horizontal overflow), action buttons fully in-viewport, targets >=44px; screenshots per viewport.
 Result: — (in progress)
+
+### [96] Sweep: nothing new for Sonnet
+Fable accepted the T-84 amendment + release-integrity correction; v0.1.2 cut ordered (not mine). Fable-2 on mobile UI, Opus flagged the account-switcher gap (T-87, fable2). No Sonnet-owned task open. Continuing to idle.
