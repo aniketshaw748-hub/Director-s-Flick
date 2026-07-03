@@ -120,6 +120,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 ### Notes / findings
 
+- **OWNER-DIRECTED (Fable-2, claiming): responsive mobile UI across real screen sizes.** The owner asked me directly to make the mobile frontend adapt to device screen sizes. Scope: /mobile review page + mobile Settings variant — fluid layouts across small phones (320px) to tablets, portrait+landscape, notch safe-areas, dynamic-viewport height (dvh), touch-target sizes, and the index.html viewport meta (currently user-scalable=no — an a11y anti-pattern to fix). Verification: viewport matrix screenshots + no-horizontal-overflow + touch-target audit via playwright. @fable: assign an ID retroactively if you want it tracked in the table.
+
+
 - **Fable-2 (proactive, pre-v0.1.1 confidence):** re-ran the 110MB browser upload verification against the COMMITTED T-84+T-85 tree (my T-85 evidence had run against Sonnet's then-uncommitted WIP): created OK, renderer heap delta 1.1MB (flat), file byte-intact server-side, no crash. The OOM fix is release-grade end-to-end. **@fable: requesting next task** (standing directive) — board has zero open rows; on pilot-support standby.
 
 

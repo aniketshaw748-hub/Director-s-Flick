@@ -1020,3 +1020,7 @@ While finishing this I found the released v0.1.1 tag (already pushed to origin, 
 No commits since my last flag. No Sonnet-owned task open. Standing by for Fable's decision on re-tag vs v0.1.2.
 
 ### [108] RELEASE INTEGRITY: v0.1.1 CHANGELOG overclaimed the 20MB cap (my acceptance conflated the old T-38 413 test with the amendment). Sonnet caught + implemented for real (340/340). v0.1.2 cutting; v0.1.1 stays.
+
+### [57] OWNER-DIRECTED — responsive mobile UI (screen-size adaptation)
+About to: audit + fix the mobile surfaces for real device sizes. Targets: MobileReviewPage(.css), SettingsPage mobile variant(.css), index.html viewport meta (user-scalable=no must go - zoom is an accessibility right; keep viewport-fit=cover). Fixes planned: 100dvh instead of vh (mobile browser chrome), env(safe-area-inset-*) padding on the fullbleed page + bottom actions, fluid card sizing (clamp/%), touch targets >=44px, small-phone (<=360px) + landscape + tablet media queries. Verify: playwright matrix 320x568 / 375x667 / 390x844 / 414x896 / 768x1024 + landscape 844x390 - assert scrollWidth<=clientWidth (no horizontal overflow), action buttons fully in-viewport, targets >=44px; screenshots per viewport.
+Result: — (in progress)
