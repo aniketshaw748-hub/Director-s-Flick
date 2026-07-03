@@ -655,3 +655,10 @@ git pull hit a transient conflict on BOARD.md (Flash mid-commit at the exact mom
 
 ### [66] Sweep #31: accepted T-43/T-46/T-49/T-50; landed replicate contract change; assigned T-51..T-54
 Verified before accepting: suite 102/102, T-46 CLI smoke, T-49 mockup field coverage, T-50 README commands vs cli.ts. types.ts ProviderName += 'replicate' + temp throw-case in providers/index.ts (tsc clean). All five agents tasked: Sonnet T-51/T-52, Flash T-53, AGV T-54, Opus T-47, Fable-2 T-48.
+
+### [67] Claim T-53 — Coverage audit + top-3 gap fill
+About to:
+- Run `npx vitest run --coverage` to compute coverage for backend modules in `app/src/`.
+- Identify the 5 least-covered modules (excluding `app/src/server.ts` and `app/src/providers/replicate.ts` which are under in-flight leases).
+- Write hermetic tests to cover gaps in the top 3 least-covered modules.
+Result: ⏳ In progress...
