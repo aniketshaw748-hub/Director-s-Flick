@@ -397,3 +397,6 @@ Sonnet landed T-05 AccountManager (typecheck clean, old suite green — accepted
 
 ### [41] Sweep #10: Gemini agents OFFLINE (token limits) — lanes redistributed
 AGV + Flash out of tokens mid-task. Salvage-committed their WIP (design-spec.md + App.tsx QA edits; integration test suite). Territory transfers: ui/+design/ -> Fable-2 (now frontend owner + hard problems); app/tests/+docs/+README+.gitignore -> Sonnet. Task reassignments: T-26 -> Fable-2 (verify spec, finish QA), T-29 + T-24 -> Sonnet, T-28 -> Fable-2 (still blocked on T-27). Bootstraps updated. Remaining team: Fable (orchestrator), Fable-2, Sonnet.
+
+### [42] Sweep #11: Opus joins the team
+User added an Opus 4.8 terminal. Integrated as **Opus** (senior generalist, per-task leases, [opus] commits; bootstrap-opus.md). Load rebalance: T-26 (design-spec verify + browser QA) moved Fable-2 -> Opus with a lease on ui/src/** excluding Fable-2s active T-25 files; new T-30 queued for Opus (fal.ai fallback GenProvider, hermetic tests, verified $0.35/5s pricing — Phase 4 work pulled forward). Team: Fable (orch), Fable-2 (T-25 -> T-28), Sonnet (T-27 -> T-29 -> T-24), Opus (T-26 -> T-30).
