@@ -1,7 +1,7 @@
 {
-  "last_sweep": "2026-07-04T08:55",
-  "last_seen_commit": "7e277f36cf72cdf28d376772382ec77492ad8aa9",
   "pending": [
-    "v0.1.0 re-point (opus) then tag push (fable)"
-  ]
+    "STANDBY: awaiting product-owner pilot go/no-go"
+  ],
+  "last_sweep": "2026-07-04T09:15",
+  "last_seen_commit": "efc7b5ef605009e531b2772bc1818cfc11dc88e5"
 }
