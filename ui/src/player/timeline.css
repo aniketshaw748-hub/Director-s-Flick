@@ -1,0 +1,58 @@
+/* Director's Flick — Timeline page layout (ported from design/desktop-timeline.html)
+ *
+ * T-25 note: ui/src/index.css only carries the design TOKENS; the mockups'
+ * page CSS was never ported to the React app. This file covers exactly the
+ * classes TimelinePage + the preview player use. It is loaded globally once
+ * TimelinePage imports it (vite bundles CSS app-wide), so .btn/.mono also
+ * style the other pages that reference them.
+ */
+
+.mono { font-family: var(--font-mono); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 var(--sp-4); border-radius: var(--r-md); font-weight: 500; font-size: var(--fs-14); transition: all var(--t-fast) var(--ease); }
+.btn-primary { background: var(--lime); color: var(--lime-ink); font-weight: 600; }
+.btn-primary:hover { background: var(--lime-bright); box-shadow: var(--glow-lime-strong); }
+.btn-primary:disabled { background: var(--surface-3); color: var(--text-disabled); cursor: not-allowed; box-shadow: none; }
+.btn-secondary { background: var(--surface-2); border: 1px solid var(--border-1); }
+.btn-secondary:hover { background: var(--surface-3); border-color: var(--border-2); }
+.btn-secondary:disabled { color: var(--text-disabled); cursor: not-allowed; }
+
+/* ============ TIMELINE LAYOUT ============ */
+.workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.preview-area { flex: 1; display: flex; gap: var(--sp-6); padding: var(--sp-6); min-height: 0; }
+
+/* Player */
+.player-container { flex: 1; background: var(--bg-1); border-radius: var(--r-lg); border: 1px solid var(--border-1); display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-2); }
+.player-vid { flex: 1; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+.player-controls { height: 48px; background: var(--surface-1); border-top: 1px solid var(--border-1); display: flex; align-items: center; padding: 0 var(--sp-4); gap: var(--sp-4); }
+.play-btn { width: 32px; height: 32px; border-radius: var(--r-full); background: var(--lime); color: var(--lime-ink); display: grid; place-items: center; }
+.play-btn:disabled { background: var(--surface-3); color: var(--text-disabled); cursor: not-allowed; }
+.timecode { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--text-2); }
+
+/* Export Panel */
+.export-panel { width: 340px; flex: none; background: var(--surface-1); border-radius: var(--r-lg); border: 1px solid var(--border-1); padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
+.export-panel .overline { font-size: var(--fs-11); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); margin-bottom: var(--sp-2); }
+.stats-row { display: flex; justify-content: space-between; font-size: var(--fs-13); color: var(--text-2); padding: 4px 0; }
+.stats-row .v { font-family: var(--font-mono); color: var(--text-1); }
+.progress-container { margin-top: auto; padding-top: var(--sp-4); border-top: 1px solid var(--border-1); }
+.progress-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; margin-bottom: var(--sp-2); }
+.progress-fill { height: 100%; background: var(--lime); width: 45%; box-shadow: 0 0 8px var(--lime-a35); }
+
+/* Timeline strip */
+.timeline-area { height: 260px; flex: none; background: var(--surface-1); border-top: 1px solid var(--border-1); display: flex; flex-direction: column; }
+.tl-tools { height: 44px; border-bottom: 1px solid var(--border-1); display: flex; align-items: center; padding: 0 var(--sp-4); gap: var(--sp-4); }
+.tl-track { flex: 1; position: relative; overflow-x: auto; overflow-y: hidden; background: var(--bg-1); display: flex; flex-direction: column; cursor: pointer; }
+.tl-ruler { height: 24px; border-bottom: 1px solid var(--border-1); background: var(--surface-2); position: sticky; top: 0; z-index: 2; display: flex; padding-left: 20px; }
+.tl-tick { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); flex: none; border-left: 1px solid var(--border-2); padding-left: 4px; line-height: 24px; }
+.tl-clips { height: 80px; margin-top: var(--sp-4); position: relative; margin-left: 20px; }
+.tl-clip { position: absolute; top: 0; height: 100%; border-radius: var(--r-sm); border: 1px solid var(--border-2); background: var(--surface-2); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.tl-clip:hover { border-color: var(--lime-a35); }
+.tl-clip .thumb { position: absolute; inset: 0; background: var(--surface-3); opacity: 0.5; }
+.tl-clip .lbl { position: relative; z-index: 1; font-size: 10px; padding: 2px 4px; background: rgba(0, 0, 0, 0.5); color: var(--text-1); font-family: var(--font-mono); }
+.tl-audio { height: 64px; display: flex; margin-top: var(--sp-3); padding-left: 20px; }
+.tl-audio-wave { height: 100%; background: var(--surface-2); border-radius: var(--r-sm); border: 1px solid var(--border-1); position: relative; overflow: hidden; flex: none; display: flex; align-items: center; gap: 1px; padding: 0 4px; }
+.tl-audio-wave i { flex: none; width: 2px; background: var(--wave); border-radius: 1px; }
+.tl-audio-wave i.played { background: var(--lime); }
+
+.playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--lime); left: 0; z-index: 10; box-shadow: 0 0 6px var(--lime-a35); pointer-events: none; will-change: transform; }
+.playhead::before { content: ""; position: absolute; top: 0; left: -4px; width: 10px; height: 10px; background: var(--lime); border-radius: 50%; }
