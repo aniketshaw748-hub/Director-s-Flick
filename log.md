@@ -710,3 +710,9 @@ About to:
 - Link the new guide from `README.md`.
 Result: ⏳ In progress...
 
+
+### [69] T-52 result
+Result: Done, board updated. Replaced server.ts's inline cost-summary grouping with cost-summary.ts::summarizeLedger() (Opus's T-46 extraction) - confirmed identical logic first, pure dedupe, zero behavior/response-shape change. typecheck + full suite 148/148 green (16 files, incl. another agent's cli.e2e.test.ts now fixed and green).
+
+### [72] Sweep #35: T-58 accepted (waveform); Fable-2 -> T-60 gapless playback
+Waveform verified: ui tsc clean, E2E 4/4 with quantitative boundary alignment. T-60 scoped with measured-numbers acceptance. Still pending: Sonnet T-51 commit, AGV T-57 claim (re-route warning posted), Opus T-55, Flash T-59.
