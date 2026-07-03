@@ -497,3 +497,6 @@ Result: (in progress)
 
 ### [50] T-36 result
 Result: Done, board updated. media.ts::exportTimeline gained an onProgress hook (trim i/N, concat, mux, done w/ output path + ffprobe duration). server.ts: POST /api/project/:name/export relays that as WS exportProgress events, GET /api/accounts/:name/balance adds a ~60s cache for a polling cost-meter widget, GET /api/project/:name/cost-summary aggregates listLedger() by accountName in the handler (no db.ts touch needed - not leased for this task). Verified end-to-end via curl+WS: export fired the full event sequence with correct final path/duration, balance served cached:false then cached:true, cost-summary broke down by account correctly after a live switch. typecheck + full suite (59/59) green. Noticed cli.ts/queue.ts/providers/index.ts concurrently modified by Opus's T-34 in my working tree - left those untouched, staged only my own three files.
+
+### [52] Sweep #17: T-36 accepted
+Sonnet T-36 (export endpoint w/ WS progress, cached balance endpoint, per-account cost summary) accepted after independent suite re-run. Opus mid-T-34 (coordination note posted to Sonnet). Fable-2 still on T-28. Next natural task after T-28: wire export panel UI to T-36 endpoints.
