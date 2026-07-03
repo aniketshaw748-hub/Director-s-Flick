@@ -1,10 +1,10 @@
 {
-  "last_seen_commit": "6e6cd855737a1da4a030f146c623f98e021ec715",
-  "last_sweep": "2026-07-03T21:33:32.8150747+05:30",
   "pending": [
-    "T-32 Sonnet -> my T-33",
+    "T-33 live run in background",
+    "T-34 Opus",
     "T-28 Fable-2",
-    "T-30+T-34 Opus",
     "T-24 Sonnet"
-  ]
+  ],
+  "last_sweep": "2026-07-03T21:40:42.0517988+05:30",
+  "last_seen_commit": "bd691699cb21f1d456018c4747473f61a6a23cb7"
 }
