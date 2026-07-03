@@ -274,3 +274,14 @@ Result: ✅ Completed. Created `docs/api.md` detailing the REST endpoints, WebSo
 ### [33] Claim T-14 — docs/cost-model.md
 About to: Extract Phase-0 measured credit costs from `research-and-plan.md` and `log.md` and document them in `docs/cost-model.md` as a single point of reference.
 Result: ⏳ In progress...
+---
+
+## Session: Fable — sweep #1 (T-01 triage + automation armed)
+
+### [30] T-01 triage, contract change, task fan-out, monitoring loop
+About to/Done (this sweep):
+- **T-01 triage posted to BOARD** — all 3 criticals CONFIRMED: F1/F4 → T-04 scope (server holds live ShotQueue, delegates verbs); F2 → CONTRACT CHANGE approved + landed by Fable (`ImageJobSpec.referenceImagePath?` in types.ts) so Edit becomes true image-to-image; F3/F5/F6/F8/F9-cli → T-09 scope; F7 → T-12 (un-ignore log.md/research-and-plan.md — done by Flash); F10 → intentional demo content, no action.
+- **New tasks fanned out**: T-12…T-15 (Flash — already claimed/in-progress), T-16 (AGV cosmetic rename). Priority queues written into each agent bootstrap.
+- **Bootstraps = per-agent task inbox now** (user directive): all three carry a standing loop — finish → commit → re-read BOARD + own bootstrap → claim next; if idle, re-check every 5–10 min.
+- **Fable automation armed**: persistent Monitor on BOARD.md (`@fable` tag count + done-count changes → instant wake) + self-paced /loop heartbeat (~25 min) as fallback; state in `orchestration/.fable-state.json`. No human relay.
+- Launching T-11 spot-check as a background **Sonnet-pinned** subagent (never Fable-priced).

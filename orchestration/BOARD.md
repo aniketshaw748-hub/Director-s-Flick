@@ -42,12 +42,10 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 | T-12 | Flash | done | **Commit + repo hygiene**: commit your T-06/T-07 files (`[flash]`); REMOVE `log.md` and `research-and-plan.md` from `.gitignore` (Fable decision — they must be version-controlled) and commit both; add `"test": "vitest run"` to `app/package.json` scripts. | `.gitignore`, `app/package.json` | `git log` shows the commits; `npm test` works from `app/` |
 | T-13 | Flash | done | **docs/api.md**: document the server's REST endpoints + WS message shapes AS BUILT (read `app/src/server.ts`); add `TODO(T-04)` markers where the review-gate work will change things. | `docs/api.md` | Accurate against current code; Sonnet review |
 | T-14 | Flash | done | **docs/cost-model.md**: extract the measured Phase-0 credit costs (image/video tables, per-10-min-video estimates, $0.06/credit) from `research-and-plan.md` + `log.md` [4]/[14] into one reference page. | `docs/cost-model.md` | Numbers match the sources exactly; no invented figures |
-| T-15 | Flash | in-progress (flash) | **Test coverage expansion**: unit tests for `prompts.ts` (MockPromptEngine determinism, element-tag injection in image+animation prompts) and `config.ts` (defaults, overrides). Same hermetic rules as T-06. | `app/tests/**` | `npm test` green; new files covered |
+| T-15 | Flash | done | **Test coverage expansion**: unit tests for `prompts.ts` (MockPromptEngine determinism, element-tag injection in image+animation prompts) and `config.ts` (defaults, overrides). Same hermetic rules as T-06. | `app/tests/**` | `npm test` green; new files covered |
 | T-16 | AGV | done | **Rename fallout (cosmetic)**: fix stale "AI Video Pipeline" header comments in `design/tokens.css:2` + `ui/src/index.css:2` → "Director's Flick". NOTE: the Hapie/lighthouse flavor content in mockups/SetupPage is INTENTIONAL demo data (T-01 finding 10) — keep it. | `design/tokens.css`, `ui/src/index.css` | Comments updated; nothing else touched |
 
 ### Notes / findings
-
-- **@flash (from Fable):** T-06/T-07 marked done but no `[flash]` commit exists — your files are uncommitted. Commit them (prefix `[flash]`) so Sonnet can review a fixed revision (T-10).
 
 - **T-02**: Ported SetupPage, TimelinePage, MobileReviewPage to React components. Styled identically to mockups.
 - **T-03**: Designed and implemented desktop-review.html and `ui/src/pages/ReviewPage.tsx`. Integrated account switcher dropdown in Chrome header. Verified UI visually and via `npx tsc --noEmit`.
@@ -62,6 +60,15 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   - Created `README.md` at root detailing setup, CLI commands, and an architecture diagram.
   - Created `docs/user-guide.md` explaining project stages and elements workflow.
   - Updated `.gitignore` to prevent committing project media, database files, and credentials under `app/accounts/` while preserving `phase0/` files.
+- **T-12 (Flash)**: Completed Git hygiene and version control setup:
+  - Removed `log.md` and `research-and-plan.md` from `.gitignore` to track development logs.
+  - Added `"test": "vitest run"` to `app/package.json` scripts (`npm test` passes).
+  - Committed all T-06/T-07 files and hygiene changes under `[flash]` prefixes.
+- **T-13 (Flash)**: Documented server REST endpoints and WebSockets in `docs/api.md`, detailing connection formats, JSON request/response shapes, and adding `TODO(T-04)` integration hooks for review-gate controls.
+- **T-14 (Flash)**: Extracted and consolidated Phase-0 measured credit costs (Image and Video models, 10-minute projection estimates) into `docs/cost-model.md` as a unified cost reference.
+- **T-15 (Flash)**: Expanded test coverage (now 31/31 green) by adding:
+  - `prompts.test.ts`: Verifies `TemplatePromptEngine` determinism, visual prompt builders, and `ClaudePromptEngine` SDK mock retry handling.
+  - `config.test.ts`: Verifies default configuration cascading, app/config.json layer overrides, and project SQLite DB loader overrides.
 
 - **T-01 findings (Sonnet)** — read-only pass over `queue.ts`, `server.ts`, `cli.ts`, `db.ts`, `types.ts` (for context) + rename-fallout grep across `app/`, `ui/`, `design/`. `npm run typecheck` in `app/` is currently clean (0 errors). No fixes applied — posting for triage, per protocol.
 

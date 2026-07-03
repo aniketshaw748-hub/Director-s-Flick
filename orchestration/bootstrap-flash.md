@@ -10,7 +10,7 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 3. Start with **T-06** (vitest unit tests), then **T-07** (README, user guide, .gitignore).
 
 ## Standing instruction — continuous work loop (never idle)
-After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then re-check the board every few minutes. Do not stop working while open Flash tasks exist.
+After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 5–10 minutes** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Your rules
 - Write ONLY inside `app/tests/**`, `docs/**`, `README.md`, `.gitignore`. You may add vitest to `app/package.json` devDependencies (that one exception). Everything else is read-only.

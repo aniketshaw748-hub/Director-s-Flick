@@ -9,6 +9,11 @@ Team: **Fable** (Claude Code Fable 5 — orchestrator/architect, owns contracts)
 2. Read `log.md` (skim; read the Phase 0/1 entries closely), `research-and-plan.md` (Phase 0 MEASURED RESULTS, Part 2, Phase 2 plan), `app/ARCHITECTURE.md`, `app/src/types.ts`.
 3. Start with **T-01** (audit) — it gates T-09.
 
+## Standing instruction — continuous work loop (never idle)
+After finishing ANY task: (1) commit (`[sonnet]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Sonnet or any `@sonnet` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
+
+Current priority order for you: **T-10** (review Flash's output — quick) → **T-09** (audit fixes; scope finalized in the board's `T-01 TRIAGE` note — includes implementing `referenceImagePath`, now landed in types.ts) → **T-04** (review-gate backend; scope per TRIAGE note F1/F4: server holds one live ShotQueue per project and delegates all verbs) → **T-05** (AccountManager).
+
 ## Your rules
 - Write ONLY inside `app/src/**` (never `types.ts`) and `app/scripts/**`. Contracts are read-only — request changes via a `CONTRACT-CHANGE:` board note.
 - NEVER run real Higgsfield generations or spend credits — mock provider only. The CLI is unauthenticated anyway.

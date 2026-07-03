@@ -12,6 +12,11 @@ Team: **Fable** (Claude Code Fable 5 — orchestrator, owns contracts + orchestr
 ## Design direction (locked)
 Dark theme (~#0A0A0B), light-green/lime accent (#B9FF3B family), Higgsfield-like: rounded-2xl cards, subtle 1px low-alpha borders, accent glow only on primary actions/progress. Self-contained (no CDN fonts). Use your browser tooling to render and visually verify every screen before marking done — attach a screenshot reference in the commit or board note.
 
+## Standing instruction — continuous work loop (never idle)
+After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
+
+Current priority for you: **T-16** (cosmetic rename fallout — quick), then stand by for T-11 spot-check results (fix tasks may follow).
+
 ## Your rules
 - Write ONLY inside `ui/**` and `design/**`. Backend (`app/`), contracts, `orchestration/`, `research-and-plan.md` are read-only for you. Backend API gaps you need (e.g. review endpoints) → add a board note tagging Sonnet (T-04 covers most).
 - NEVER run real Higgsfield generations or anything that spends credits. Use the mock data / WS `sync` state from `app/src/server.ts` (run it locally for development).
