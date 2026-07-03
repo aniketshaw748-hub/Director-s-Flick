@@ -321,3 +321,135 @@ describe('FalProvider.download', () => {
     ).rejects.toBeInstanceOf(FalError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Branch-coverage stragglers (T-82, test-only): status variants, result-url
+// payload shapes, error extraction, local-file download, mime-by-extension.
+// ---------------------------------------------------------------------------
+
+describe('FalProvider branch coverage (T-82)', () => {
+  test('submit returning no request_id throws FalError', async () => {
+    const p = makeProvider(vi.fn().mockResolvedValueOnce(jsonRes({ status: 'IN_QUEUE' })));
+    await expect(p.submitVideo(videoSpec())).rejects.toBeInstanceOf(FalError);
+  });
+
+  test('poll maps CANCELED -> canceled with an error string', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-c' })) // submit
+      .mockResolvedValueOnce(jsonRes({ status: 'CANCELED', error: 'user aborted' })); // status
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    const r = await p.poll('req-c');
+    expect(r.status).toBe('canceled');
+    expect(r.error).toBe('user aborted');
+  });
+
+  test('poll maps an unknown status to in_progress (default branch)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-u' }))
+      .mockResolvedValueOnce(jsonRes({ status: 'SOMETHING_NEW' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('req-u')).status).toBe('in_progress');
+  });
+
+  test('poll extracts the url from a { videos: [{url}] } result shape', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-v' }))
+      .mockResolvedValueOnce(jsonRes({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonRes({ videos: [{ url: 'https://cdn.fal.ai/a.mp4' }] }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    const r = await p.poll('req-v');
+    expect(r.status).toBe('completed');
+    expect(r.resultUrl).toBe('https://cdn.fal.ai/a.mp4');
+  });
+
+  test('poll extracts the url from a nested { output: { video: { url } } } shape', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-o' }))
+      .mockResolvedValueOnce(jsonRes({ status: 'OK' })) // OK -> completed
+      .mockResolvedValueOnce(jsonRes({ output: { video: { url: 'https://cdn.fal.ai/b.mp4' } } }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('req-o')).resultUrl).toBe('https://cdn.fal.ai/b.mp4');
+  });
+
+  test('poll extracts the url from a flat video_url field', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-f' }))
+      .mockResolvedValueOnce(jsonRes({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonRes({ video_url: 'https://cdn.fal.ai/c.mp4' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('req-f')).resultUrl).toBe('https://cdn.fal.ai/c.mp4');
+  });
+
+  test('poll COMPLETED but no url -> failed, error pulled from a { detail: [{msg}] } array', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-n' }))
+      .mockResolvedValueOnce(jsonRes({ status: 'COMPLETED' }))
+      .mockResolvedValueOnce(jsonRes({ detail: [{ msg: 'nsfw filtered' }] }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    const r = await p.poll('req-n');
+    expect(r.status).toBe('failed');
+    expect(r.error).toBe('nsfw filtered');
+  });
+
+  test('a non-ok status response throws FalError carrying the extracted error', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-e' }))
+      .mockResolvedValueOnce(jsonRes({ error: 'rate limited' }, { status: 429, statusText: 'Too Many Requests' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    await expect(p.poll('req-e')).rejects.toThrow(/rate limited/);
+  });
+
+  test('a non-ok, non-JSON status body still throws FalError (no error string)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ request_id: 'req-b' }))
+      .mockResolvedValueOnce(binRes(new Uint8Array([1, 2, 3]), { status: 500 }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    await expect(p.poll('req-b')).rejects.toBeInstanceOf(FalError);
+  });
+
+  test('download copies a local (non-http) result path instead of fetching', async () => {
+    const src = path.join(tmpDir, 'src.mp4');
+    await fsp.writeFile(src, Buffer.from('CLIP-BYTES'));
+    const fetchImpl = vi.fn();
+    const p = makeProvider(fetchImpl);
+    const dest = path.join(tmpDir, 'out', 'copied.mp4');
+    const out = await p.download({ jobId: 'x', status: 'completed', resultUrl: src }, dest);
+    expect(out).toBe(dest);
+    expect((await fsp.readFile(dest)).toString()).toBe('CLIP-BYTES');
+    expect(fetchImpl).not.toHaveBeenCalled(); // local copy, zero network
+  });
+
+  test('a local .jpg start image is inlined as an image/jpeg data URI (mimeForExt)', async () => {
+    const jpg = path.join(tmpDir, 'start.jpg');
+    await fsp.writeFile(jpg, START_IMAGE_BYTES);
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonRes({ request_id: 'req-j' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec({ startImage: jpg }));
+    expect(String(fetchImpl.mock.calls[0][1].body)).toContain('data:image/jpeg;base64,');
+  });
+
+  test('a local .webp start image is inlined as an image/webp data URI', async () => {
+    const webp = path.join(tmpDir, 'start.webp');
+    await fsp.writeFile(webp, START_IMAGE_BYTES);
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonRes({ request_id: 'req-w' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec({ startImage: webp }));
+    expect(String(fetchImpl.mock.calls[0][1].body)).toContain('data:image/webp;base64,');
+  });
+});
