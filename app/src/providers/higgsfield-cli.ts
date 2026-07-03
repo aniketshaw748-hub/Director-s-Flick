@@ -469,9 +469,13 @@ export class HiggsfieldCliProvider implements GenProvider {
       args.push('--sound', spec.soundOff ? 'off' : 'on');
       // kling3_0 has no `resolution` param (quality is selected via --mode:
       // std/pro/4k) — the CLI hard-errors on unknown params (observed live,
-      // T-08). Only pass --resolution to models that declare it.
-      if (spec.resolution && spec.model !== 'kling3_0') {
-        args.push('--resolution', spec.resolution);
+      // T-08). Only pass --resolution to models that declare it. (Review
+      // note: the original hotfix dropped the '720p' default for every OTHER
+      // model too, since spec.resolution is normally unset - restored it here
+      // so only kling3_0 actually changes behavior. A real per-model schema
+      // whitelist, per Fable's follow-up request, is a separate task.)
+      if (spec.model !== 'kling3_0') {
+        args.push('--resolution', spec.resolution ?? '720p');
       }
     } else {
       if (spec.resolution) args.push('--resolution', spec.resolution);

@@ -195,5 +195,63 @@ describe('prompts', () => {
       const prompt = await engine.animationPrompt(shot, elements);
       expect(prompt).toBe('Slow cinematic pan around Hapie-character <<<uuid-hapie>>>');
     });
+
+    // T-08 finding 3 (live run): the element tag was embedded but the engine's
+    // own instructions never told it to avoid physically describing that
+    // subject, so the LLM added its own appearance description that competed
+    // with (and won over) the element's reference image - wrong character
+    // generated. Can't assert LLM *compliance* in a hermetic unit test (no
+    // real model call), only that the prohibition is actually present in what
+    // gets sent - so capture the real prompt/systemPrompt text passed to
+    // query() and assert on that, per Fable's guidance on this task.
+    test('image batch instructions forbid physically describing element-tagged subjects', async () => {
+      let capturedPrompt = '';
+      let capturedSystemPrompt = '';
+      vi.mocked(query).mockImplementation((args: any) => {
+        capturedPrompt = args.prompt;
+        capturedSystemPrompt = args.options.systemPrompt;
+        return (async function* () {
+          yield {
+            type: 'result',
+            subtype: 'success',
+            result: JSON.stringify([{ lineIndex: 0, imagePrompt: 'Hapie-character looks up.' }]),
+          };
+        })();
+      });
+
+      const lines: LineTiming[] = [
+        { index: 0, text: 'Hapie-character looks up.', start: 0, end: 2, duration: 2, pauseAfter: 0, targetDuration: 2 },
+      ];
+      await engine.imagePromptBatch(lines, elements, '');
+
+      for (const text of [capturedSystemPrompt, capturedPrompt]) {
+        expect(text.toLowerCase()).toMatch(/physical(ly)?[\s-]*(appearance|describ)/);
+      }
+    });
+
+    test('animation prompt instructions forbid physically describing element-tagged subjects', async () => {
+      let capturedPrompt = '';
+      vi.mocked(query).mockImplementation((args: any) => {
+        capturedPrompt = args.prompt;
+        return (async function* () {
+          yield { type: 'result', subtype: 'success', result: 'Slow cinematic pan <<<uuid-hapie>>>' };
+        })();
+      });
+
+      const shot: Shot = {
+        id: 'shot-1',
+        projectId: 'proj-1',
+        lineIndex: 0,
+        subIndex: 0,
+        state: 'APPROVED',
+        line: { index: 0, text: 'Hapie-character runs.', start: 0, end: 2, duration: 2, pauseAfter: 0, targetDuration: 2 },
+        elementIds: ['uuid-hapie'],
+        attempts: 0,
+        createdAt: '',
+        updatedAt: '',
+      };
+      await engine.animationPrompt(shot, elements);
+      expect(capturedPrompt.toLowerCase()).toMatch(/physical(ly)?[\s-]*(appearance|describ)/);
+    });
   });
 });

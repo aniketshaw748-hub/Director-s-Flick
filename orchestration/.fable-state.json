@@ -1,12 +1,11 @@
 {
-  "last_sweep": "2026-07-03T21:02:04.4732683+05:30",
-  "last_seen_commit": "3910dc4ceeac472a68855dc490caa4020fab1a9a",
   "pending": [
-    "T-25 Fable-2",
-    "T-27 Sonnet",
-    "T-26 Opus",
-    "T-30 Opus queued",
-    "T-28 blocked on T-27",
-    "T-08 blocked on user auth"
-  ]
+    "T-32 Sonnet",
+    "T-28 Fable-2",
+    "T-26+T-30 Opus",
+    "T-24 Sonnet",
+    "T-33 blocked on T-32"
+  ],
+  "last_seen_commit": "a2fbef4733168bd9639e94ef93dfbd57772153c7",
+  "last_sweep": "2026-07-03T21:21:05.4959109+05:30"
 }

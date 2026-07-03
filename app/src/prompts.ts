@@ -195,7 +195,14 @@ const SYSTEM_PROMPT =
   '(Higgsfield: nano_banana_2 stills, kling3_0 image-to-video). ' +
   'You write vivid, concrete, production-ready prompts and you follow output-format ' +
   'instructions EXACTLY. `<<<uuid>>>` tokens are element reference placeholders and ' +
-  'must be copied verbatim, never altered, never invented.';
+  'must be copied verbatim, never altered, never invented. ' +
+  'CRITICAL IDENTITY RULE: a registered element (its `<<<uuid>>>` placeholder) already IS ' +
+  'that character/location/prop\'s appearance via its own reference image — the placeholder ' +
+  'carries identity, not the words around it. NEVER physically describe an element-tagged ' +
+  'subject (no colors, materials, species, build, distinguishing features, clothing details, ' +
+  'etc.) — a written appearance description competes with and can override the reference ' +
+  'image, producing the wrong character. For an element-tagged subject, describe ONLY action, ' +
+  'pose, framing, environment, and lighting.';
 
 /** Claude Agent SDK engine (query(), default model 'sonnet'). */
 export class ClaudePromptEngine implements PromptEngine {
@@ -247,7 +254,11 @@ export class ClaudePromptEngine implements PromptEngine {
       'ELEMENT RULE: whenever a line mentions or clearly refers to a registered element,',
       "embed that element's placeholder token (e.g. <<<element-uuid>>>) verbatim inside the",
       'prompt text at the point where the element appears. Use ONLY placeholders from the',
-      'registry above. Never fabricate placeholders.',
+      'registry above. Never fabricate placeholders. Do NOT physically describe an',
+      'element-tagged subject (no colors, materials, species, build, distinguishing features,',
+      'clothing details) — the placeholder/reference image already defines its appearance; a',
+      'written description competes with it and can generate the wrong character. Describe',
+      'ONLY that subject\'s action, pose, and how it fits the framing/environment/lighting.',
       '',
       'NARRATION LINES:',
       lineBlock,
@@ -349,7 +360,10 @@ export class ClaudePromptEngine implements PromptEngine {
       shotElements.length > 0
         ? 'ELEMENT RULE (identity lock): re-embed EACH of these placeholder tokens verbatim in ' +
           'your prompt, attached to the matching subject:\n' +
-          describeElements(shotElements)
+          describeElements(shotElements) +
+          '\nDo NOT physically describe any element-tagged subject (no colors, materials, ' +
+          'species, build, distinguishing features) — the placeholder/reference image already ' +
+          'defines its appearance; describe only its motion.'
         : 'No element placeholders are required for this shot.',
       '',
       'OUTPUT FORMAT — STRICT: reply with ONLY the prompt text itself on a single line.',
