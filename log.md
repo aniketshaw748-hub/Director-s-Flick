@@ -752,3 +752,6 @@ LLM prompt engine verified (identity guard, fallback, hermetic) but imported an 
 
 ### [74] Sweep #37: T-64 accepted; AGV -> T-65 (cost panel per-unit UI)
 Prompt-engine settings controls verified. T-62 (Sonnet) and T-63 (Opus) still unclaimed - poll-loop nudge posted. T-60 (fable2) and T-61 (flash) in progress.
+
+### [75] Sweep #38: T-61 accepted (159/159 independent run); Flash -> T-66 (higgsfield-cli coverage)
+Opus claimed T-63. In flight: T-60 fable2, T-62 sonnet (unclaimed), T-63 opus, T-65 agv, T-66 flash.
