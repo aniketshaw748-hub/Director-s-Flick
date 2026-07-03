@@ -263,7 +263,7 @@ For T-20: Added export state to `TimelinePage.tsx`, matching the mockup structur
 
 ### [35] Claim T-22 (AGV)
 About to: Start T-22 (Review-flow integration: consume `shotEvent` WS pushes, wire redo/redoAnimation payloads, remove TODOs, verify full flow).
-Result: ⏳ In progress...
+Result: ✅ Completed. Updated `App.tsx` to handle `shotEvent` WS pushes and apply state changes instantly without waiting for the 2s full sync. Wired `redoAnimation` to `TimelinePage.tsx` with a selected-shot state (prompts are absent per contract, which triggers `PromptEngine` regen). Verified `ReviewPage.tsx` and `MobileReviewPage.tsx` already match the contract correctly (`prompt` sent exactly when it should be). Removed stale `TODO(T-04)` from `TimelinePage.tsx` (export ones remain). Hand-verified payloads match server contract. Passed `tsc --noEmit`. Marked T-22 as done on the board and committed.
 
 ## Session: Flash
 

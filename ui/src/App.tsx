@@ -102,9 +102,8 @@ function App() {
         const data = JSON.parse(event.data);
         if (data.type === 'sync') {
           setShots(data.shots);
-        } else if (data.type === 'shot_updated') {
-           // TODO(T-04): This handler will go live when T-04 backend is wired
-           setShots(prev => prev.map(s => s.id === data.shot.id ? data.shot : s));
+        } else if (data.type === 'shotEvent') {
+           setShots(prev => prev.map(s => s.id === data.shotId ? { ...s, state: data.state } : s));
         }
       } catch (e) {
         console.error(e);

@@ -13,6 +13,14 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
   const placedShots = shots.filter(s => s.state === 'PLACED').length;
   
   const [isExporting, setIsExporting] = React.useState(false);
+  const [selectedShotId, setSelectedShotId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+     if (!selectedShotId && shots.length > 0) {
+        const placed = shots.filter(s => s.state === 'PLACED' || s.state === 'VIDEO_READY');
+        if (placed.length > 0) setSelectedShotId(placed[0].id);
+     }
+  }, [shots, selectedShotId]);
 
   // TODO(T-05): Wire actual credits used endpoint when AccountManager is ready
   const creditsUsed = 842.5;
@@ -25,6 +33,19 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
   const handleCancelExport = () => {
     // TODO(T-04): Wire cancel export endpoint
     setIsExporting(false);
+  };
+
+  const handleRedoAnimation = async () => {
+    if (!selectedShotId) return;
+    try {
+      await fetch(`/api/project/test_project/shots/${selectedShotId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'redoAnimation' })
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -66,8 +87,7 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
 
       <div className="timeline-area">
         <div className="tl-tools">
-          {/* TODO(T-04): Unwired redo-animation button will go live with T-04 */}
-          <button className="btn btn-secondary" style={{height: '32px', fontSize: 'var(--fs-13)'}}>
+          <button className="btn btn-secondary" style={{height: '32px', fontSize: 'var(--fs-13)'}} onClick={handleRedoAnimation} disabled={!selectedShotId}>
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '6px'}}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
              Redo animation
           </button>
@@ -86,9 +106,9 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
                shots.map(shot => {
                  // Pixel width approximation (10px per second)
                  const width = Math.max(30, shot.line.targetDuration * 10);
-                 const isActive = shot.state === 'PLACED';
+                 const isActive = shot.id === selectedShotId;
                  return (
-                   <div key={shot.id} className="tl-clip" style={{width: `${width}px`, borderColor: isActive ? 'var(--lime-a35)' : undefined}}>
+                   <div key={shot.id} className="tl-clip" style={{width: `${width}px`, borderColor: isActive ? 'var(--lime-a35)' : undefined}} onClick={() => setSelectedShotId(shot.id)}>
                       <div className="thumb">
                         {shot.videoPath && (
                           <img src={`/api/project/test_project/media/videos/${shot.videoPath.split('/').pop()?.replace('.mp4', '.jpg')}`} style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e: any) => e.target.style.display='none'} alt={`Shot ${shot.lineIndex + 1}`} />
