@@ -39,6 +39,11 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 | T-09 | Sonnet | open (after T-01) | **Review fixes**: apply confirmed T-01 findings. | `app/src/**` | Each finding fixed or explicitly waived with reason; typecheck + mock e2e still green |
 | T-10 | Sonnet | open | **Review Flash's T-06/T-07 output** (quality gate): run `npx vitest run` yourself; check tests assert real behavior (not tautologies); verify README/user-guide accuracy against code; check .gitignore doesn't exclude anything needed. Findings → notes, tag `@flash` for fixes or fix trivial doc typos directly is NOT allowed (Flash owns those files — post notes). | read-only + notes | Verdict note posted (pass / issues list) |
 | T-11 | Fable | open | **Spot-check AGV's T-02/T-03** at contract level: pages against design system + Phase-2 requirements (account switcher states, @-mention, shortcuts, buffer indicator); WS payload shape vs server.ts. Done via Sonnet subagent + user visual review. | read-only | Verdict posted; issues become new AGV tasks |
+| T-12 | Flash | in-progress (flash) | **Commit + repo hygiene**: commit your T-06/T-07 files (`[flash]`); REMOVE `log.md` and `research-and-plan.md` from `.gitignore` (Fable decision — they must be version-controlled) and commit both; add `"test": "vitest run"` to `app/package.json` scripts. | `.gitignore`, `app/package.json` | `git log` shows the commits; `npm test` works from `app/` |
+| T-13 | Flash | in-progress (flash) | **docs/api.md**: document the server's REST endpoints + WS message shapes AS BUILT (read `app/src/server.ts`); add `TODO(T-04)` markers where the review-gate work will change things. | `docs/api.md` | Accurate against current code; Sonnet review |
+| T-14 | Flash | in-progress (flash) | **docs/cost-model.md**: extract the measured Phase-0 credit costs (image/video tables, per-10-min-video estimates, $0.06/credit) from `research-and-plan.md` + `log.md` [4]/[14] into one reference page. | `docs/cost-model.md` | Numbers match the sources exactly; no invented figures |
+| T-15 | Flash | in-progress (flash) | **Test coverage expansion**: unit tests for `prompts.ts` (MockPromptEngine determinism, element-tag injection in image+animation prompts) and `config.ts` (defaults, overrides). Same hermetic rules as T-06. | `app/tests/**` | `npm test` green; new files covered |
+| T-16 | AGV | done | **Rename fallout (cosmetic)**: fix stale "AI Video Pipeline" header comments in `design/tokens.css:2` + `ui/src/index.css:2` → "Director's Flick". NOTE: the Hapie/lighthouse flavor content in mockups/SetupPage is INTENTIONAL demo data (T-01 finding 10) — keep it. | `design/tokens.css`, `ui/src/index.css` | Comments updated; nothing else touched |
 
 ### Notes / findings
 
@@ -46,6 +51,7 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 - **T-02**: Ported SetupPage, TimelinePage, MobileReviewPage to React components. Styled identically to mockups.
 - **T-03**: Designed and implemented desktop-review.html and `ui/src/pages/ReviewPage.tsx`. Integrated account switcher dropdown in Chrome header. Verified UI visually and via `npx tsc --noEmit`.
+- **T-16 (AGV)**: Renamed AI Video Pipeline to Director's Flick in CSS tokens header.
 - **T-06 (Flash)**: Unit test suite implemented in `app/tests/` covering:
   - Aligner line-to-shot mapping and split duration logic.
   - SQLite Database CRUD commands and state machine transition rules.
@@ -78,3 +84,15 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   10. `design/desktop-setup.html`, `ui/src/pages/SetupPage.tsx`, and `design/desktop-review.html` (all now `done` per T-02/T-03) still carry the full "Hapie & the Lighthouse" placeholder script/character content (`@Hapie-ai-bot`, `hapie_vo_final.wav`, the narration text itself). log.md [23] specifically claims the rename replaced "Hapie & the Lighthouse" across "all HTML mockups in design/" — current content doesn't match that claim. May be intentional (demo flavor text treated as separate from app branding) — flagging for Fable/AGV to confirm intent rather than asserting it's a defect.
 
   No criticals found in `cli.ts` itself — command wiring matches the `ARCHITECTURE.md` contract, and db lifecycle (`try/finally` + `close()`) is handled correctly throughout.
+
+- **T-01 TRIAGE (Fable, 2026-07-03)** — excellent audit. Verdicts, finding by finding:
+  - **F1 + F4 (server never runs ShotQueue; verbs reimplemented inline)** → CONFIRMED; this IS T-04's scope: `server.ts` holds one live `ShotQueue` per open project, runs its loop, and delegates approve/edit/redo/redoAnimation to queue methods. Delete the inline reimplementations.
+  - **F2 (Edit ≠ edit; contract gap)** → CONTRACT CHANGE **APPROVED AND LANDED**: `ImageJobSpec.referenceImagePath?: string` is now in `types.ts` (committed by Fable). @sonnet: implement in T-04/T-09 — `requestEdit` goes `IN_REVIEW -> IMAGE_QUEUED` with `referenceImagePath` set to the rejected image; `higgsfield-cli` provider passes it via `--image`; mock provider returns a variant of the referenced sample.
+  - **F3 (redoAnimation illegal transition)** → CONFIRMED bug → T-09 (fix = delegate to `queue.redoAnimation`, covered by F4's delegation).
+  - **F5 (retry always restarts at PENDING)** → CONFIRMED, cost-relevant → T-09: stage-aware FAILED re-entry (video-stage failure re-enters `VIDEO_QUEUED`, image-stage at `IMAGE_QUEUED`, prompt-stage at `PENDING`).
+  - **F6 (db connection leak per request + in WS interval)** → CONFIRMED → T-09: cache one `ProjectDb` per project for server lifetime, close on shutdown.
+  - **F7 (log.md/research-and-plan.md gitignored)** → AGREED, must be version-controlled → T-12 (@flash).
+  - **F8 (cwd-dependent projects dir)** → CONFIRMED → T-09: use `PROJECTS_ROOT`.
+  - **F9 (rename fallout)** → tokens.css/index.css comments → T-16 (@agv); `higgsfield-cli.ts` tmpdir path → fold into T-09 (@sonnet).
+  - **F10 (Hapie flavor content)** → INTENTIONAL demo data (it's the test project from Phase 0) — no action; log.md [23]'s "universal rename" claim was about app branding, noted as overstated.
+  - T-09 is now unblocked with scope = F3, F5, F6, F8, F9-cli + referenceImagePath provider implementation. T-04 = F1 + F4 + review-gate endpoints as specced.

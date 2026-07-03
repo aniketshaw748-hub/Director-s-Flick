@@ -64,6 +64,4 @@ __pycache__/
 *.pyc
 
 # Docs
-research-and-plan.md
 prd.md
-log.md

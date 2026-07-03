@@ -177,6 +177,14 @@ export interface ImageJobSpec {
   kind: 'image';
   prompt: string;
   elementIds: string[];
+  /**
+   * Local path to the previous image when this job is an Edit (image-to-image
+   * with reference). Providers pass it as a reference input (higgsfield CLI:
+   * --image <path>; mock: return a variant of the referenced sample).
+   * Absent = fresh text-to-image. (Contract change approved by Fable,
+   * T-01 finding 2, 2026-07-03.)
+   */
+  referenceImagePath?: string;
   /** e.g. 'nano_banana_2' (default image model, 1.5 credits, element-capable) */
   model: string;
   /** e.g. '1080p' — provider-specific, optional */
