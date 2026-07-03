@@ -1,106 +1,94 @@
-# User Guide — Director's Flick Project Flow
+# Director's Flick: End-User Guide
 
-This guide describes the end-to-end workflow, execution stages, character consistency features, and multi-account capabilities of the **Director's Flick** local AI-video pipeline.
+Welcome to **Director's Flick**, a visual-production workstation designed to transform your scripts and voiceover narrations into high-fidelity AI-generated videos. By leveraging automated audio alignment, consistent element styling, and custom generative AI models, Director's Flick lets you direct, edit, review, and export video productions from a single desktop or mobile interface.
 
----
-
-## 1. Project Workflow Stages
-
-The pipeline follows a step-by-step sequential process to transform raw script and voiceover inputs into a finished, frame-accurate movie:
-
-```
- ┌───────────────┐      ┌─────────────────┐      ┌──────────────────┐
- │ 1. Ingest     ├─────▶│ 2. Align & Split├─────▶│ 3. Register Cast │
- └───────────────┘      └─────────────────┘      └──────────────────┘
-                                                          │
- ┌───────────────┐      ┌─────────────────┐               │
- │ 6. Export     │◀─────┤ 5. Review/Redo  │◀──────────────┘
- └───────────────┘      └─────────────────┘
-```
-
-### Stage 1: Ingestion
-Begin by preparing a narration script (`.txt` file where each line represents a sentence/shot) and a corresponding voiceover (`.wav` audio file).
-Use `init` to set up the project:
-```bash
-npm run cli -- init my-project --script /path/to/script.txt --vo /path/to/voiceover.wav
-```
-This creates the workspace directories under `app/projects/my-project/` and initializes a local SQLite database (`pipeline.db`).
-
-### Stage 2: Forced Alignment & Sub-Shot Splitting
-Next, run the aligner to map text segments to timestamps in the audio:
-```bash
-npm run cli -- align my-project
-```
-- Spawns the local Python-based `stable-ts` aligner.
-- Computes exact word-level timings and pauses.
-- Applies the **Timeline Rule**: each clip starts at the current line's spoken onset and extends until the next line begins, eliminating audio-visual gaps.
-- Handles long narration: any segment whose target duration exceeds `15 seconds` (the maximum supported video duration) is split into multiple sub-shots at word boundaries.
-
-### Stage 3: Element Registry
-Configure visual consistency before generating assets:
-```bash
-npm run cli -- elements my-project --add "uuid-1234:Hapie-bot:character"
-```
-Elements represent recurring characters, locations, or props. You register their Higgsfield-side UUIDs and name tags. These tags will automatically be mapped to `<<<uuid>>>` placeholders during prompt generation.
-
-### Stage 4: Execution & Review Loop
-Start the main generation queue:
-```bash
-npm run cli -- run my-project
-# Or start the server to use the React Web/Mobile UI:
-npm run cli -- serve
-```
-- In **Headless Mode** (`--auto-approve`), the pipeline automatically batches prompts, sends them to the provider, downloads completed images/videos, and places them onto the timeline.
-- In **Review Mode** (default when using the UI), the pipeline keeps a buffer of 5 shots ready at the `IMAGE_READY` state. Users swipe right to approve (which starts the video generation) or swipe left to request edits/redos.
-
-### Stage 5: Final Export
-Compile and render the finished movie:
-```bash
-npm run cli -- export my-project
-```
-- Gathers all placed EDL clips.
-- Trims and normalizes all videos in parallel (converting them to 1080p30 CFR using hardware-accelerated `h264_nvenc`).
-- Concatenates the normalized segments.
-- Muxes the master voiceover audio track into the final output.
+This guide walks you through the entire end-to-end journey of creating and producing a project.
 
 ---
 
-## 2. Character & Visual Consistency (Elements-First)
+## 1. Creating a New Project
 
-Maintaining character identity and style consistency across dozens of scenes is achieved using **Higgsfield Elements**:
+Every production starts with two primary creative assets:
+1. **The Script**: A plain-text document (`.txt`) where each line represents a scene or narration sequence.
+2. **The Voiceover (VO)**: An audio narration (`.wav` or `.mp3`) corresponding to the script lines.
 
-1. **Prompt Placeholders**: When writing prompts, the LLM incorporates element names. The prompt engine rewrites these names into UUID tags like `<<<56c70c04-c0e1-494c-b923-7f68f36a5be4>>>`.
-2. **Video Identity Locked**: By default, character-based shots are generated using `kling3_0` in standard mode with `sound off` and element tags reinforced directly in the video prompts. This prevents the character from morphing or losing their distinct wardrobe and facial traits during camera movements.
-3. **Style Bible**: A shared visual configuration (`styleBible` config parameter) defining visual styles, lighting setups, and camera angles is appended to every image-generation batch.
+### Steps to Initialize:
+* **Through the Web Portal**: On the landing dashboard, click **Create Project**. Provide a unique name for your project, select your script file, upload your voiceover audio, and select your initial generation provider (such as the zero-cost offline `mock` provider or `higgsfield-cli`). Click **Start Generation** to initialize the project.
+* **Under the Hood**: Director's Flick reads the voiceover, uses automated AI alignment to identify silent pauses, maps cut-points corresponding to your script lines, and populates the project database with a queue of shots matching your narration timing.
 
 ---
 
-## 3. Multi-Account Profile Switching
+## 2. Setting Up Your Production Settings
 
-The pipeline supports registering multiple Higgsfield accounts and switching which one a project uses, so different projects (or the same project over time) can run under separate billing identities.
+Once your project is created, click the **Settings** gear icon in the navigation bar to configure the production pipeline.
 
-### Registering an account (CLI)
-```bash
-npm run cli -- accounts --add my-studio
-```
-This ensures `app/accounts/my-studio/` exists and spawns `higgsfield auth login`, pointing it at that account's own `credentials.json` via the `HIGGSFIELD_CREDENTIALS_PATH` environment variable (the CLI itself writes the file once you complete the interactive device-auth flow in your browser). Nothing is generated and no credits are spent by this step.
+### Settings Panel Parameters:
+* **Generative Models**:
+  * **Image Model**: Choose the model used to generate initial scene keyframes (e.g., `kling3_0` or standard Kling variants).
+  * **Video Model**: Choose the motion video generation engine (e.g., `kling2_5` or Kling Turbo models).
+  * **Video Mode**: Select the generation quality profile (e.g., `std` for standard generations or `high` for high-fidelity animations).
+* **Stage Providers**:
+  * Customize which provider handles each phase of generation (e.g., using `fal` or `replicate` for keyframes and `higgsfield-cli` for video motion).
+* **Style Bible**:
+  * A central text prompt instructions area. Enter rules, lighting settings, color palettes, or artistic directions (e.g., "styled in 1980s neon cyberpunk, dramatic dark shadows, cinematic lighting") that will be automatically appended to every shot's prompt to keep visual style consistent across the timeline.
+* **Linked Account Profile**:
+  * Bind the project to a specific authenticated account to track credit balances and invoice generations separately.
 
-List registered accounts, optionally with a live balance/auth check:
-```bash
-npm run cli -- accounts            # just the registered names
-npm run cli -- accounts --status   # + live balance / "not authenticated" per account
-```
+---
 
-### Registering / switching an account (server API)
-The same operations are available over HTTP for the review UI:
-- `GET /api/accounts` — list registered account names.
-- `GET /api/accounts/:name/status` — live balance/auth check for one account.
-- `POST /api/accounts` (body `{ "name": "my-studio" }`) — kicks off `higgsfield auth login` scoped to that account and returns immediately (`{ "started": true, "name": "my-studio" }`); the auth flow itself still needs to be completed in a browser.
-- `POST /api/project/:name/account` (body `{ "account": "my-studio" }`) — makes `my-studio` the active account for that project. This is picked up the next time the project's generation queue (re)builds its provider — safe at any point, since queue state always resumes from the database.
+## 3. The Review Deck: Approving and Editing Shots
 
-### How this is used under the hood
-- **Isolated sessions**: each account's Higgsfield CLI session lives in its own `app/accounts/<name>/credentials.json`, never the CLI's single global session file, so switching accounts (or running two projects under different accounts at once) never clobbers another account's login.
-- **Environment injection**: whenever the backend spawns a `higgsfield` CLI call for a project with an active account, it sets `HIGGSFIELD_CREDENTIALS_PATH` to that account's file for the duration of the call.
-- **Per-project selection, not global**: which account a project uses is tracked per project name (not a single app-wide "current account"), so concurrent projects can run under different accounts safely.
-- **Cost attribution**: every `cost_ledger` row records the `account_name` it was charged against (alongside the usual preflight/charged credit amounts); `npm run cli -- cost <project>` shows it in the `account` column. Rows written before an account was ever selected simply show no account.
-- **No real generation is ever triggered by account management itself** — `accounts --add`/`--status` and their HTTP equivalents only ever call `higgsfield auth login` / `higgsfield account status`, never `generate`.
+The **Review Deck** is your interactive editing suite where you review, refine, and approve the generated keyframe images. It keeps a rolling buffer of shots in the review state, allowing you to quickly process them.
+
+### Verbs and Actions (Keyboard & Gestures):
+You can review shots using either full-screen mobile swipe gestures or desktop mouse/keyboard controls:
+
+| Action | Gesture / Key | What it does | Impact on Identity & Costs |
+|---|---|---|---|
+| **Approve** | Swipe Right / `A` key | Accepts the generated image. Instantly triggers a video generation job using the approved image as the start frame. | Locks in the character/scene keyframe. Incurs a video generation cost. |
+| **Edit w/ Instructions** | Swipe Left (Edit) / `E` key | Opens an input sheet where you type feedback (e.g., "make the robot wear a red hat, add rain"). | **Image-to-Image Generation**: The rejected image is passed as a visual reference alongside your feedback. Maintains character layout, camera angle, and identity. Incurs an image generation cost. |
+| **Redo (Fresh Prompt)** | Swipe Left (Redo) / `R` key | Regenerates a brand-new image from scratch. If you provide a prompt override, it uses it verbatim; otherwise, the Prompt Engine generates a fresh prompt from the script line and Style Bible. | **Fresh Text-to-Image**: Generates a completely new image from a random seed. Identity and layout will reset. Incurs an image generation cost. |
+| **Re-animate Video** | Re-animate button (Timeline) | Submits a new motion video job using the approved starting keyframe. | The starting frame remains the same, but the motion, camera movement, or speed will be regenerated. Incurs a video generation cost. |
+
+---
+
+## 4. Mobile Review Over LAN
+
+Director's Flick is fully responsive and supports remote reviewing, allowing directors to swipe-approve shots from a phone or tablet.
+
+### Setup Steps:
+1. **QR Code Connection**: When you start the Express server, the command-line console displays a QR code containing your local area network (LAN) address.
+2. **Scan**: Connect your computer and mobile device to the same Wi-Fi network and scan the QR code with your phone. It opens the mobile-optimized Review Deck (deep-linked directly to your project).
+3. **Firewall Access**: If the webpage fails to load on your phone, run the Windows PowerShell helper script `allow-lan.ps1` in the repository root (or adjust your Windows Defender Firewall settings) to allow incoming connections on port `4000`.
+
+---
+
+## 5. Multi-Account Profile Switching
+
+If you work with multiple clients or separate accounts, you can register and switch profiles to sandbox credit budgets.
+
+* **Registering Accounts**: New accounts can be registered through the CLI interface, creating a sandbox profile under `app/accounts/<name>`.
+* **Binding to Projects**: In the **Settings** screen, select the profile to link to the project.
+* **Sandboxed Execution**: The pipeline sandboxes all execution calls to the provider. Each CLI or API call runs strictly under the credentials linked to that profile, avoiding session pollution.
+
+---
+
+## 6. The Cost Panel: Credits vs. USD
+
+At the top of the interface, the cost panel displays real-time ledger details tracking your production expenditure.
+
+* **Higgsfield Credits (`cr`)**: For projects running on Higgsfield or offline Mock providers, costs are tracked in credits (e.g., `2.50 cr` per video).
+* **USD Dollar Ledgers (`$`)**: For projects utilizing `fal` or `replicate` API integrations, costs are tracked directly in USD based on duration and model rates (e.g., `$0.35` per 5s video).
+* **Itemized Account Summary**: The panel breaks down the totals by account name and unit (never mixing credits and USD together in one sum) to show exactly who spent what.
+
+---
+
+## 7. Timeline Editing and Exporting
+
+The **Timeline Page** displays your sequence of shots mapped directly against the voiceover timing. You can preview individual clips, scrub the timeline playhead, and listen to the voiceover audio track.
+
+### Exporting the Video:
+* Once you are happy with the shots, click **Export** to compile the video.
+* The exporter reads the Edit Decision List (EDL) database table, trims and normalizes video clips, concatenates them, multiplexes the voiceover, and outputs a high-performance, hardware-accelerated MP4 file.
+* **Partial-Timeline Safety Guard**: If you click **Export** when some shots do not have approved or placed clips, the interface prompts a confirmation warning: **"Not all shots have placed clips. Export anyway?"**.
+  * Confirming this forces the exporter to compile a partial timeline with blank placeholders for the unapproved gaps.

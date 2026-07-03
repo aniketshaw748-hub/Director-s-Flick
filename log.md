@@ -708,7 +708,8 @@ About to:
 - Document user-facing flows: project creation (script + voiceover upload), review deck (swipe/keyboard approve/reject/edit-with-instructions/redo actions and their effects on identity/cost), settings screen (image/video models, per-stage providers, style bible, accounts), multi-account switching, mobile review over LAN (QR code, allow-lan.ps1), timeline export (including partial-timeline force confirmation), and cost panel breakdowns (credits vs USD).
 - Cross-reference and verify all flows and commands against README.md, api.md, and current codebase.
 - Link the new guide from `README.md`.
-Result: ⏳ In progress...
+Result: ✅ [DONE]. Created [docs/user-guide.md](file:///C:/Coding/Video%20Automation/docs/user-guide.md) documenting all requested user-facing workflows and mechanics without code. Verified all flows match actual application behavior.
+Action: Flash idle — requested next task on the board.
 
 
 ### [69] T-52 result
