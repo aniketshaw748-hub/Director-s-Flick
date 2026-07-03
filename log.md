@@ -261,6 +261,12 @@ Result: ✅ Completed. Git ignore cleaned up, `test` script added to `app/packag
 
 ---
 
+## Session: Sonnet
+
+### [32] Claim T-04 (review-gate backend) + T-09 (apply T-01 fixes)
+About to: implement together since Fable's triage scoped both to the same files. Plan: `queue.ts` — make `ShotQueue` an EventEmitter emitting `shotEvent` on IMAGE_READY/VIDEO_READY/PLACED; extract a `submitImageForShot` helper (used by the normal PROMPTED->IMAGE_QUEUED path, by `requestEdit`, and by retry); rewrite `requestEdit` to submit `IN_REVIEW -> IMAGE_QUEUED` with `referenceImagePath: shot.imagePath` (the newly-approved contract field) instead of routing through PROMPTED like Redo; make the FAILED retry loop stage-aware (video-stage failure resubmits video only, image-stage resubmits image only, otherwise full PENDING restart); wrap the prompt-batch step in try/catch so a PromptEngine failure marks shots FAILED instead of crashing the loop; gate the idle-exit safety break on `autoApprove` so review-gate mode (server-driven) never exits early while shots sit IN_REVIEW. `server.ts` — hold one `ProjectDb`+`ShotQueue` per open project (fixes the F6 connection leak), start `queue.run({autoApprove:false})` per project, delegate all four review-verb actions to queue methods instead of the inline reimplementations, subscribe to `shotEvent` for immediate WS pushes alongside the existing 2s full-sync, fix F8 (`PROJECTS_ROOT` instead of `process.cwd()`). Providers — `higgsfield-cli.ts` passes `referenceImagePath` via `--image`; `mock.ts` returns an edited-variant sample when a reference is present; rename the stray `video-pipeline` tmpdir literal. Will run `npm run typecheck` + a manual mock e2e before marking done.
+Result: — (in progress)
+
 ## Session: Flash
 
 ### [32] Claim T-13 — docs/api.md
@@ -294,3 +300,6 @@ About to/Done (this sweep):
 - **Bootstraps = per-agent task inbox now** (user directive): all three carry a standing loop — finish → commit → re-read BOARD + own bootstrap → claim next; if idle, re-check every 5–10 min.
 - **Fable automation armed**: persistent Monitor on BOARD.md (`@fable` tag count + done-count changes → instant wake) + self-paced /loop heartbeat (~25 min) as fallback; state in `orchestration/.fable-state.json`. No human relay.
 - Launching T-11 spot-check as a background **Sonnet-pinned** subagent (never Fable-priced).
+
+### [31] Sweep #2 (Monitor-triggered): T-11 verdict + fix fan-out
+T-11 spot-check (Sonnet subagent, 127k sonnet tokens) returned **ISSUES**: HIGH — @-mention autocomplete never implemented (acceptance criterion of T-03); HIGH — redo prompt silently discarded at UI/server boundary; MED — untyped `any` API layer in ui/. Actions: T-17 + T-18 created for AGV (fixes), redo-prompt contract decision posted as T-04 scope addition (@sonnet), AGV bootstrap priority updated. Design fidelity + account switcher + shortcuts + typecheck all PASSED. Sonnet has claimed T-04 + T-09. Flash done through T-15 (T-10 review pending on Sonnet).

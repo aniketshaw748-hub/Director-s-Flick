@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { 
+import { EventEmitter } from 'node:events';
+import type {
   Shot,
   ShotState,
   ImageJobSpec,
@@ -15,7 +16,15 @@ import type {
 import { clampVideoSeconds } from './types.js';
 import { projectDir, type ProjectDb, type JobRow } from './db.js';
 
-export class ShotQueue {
+/** Emitted by ShotQueue whenever a shot reaches a state a UI should react to
+ * immediately (IMAGE_READY, VIDEO_READY, PLACED), in addition to whatever
+ * periodic full-state sync a caller (e.g. server.ts) also runs. */
+export interface ShotEvent {
+  shotId: string;
+  state: 'IMAGE_READY' | 'VIDEO_READY' | 'PLACED';
+}
+
+export class ShotQueue extends EventEmitter {
   private db: ProjectDb;
   private provider: GenProvider;
   private prompts: PromptEngine;
@@ -23,6 +32,7 @@ export class ShotQueue {
   private project: Project;
 
   constructor(db: ProjectDb, provider: GenProvider, prompts: PromptEngine, config: PipelineConfig) {
+    super();
     this.db = db;
     this.provider = provider;
     this.prompts = prompts;
@@ -64,8 +74,10 @@ export class ShotQueue {
                     const finalPath = await this.provider.download(result, destPath);
                     if (job.kind === 'image') {
                        this.db.updateShotState(shot.id, 'IMAGE_READY', { imagePath: finalPath, attempts: 0, lastError: undefined });
+                       this.emit('shotEvent', { shotId: shot.id, state: 'IMAGE_READY' } satisfies ShotEvent);
                     } else {
                        this.db.updateShotState(shot.id, 'VIDEO_READY', { videoPath: finalPath, attempts: 0, lastError: undefined });
+                       this.emit('shotEvent', { shotId: shot.id, state: 'VIDEO_READY' } satisfies ShotEvent);
                     }
                  } else {
                     this.db.updateShotState(shot.id, 'FAILED', { lastError: result.error || result.status });
@@ -100,6 +112,7 @@ export class ShotQueue {
             duration: shot.line.targetDuration
          });
          this.db.updateShotState(shot.id, 'PLACED');
+         this.emit('shotEvent', { shotId: shot.id, state: 'PLACED' } satisfies ShotEvent);
          workDone = true;
       }
 
@@ -129,39 +142,7 @@ export class ShotQueue {
       for (const shot of currentShots.filter((s: Shot) => s.state === 'PROMPTED')) {
          if (imageReadyCount >= this.config.bufferSize) break;
          if (availableConcurrency <= 0) break;
-         
-         const spec: ImageJobSpec = {
-            kind: 'image',
-            prompt: shot.imagePrompt!,
-            elementIds: shot.elementIds,
-            model: this.config.models.image,
-            aspectRatio: this.config.aspectRatio
-         };
-         const cost = await this.provider.preflightCost(spec);
-         const jobId = await this.provider.submitImage(spec);
-         const jobRow: JobRow = {
-            id: jobId,
-            projectId: this.project.id,
-            shotId: shot.id,
-            kind: 'image',
-            model: spec.model,
-            spec,
-            status: 'queued',
-            submittedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-         };
-         this.db.insertJob(jobRow);
-         this.db.insertLedger({
-            projectId: this.project.id,
-            jobId,
-            shotId: shot.id,
-            kind: 'image',
-            model: spec.model,
-            preflightCredits: cost,
-            chargedCredits: null,
-            createdAt: new Date().toISOString()
-         });
-         this.db.updateShotState(shot.id, 'IMAGE_QUEUED', { imageJobId: jobId });
+         await this.submitImageForShot(shot);
          availableConcurrency--;
          workDone = true;
       }
@@ -169,24 +150,46 @@ export class ShotQueue {
       // E. PENDING -> PROMPTED
       const pendingShots = currentShots.filter((s: Shot) => s.state === 'PENDING');
       if (pendingShots.length > 0 && imageReadyCount < this.config.bufferSize) {
-         const batch = pendingShots.slice(0, 5); 
+         const batch = pendingShots.slice(0, 5);
          const lines = batch.map((s: Shot) => s.line);
-         const generated = await this.prompts.imagePromptBatch(lines, elements, this.config.styleBible);
-         for (const g of generated) {
-            const shot = batch.find((s: Shot) => s.lineIndex === g.lineIndex);
-            if (shot) {
-               this.db.updateShotState(shot.id, 'PROMPTED', { imagePrompt: g.imagePrompt });
-               workDone = true;
+         try {
+            const generated = await this.prompts.imagePromptBatch(lines, elements, this.config.styleBible);
+            for (const g of generated) {
+               const shot = batch.find((s: Shot) => s.lineIndex === g.lineIndex);
+               if (shot) {
+                  this.db.updateShotState(shot.id, 'PROMPTED', { imagePrompt: g.imagePrompt });
+                  workDone = true;
+               }
             }
+         } catch (err: any) {
+            // Prompt-stage failure: no job was ever submitted for these shots,
+            // so retry (below) correctly falls back to a full PENDING restart.
+            console.error(`Error generating prompt batch:`, err);
+            for (const shot of batch) {
+               this.db.updateShotState(shot.id, 'FAILED', { lastError: err?.message ?? String(err) });
+            }
+            workDone = true;
          }
       }
 
-      // Retry FAILED if attempts < 3
+      // Retry FAILED if attempts < 3. Stage-aware re-entry: resubmit only the
+      // stage that actually failed (reuse the still-good image/prompt from
+      // earlier stages) instead of restarting the whole shot from scratch.
       for (const shot of currentShots.filter((s: Shot) => s.state === 'FAILED')) {
-         if (shot.attempts < 3) {
-            this.db.updateShotState(shot.id, 'PENDING', { attempts: shot.attempts + 1 });
-            workDone = true;
+         if (shot.attempts >= 3) continue;
+         const attempts = shot.attempts + 1;
+         if (shot.videoJobId && shot.imagePath && shot.animationPrompt) {
+            // Video stage failed; the approved image + anim prompt are still
+            // good - resubmit video only.
+            await this.submitVideoForShot(shot, shot.animationPrompt, { attempts });
+         } else if (shot.imageJobId && shot.imagePrompt) {
+            // Image stage failed; the prompt is still good - resubmit image only.
+            await this.submitImageForShot(shot, { attempts });
+         } else {
+            // Prompt-stage (or unknown) failure - full restart.
+            this.db.updateShotState(shot.id, 'PENDING', { attempts });
          }
+         workDone = true;
       }
 
       if (!workDone) {
@@ -195,8 +198,13 @@ export class ShotQueue {
          idleCount = 0;
       }
       
-      // Safety break if we are stuck and have no open jobs
-      if (idleCount > 10 && this.db.listOpenJobs().length === 0) {
+      // Safety break if we are stuck and have no open jobs. Only applies in
+      // autoApprove mode (CLI/mock one-shot runs): in review-gate mode
+      // (autoApprove=false, e.g. driven by server.ts) shots sitting IN_REVIEW
+      // waiting on a human action are expected idling, not "stuck" - that
+      // loop must keep running indefinitely so approve/edit/redo calls
+      // arriving later still get picked up.
+      if (opts.autoApprove && idleCount > 10 && this.db.listOpenJobs().length === 0) {
          console.log("Queue idle and no open jobs. Exiting run loop.");
          break;
       }
@@ -205,7 +213,11 @@ export class ShotQueue {
     }
   }
 
-  private async submitVideoForShot(shot: Shot, animPrompt: string): Promise<void> {
+  private async submitVideoForShot(
+     shot: Shot,
+     animPrompt: string,
+     opts?: { attempts?: number },
+  ): Promise<void> {
       const videoSeconds = clampVideoSeconds(shot.line.targetDuration);
       const spec: VideoJobSpec = {
          kind: 'video',
@@ -242,18 +254,80 @@ export class ShotQueue {
          chargedCredits: null,
          createdAt: new Date().toISOString()
       });
-      this.db.updateShotState(shot.id, 'VIDEO_QUEUED', { videoJobId: jobId, videoSeconds, animationPrompt: animPrompt });
+      this.db.updateShotState(shot.id, 'VIDEO_QUEUED', {
+         videoJobId: jobId,
+         videoSeconds,
+         animationPrompt: animPrompt,
+         ...(opts?.attempts !== undefined ? { attempts: opts.attempts } : {}),
+      });
+  }
+
+  /**
+   * Submit an image job for a shot and transition it to IMAGE_QUEUED.
+   * Used by the normal PROMPTED -> IMAGE_QUEUED step, by requestEdit
+   * (image-to-image with the rejected image as reference), and by
+   * stage-aware FAILED retry (resubmit image only).
+   */
+  private async submitImageForShot(
+     shot: Shot,
+     opts?: { prompt?: string; referenceImagePath?: string; attempts?: number },
+  ): Promise<void> {
+      const prompt = opts?.prompt ?? shot.imagePrompt;
+      if (!prompt) throw new Error(`submitImageForShot: shot ${shot.id} has no imagePrompt`);
+      const spec: ImageJobSpec = {
+         kind: 'image',
+         prompt,
+         elementIds: shot.elementIds,
+         model: this.config.models.image,
+         aspectRatio: this.config.aspectRatio,
+         ...(opts?.referenceImagePath ? { referenceImagePath: opts.referenceImagePath } : {}),
+      };
+      const cost = await this.provider.preflightCost(spec);
+      const jobId = await this.provider.submitImage(spec);
+      const jobRow: JobRow = {
+         id: jobId,
+         projectId: this.project.id,
+         shotId: shot.id,
+         kind: 'image',
+         model: spec.model,
+         spec,
+         status: 'queued',
+         submittedAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString()
+      };
+      this.db.insertJob(jobRow);
+      this.db.insertLedger({
+         projectId: this.project.id,
+         jobId,
+         shotId: shot.id,
+         kind: 'image',
+         model: spec.model,
+         preflightCredits: cost,
+         chargedCredits: null,
+         createdAt: new Date().toISOString()
+      });
+      this.db.updateShotState(shot.id, 'IMAGE_QUEUED', {
+         imageJobId: jobId,
+         imagePrompt: prompt,
+         ...(opts?.attempts !== undefined ? { attempts: opts.attempts } : {}),
+      });
   }
 
   async approve(shotId: string): Promise<void> {
     this.db.updateShotState(shotId, 'APPROVED');
   }
 
+  /**
+   * Edit = image-to-image with the rejected image as reference: submit a new
+   * image job directly (IN_REVIEW -> IMAGE_QUEUED) instead of routing through
+   * PROMPTED like Redo does. (T-01 finding 2 / Fable-approved contract change:
+   * ImageJobSpec.referenceImagePath.)
+   */
   async requestEdit(shotId: string, instructions: string): Promise<void> {
     const shot = this.db.getShot(shotId);
-    this.db.updateShotState(shotId, 'PROMPTED', { 
-       imagePrompt: (shot?.imagePrompt || '') + ' ' + instructions 
-    });
+    if (!shot) throw new Error(`requestEdit: shot not found: ${shotId}`);
+    const prompt = `${shot.imagePrompt ?? ''} ${instructions}`.trim();
+    await this.submitImageForShot(shot, { prompt, referenceImagePath: shot.imagePath });
   }
 
   async requestRedo(shotId: string): Promise<void> {
