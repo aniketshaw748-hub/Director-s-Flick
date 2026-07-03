@@ -1,10 +1,10 @@
 {
-  "last_seen_commit": "87b5b3a49ef149201363c2d815a52ecb6d5429fd",
-  "last_sweep": "2026-07-04T01:05",
   "pending": [
-    "T-68 Opus",
-    "T-69 AGV paused",
-    "T-70 Flash unclaimed",
-    "T-71 AGV URGENT"
-  ]
+    "T-69 Fable-2 queued",
+    "T-70 Sonnet + SRT hook",
+    "T-71 Fable-2 urgent",
+    "T-72 Opus"
+  ],
+  "last_sweep": "2026-07-04T01:25",
+  "last_seen_commit": "ee7062958ab3ccc04614726b26c4516ad7c1a109"
 }

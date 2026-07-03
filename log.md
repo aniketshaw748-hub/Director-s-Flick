@@ -825,3 +825,6 @@ Result: (in progress)
 
 ### [80] Sweep #42: T-68 accepted (SRT export); Opus -> T-72 cold-clone launcher smoke; SRT server hook folded to Sonnet
 T-68's deferred server one-liner routed to Sonnet with T-70. T-71 claimed by Fable-2 (urgent endpoint fix in progress).
+
+### [81] Sweep #43: T-71 accepted (4 defects, round-trip proven); SRT hook deconflicted to Opus
+Fable-2 self-claimed T-69 (states audit). Sonnet narrowed back to T-70 to avoid double-landing the SRT hook Opus is taking himself.
