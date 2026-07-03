@@ -170,7 +170,7 @@ async function stepAlign(db: ProjectDb, project: Project): Promise<Shot[]> {
   const outJson = path.join(projectDir(project.name), 'alignment.json');
   const lines = await alignScript(project.scriptPath, project.voPath, outJson);
   const timeline = computeTimeline(lines);
-  const shots = planShots(project.id, timeline, lines);
+  const shots = planShots(project.id, timeline, lines, project.config.maxShotSeconds);
   db.insertShots(shots);
   console.log(`aligned ${lines.length} lines -> ${shots.length} shots`);
   console.log(

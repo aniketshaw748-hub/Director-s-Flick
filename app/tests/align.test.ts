@@ -683,7 +683,7 @@ describe('align', () => {
       expect(shots[0]!.line.targetDuration).toBe(2.5); // 2.0 + 0.5 tail
     });
 
-    test('splits long lines (>15s) at word boundaries', () => {
+    test('splits long lines (>15s) at word boundaries (MAX_CLIP_SECONDS safety net)', () => {
       // Create a line that takes 20 seconds.
       // We will place words such that it splits.
       // Ideal split is at 10s.
@@ -709,7 +709,11 @@ describe('align', () => {
         },
       ];
       const timeline = computeTimeline(mockAligned); // targetDuration = 19.5s
-      const shots = planShots('proj-1', timeline, mockAligned);
+      // A generous maxShotSeconds (well above the line's own 19.5s) means
+      // phrase-segmentation (T-88) leaves the line untouched (1 piece), so
+      // this specifically exercises the pre-existing MAX_CLIP_SECONDS (15s)
+      // safety-net splitter's own clean word-boundary balancing.
+      const shots = planShots('proj-1', timeline, mockAligned, 100);
 
       expect(shots.length).toBeGreaterThan(1);
       // Verify that every shot's targetDuration is <= 15s
@@ -741,6 +745,155 @@ describe('align', () => {
       expect(shots).toHaveLength(2);
       expect(shots[0]!.line.targetDuration).toBe(10.0);
       expect(shots[1]!.line.targetDuration).toBe(10.0);
+    });
+
+    describe('phrase-level segmentation (T-88, owner-directed)', () => {
+      function evenWords(text: string, start: number, duration: number) {
+        const words = text.split(' ');
+        const step = duration / words.length;
+        return words.map((word, i) => ({
+          word,
+          start: start + i * step,
+          end: start + i * step + step * 0.8,
+        }));
+      }
+
+      test("reproduces the owner's exact worked example (log [113]): 2 lines -> 6 phrase shots", () => {
+        // Timings are constructed (not real audio) specifically so the
+        // midpoint-nearest phrase boundary lands where it needs to for a
+        // deterministic 6-way split - see the T-88 claim note for the
+        // reasoning. Text content is the owner's own example verbatim.
+        const item1 = evenWords('2024 mein ye company Rs500 crore revenue cross kar chuki thi,', 0, 5);
+        const item2 = evenWords('par 2025 aate-aate isi company ka revenue,', 5, 4);
+        const item3 = evenWords('pehli baar apni 10 saal ki history mein neeche gir gaya.', 9, 8);
+        const item4 = evenWords('Aur loss seedha double hokar Rs135 crore pahunch gaya.', 17, 5);
+        const item5 = evenWords('Simple language mein iska matlab hai,', 22, 4);
+        const item6 = evenWords('ye company aaj har Rs100 kamane ke liye Rs135 jala rahi hai.', 26, 5);
+        const words = [...item1, ...item2, ...item3, ...item4, ...item5, ...item6];
+
+        const aligned: AlignedLine = {
+          index: 0,
+          text: words.map((w) => w.word).join(' '),
+          start: words[0]!.start,
+          end: words[words.length - 1]!.end,
+          words,
+        };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned]); // default maxShotSeconds = 8
+
+        expect(shots.map((s) => s.line.text)).toEqual([
+          '2024 mein ye company Rs500 crore revenue cross kar chuki thi,',
+          'par 2025 aate-aate isi company ka revenue,',
+          'pehli baar apni 10 saal ki history mein neeche gir gaya.',
+          'Aur loss seedha double hokar Rs135 crore pahunch gaya.',
+          'Simple language mein iska matlab hai,',
+          'ye company aaj har Rs100 kamane ke liye Rs135 jala rahi hai.',
+        ]);
+        expect(shots.map((s) => s.subIndex)).toEqual([0, 1, 2, 3, 4, 5]);
+        expect(shots.every((s) => s.lineIndex === 0)).toBe(true);
+        expect(shots.every((s) => s.line.targetDuration <= 8 + 1e-6)).toBe(true);
+      });
+
+      test('a single short sentence is left as one shot (backward-compatible default)', () => {
+        const aligned: AlignedLine = {
+          index: 0,
+          text: 'Short line.',
+          start: 0,
+          end: 2,
+          words: [
+            { word: 'Short', start: 0, end: 0.8 },
+            { word: 'line.', start: 1, end: 2 },
+          ],
+        };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned]);
+        expect(shots).toHaveLength(1);
+      });
+
+      test('always splits at sentence boundaries even when the whole line is well under maxShotSeconds', () => {
+        // 2s each, comfortably above the 1.2s floor - isolates the "sentence
+        // split is unconditional" behavior from the separate runt-floor rule.
+        const item1 = evenWords('Hi there.', 0, 2);
+        const item2 = evenWords('Bye now.', 2, 2);
+        const words = [...item1, ...item2];
+        const aligned: AlignedLine = {
+          index: 0,
+          text: words.map((w) => w.word).join(' '),
+          start: 0,
+          end: words[words.length - 1]!.end,
+          words,
+        };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned]);
+        expect(shots.map((s) => s.line.text)).toEqual(['Hi there.', 'Bye now.']);
+      });
+
+      test('respects a custom maxShotSeconds tighter than the default', () => {
+        // 4 sentences, ~2.5s each (10s total) - default (8) would keep the
+        // first 3 combined-under-8 window as separate SENTENCES already
+        // (sentence split is unconditional), so instead verify a duration
+        // that's a SINGLE sentence too long for a tight custom cap forces a
+        // phrase/word-boundary split it wouldn't need under the default.
+        const words = evenWords('One two three four five six seven eight nine ten.', 0, 6);
+        const aligned: AlignedLine = { index: 0, text: words.map((w) => w.word).join(' '), start: 0, end: words[words.length - 1]!.end, words };
+        const timeline = computeTimeline([aligned]);
+
+        const defaultShots = planShots('proj-1', timeline, [aligned]); // 6s < default 8 -> untouched
+        expect(defaultShots).toHaveLength(1);
+
+        const tightShots = planShots('proj-1', timeline, [aligned], 3); // 6s > custom 3 -> must split
+        expect(tightShots.length).toBeGreaterThan(1);
+        expect(tightShots.every((s) => s.line.targetDuration <= 3 + 1e-6)).toBe(true);
+      });
+
+      test('falls back to nearest word-boundary split when no phrase candidate exists', () => {
+        // No commas/conjunctions/sentence punctuation anywhere - must use
+        // the word-boundary fallback to respect a tight maxShotSeconds.
+        const words = evenWords('alpha bravo charlie delta echo foxtrot golf hotel', 0, 8);
+        const aligned: AlignedLine = { index: 0, text: words.map((w) => w.word).join(' '), start: 0, end: words[words.length - 1]!.end, words };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned], 3);
+        expect(shots.length).toBeGreaterThan(1);
+        expect(shots.every((s) => s.line.targetDuration <= 3 + 1e-6)).toBe(true);
+        // Contiguous coverage, no gaps/overlaps.
+        for (let i = 1; i < shots.length; i++) {
+          expect(shots[i]!.line.start).toBeCloseTo(shots[i - 1]!.line.start + shots[i - 1]!.line.targetDuration, 5);
+        }
+      });
+
+      test('never produces a sub-shot under 1.2s, even where a phrase boundary would create one', () => {
+        // Comma sits 0.3s after the sentence start - splitting there would
+        // leave a ~0.3s runt on the left, so that candidate must be
+        // rejected in favor of either no split or a different boundary.
+        const words = [
+          { word: 'Ok,', start: 0, end: 0.3 },
+          { word: 'so', start: 0.4, end: 0.6 },
+          { word: 'here', start: 0.7, end: 1.0 },
+          { word: 'is', start: 1.1, end: 1.3 },
+          { word: 'the', start: 1.4, end: 1.6 },
+          { word: 'point', start: 1.7, end: 2.0 },
+          { word: 'of', start: 2.1, end: 2.3 },
+          { word: 'all', start: 2.4, end: 2.6 },
+          { word: 'this.', start: 2.7, end: 9.0 }, // long trailing word forces a >8s piece
+        ];
+        const aligned: AlignedLine = { index: 0, text: words.map((w) => w.word).join(' '), start: 0, end: 9.0, words };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned]);
+        expect(shots.every((s) => s.line.targetDuration >= 1.2 - 1e-6)).toBe(true);
+      });
+
+      test('merges a trailing runt sentence (under 1.2s) into the previous one instead of leaving it standalone', () => {
+        const firstSentence = evenWords('This is a longer first sentence that is fine.', 0, 5);
+        const words = [...firstSentence, { word: 'Ok.', start: 5.0, end: 5.4 }]; // trailing sentence only 0.5s
+        const aligned: AlignedLine = { index: 0, text: words.map((w) => w.word).join(' '), start: 0, end: 5.4, words };
+        const timeline = computeTimeline([aligned]);
+        const shots = planShots('proj-1', timeline, [aligned]);
+        // "Ok." (0.5s) is under the 1.2s floor, so it must be merged back
+        // into the first sentence rather than standing alone.
+        expect(shots).toHaveLength(1);
+        expect(shots[0]!.line.text).toContain('Ok.');
+        expect(shots[0]!.line.targetDuration).toBeGreaterThanOrEqual(1.2);
+      });
     });
   });
 });

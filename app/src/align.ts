@@ -443,39 +443,163 @@ export function computeTimeline(lines: AlignedLine[]): LineTiming[] {
 }
 
 // ---------------------------------------------------------------------------
-// planShots — 1 line -> 1 shot; long lines -> sub-shots at word boundaries
+// Phrase-level segmentation (T-88, owner-directed) — sentence split, then
+// duration-capped phrase split, before the MAX_CLIP_SECONDS safety net below
+// ---------------------------------------------------------------------------
+
+/** PipelineConfig.maxShotSeconds documented default (types.ts, T-88 contract). */
+const DEFAULT_MAX_SHOT_SECONDS = 8;
+/** Never produce a sub-shot shorter than this — a boundary that would is rejected, not split. */
+const MIN_SUB_SHOT_SECONDS = 1.2;
+const SENTENCE_END_RE = /[.!?…]+$/;
+/** Hinglish-aware phrase conjunctions: starting one of these words is a valid split point. */
+const HINGLISH_CONJUNCTIONS = new Set(['par', 'aur', 'toh', 'lekin']);
+
+function bareWord(word: string): string {
+  return word.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, '');
+}
+
+function wordIsSentenceEnd(word: string): boolean {
+  return SENTENCE_END_RE.test(word.replace(/["')\]]+$/, ''));
+}
+
+function wordIsConjunction(word: string): boolean {
+  return HINGLISH_CONJUNCTIONS.has(bareWord(word).toLowerCase());
+}
+
+function wordEndsWithComma(word: string): boolean {
+  return /,$/.test(word);
+}
+
+/** Sort + greedily drop any boundary that would leave a piece under MIN_SUB_SHOT_SECONDS. */
+function filterBoundariesForMinDuration(boundaries: number[], spanEnd: number): number[] {
+  const sorted = [...new Set(boundaries)].sort((a, b) => a - b);
+  const kept: number[] = [sorted[0]!];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i]! - kept[kept.length - 1]! >= MIN_SUB_SHOT_SECONDS - EPS) {
+      kept.push(sorted[i]!);
+    }
+    // else: drop it — equivalent to merging this would-be runt into the previous piece.
+  }
+  while (kept.length > 1 && spanEnd - kept[kept.length - 1]! < MIN_SUB_SHOT_SECONDS - EPS) {
+    kept.pop(); // final piece would be a runt — merge it back into the previous one.
+  }
+  return kept;
+}
+
+/**
+ * Split one line's full span at sentence-ending punctuation (unconditional —
+ * every sentence becomes its own piece regardless of duration, per the
+ * owner's stated rule order), then recursively phrase-split any resulting
+ * piece still longer than `maxShotSeconds`. Reuses buildSlices() for the
+ * actual piece materialization so contiguity/pauseAfter/text conventions
+ * exactly match the existing MAX_CLIP_SECONDS splitter below.
+ */
+function segmentLineByPhrase(line: LineTiming, words: WordTiming[], maxShotSeconds: number): LineTiming[] {
+  const spanEnd = round3(line.start + line.targetDuration);
+  const sorted = [...words].sort((a, b) => a.start - b.start);
+  if (sorted.length === 0) return [line];
+
+  const sentenceBounds: number[] = [line.start];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (wordIsSentenceEnd(sorted[i]!.word)) {
+      sentenceBounds.push(sorted[i + 1]!.start);
+    }
+  }
+  const sentencePieces = buildSlices(line, filterBoundariesForMinDuration(sentenceBounds, spanEnd), spanEnd, sorted);
+
+  const result: LineTiming[] = [];
+  for (const piece of sentencePieces) {
+    result.push(...phraseSplitRecursive(piece, sorted, maxShotSeconds));
+  }
+  return result;
+}
+
+/** Recursively split `piece` at the phrase boundary nearest its midpoint until it fits maxShotSeconds. */
+function phraseSplitRecursive(piece: LineTiming, words: WordTiming[], maxShotSeconds: number): LineTiming[] {
+  if (piece.targetDuration <= maxShotSeconds + EPS) return [piece];
+
+  const pieceEnd = round3(piece.start + piece.targetDuration);
+  const pieceWords = words
+    .filter((w) => w.start >= piece.start - EPS && w.start < pieceEnd - EPS)
+    .sort((a, b) => a.start - b.start);
+  if (pieceWords.length < 2) return [piece]; // nothing left to split on
+
+  const mid = piece.start + piece.targetDuration / 2;
+  const nearestToMid = (candidates: number[]): number =>
+    candidates.reduce((best, c) => (Math.abs(c - mid) < Math.abs(best - mid) ? c : best));
+  const validCandidate = (boundary: number): boolean =>
+    boundary - piece.start >= MIN_SUB_SHOT_SECONDS - EPS && pieceEnd - boundary >= MIN_SUB_SHOT_SECONDS - EPS;
+
+  const phraseCandidates: number[] = [];
+  for (let i = 1; i < pieceWords.length; i++) {
+    const w = pieceWords[i]!;
+    const prev = pieceWords[i - 1]!;
+    if ((wordIsConjunction(w.word) || wordEndsWithComma(prev.word)) && validCandidate(w.start)) {
+      phraseCandidates.push(w.start);
+    }
+  }
+
+  let boundary: number | null = null;
+  if (phraseCandidates.length > 0) {
+    boundary = nearestToMid(phraseCandidates);
+  } else {
+    const wordCandidates = pieceWords.slice(1).map((w) => w.start).filter(validCandidate);
+    if (wordCandidates.length > 0) boundary = nearestToMid(wordCandidates);
+  }
+
+  if (boundary === null) return [piece]; // no split point respects the 1.2s floor — accept as-is
+
+  const [left, right] = buildSlices(piece, [piece.start, boundary], pieceEnd, words);
+  return [...phraseSplitRecursive(left!, words, maxShotSeconds), ...phraseSplitRecursive(right!, words, maxShotSeconds)];
+}
+
+// ---------------------------------------------------------------------------
+// planShots — 1 line -> 1+ shots via phrase segmentation, then long-piece
+// safety net at word boundaries
 // ---------------------------------------------------------------------------
 
 /**
  * Turn the timeline into PENDING shots ready for ProjectDb.insertShots().
- * Normally 1 line -> 1 shot (subIndex 0). Lines with targetDuration >
- * MAX_CLIP_SECONDS are split into sub-shots at word boundaries (word data
- * from the matching AlignedLine); each sub-shot's LineTiming re-obeys the
- * timeline rule within the line's span [start, start + targetDuration).
+ * Each line is first phrase-segmented (sentence split, then duration-capped
+ * phrase split at `maxShotSeconds` — default 8, see DEFAULT_MAX_SHOT_SECONDS)
+ * via segmentLineByPhrase(); any resulting piece whose targetDuration STILL
+ * exceeds the hard MAX_CLIP_SECONDS generation ceiling (15s) is further split
+ * at plain word boundaries by the pre-existing safety net.
  */
-export function planShots(projectId: string, timeline: LineTiming[], aligned: AlignedLine[]): Shot[] {
+export function planShots(
+  projectId: string,
+  timeline: LineTiming[],
+  aligned: AlignedLine[],
+  maxShotSeconds?: number,
+): Shot[] {
+  const effectiveMaxShotSeconds = maxShotSeconds ?? DEFAULT_MAX_SHOT_SECONDS;
   const wordsByIndex = new Map<number, WordTiming[]>(aligned.map((l) => [l.index, l.words]));
   const nowIso = new Date().toISOString();
   const shots: Shot[] = [];
   for (const line of timeline) {
-    const slices =
-      line.targetDuration > MAX_CLIP_SECONDS
-        ? splitLineAtWordBoundaries(line, wordsByIndex.get(line.index) ?? [])
-        : [line];
-    slices.forEach((slice, subIndex) => {
-      shots.push({
-        id: randomUUID(),
-        projectId,
-        lineIndex: line.index,
-        subIndex,
-        state: 'PENDING',
-        line: slice,
-        elementIds: [], // linked later by the prompt stage
-        attempts: 0,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      });
-    });
+    const words = wordsByIndex.get(line.index) ?? [];
+    const phrasePieces = segmentLineByPhrase(line, words, effectiveMaxShotSeconds);
+    let subIndex = 0;
+    for (const piece of phrasePieces) {
+      const slices =
+        piece.targetDuration > MAX_CLIP_SECONDS ? splitLineAtWordBoundaries(piece, words) : [piece];
+      for (const slice of slices) {
+        shots.push({
+          id: randomUUID(),
+          projectId,
+          lineIndex: line.index,
+          subIndex,
+          state: 'PENDING',
+          line: slice,
+          elementIds: [], // linked later by the prompt stage
+          attempts: 0,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+        subIndex++;
+      }
+    }
   }
   return shots;
 }

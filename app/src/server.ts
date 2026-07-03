@@ -618,7 +618,7 @@ export function startServer(port = 4000) {
            onProgress: (line) => broadcast(req.params.name, { type: 'alignProgress', line }),
         });
         const timeline = computeTimeline(lines);
-        const shots = planShots(project.id, timeline, lines);
+        const shots = planShots(project.id, timeline, lines, project.config.maxShotSeconds);
         db.insertShots(shots);
         broadcast(req.params.name, { type: 'alignProgress', line: `done (${shots.length} shots)` });
         res.json({ success: true, shotCount: shots.length });
