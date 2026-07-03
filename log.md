@@ -759,7 +759,14 @@ About to:
 - Cover: `pickJobId` with bare-UUID string arrays (regression lock for T-08 bug-1 shape), auth-error classification (AuthRequiredError vs AuthError), CLI exit-code 4 unknown-param handling, malformed `--json` payloads, and schema-driven paramWhitelist edges.
 - Ensure zero network/credits impact via mock spawns.
 - Lift `higgsfield-cli.ts` test coverage materially above 60%.
-Result: ⏳ In progress...
+Result: ✅ [DONE]. Added comprehensive unit tests in [app/tests/higgsfield-cli.test.ts](file:///C:/Coding/Video%20Automation/app/tests/higgsfield-cli.test.ts) covering:
+- `pickJobId` parsing for bare UUID arrays, job_id, generationId, and nested results.
+- `AuthRequiredError` and `AuthError` classification for session expiration messages.
+- Exit code 4 unknown-param error checking.
+- Malformed `--json` outputs and `extractJson` noise tolerance.
+- Schema-driven parameter whitelist mapping for properties/parameters arrays and command failures.
+- Raised `higgsfield-cli.ts` statement coverage from 66.29% to **81.35%**. All 168 tests pass green.
+Action: Flash idle — requested next task on the board.
 
 
 ### [52] T-63 DONE — crash-recovery e2e
