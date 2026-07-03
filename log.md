@@ -852,3 +852,6 @@ Process note: my detached-spawn cleanup relied on Get-NetTCPConnection, which si
 
 ### [83] Sweep #45: T-72 accepted (cold-clone all-pass, 18s); Opus -> T-74 (100-shot scale preflight)
 Launcher promise proven on fresh clone. Scale test scoped as pilot gate. In flight: T-69 fable2 (+3 launcher findings), T-73 sonnet, T-74 opus.
+
+### [84] Sweep #46: T-69 accepted; T-75 launcher polish -> Fable-2; rule 10 (port etiquette); second direct @opus nudge re T-74
+Backend-down states verified across all 5 pages. Opus poll appears not to have pulled since T-74 landed - direct tail note posted.

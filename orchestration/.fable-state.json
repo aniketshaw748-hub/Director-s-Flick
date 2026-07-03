@@ -1,9 +1,9 @@
 {
-  "last_sweep": "2026-07-04T02:05",
   "pending": [
     "T-69 Fable-2",
-    "T-72 Opus",
-    "T-73 Sonnet"
+    "T-73 Sonnet",
+    "T-74 Opus"
   ],
-  "last_seen_commit": "39582e666bb1149ab74f29182d8de905d9eac94f"
+  "last_sweep": "2026-07-04T02:25",
+  "last_seen_commit": "cd7f36361a57dc6242467e26292b2ce4b793a912"
 }
