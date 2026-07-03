@@ -38,6 +38,7 @@ export default function PreviewPlayer({ voSrc, segments, onEngine }: PreviewPlay
   const timecodeRef = useRef<HTMLSpanElement>(null);
   const engineRef = useRef<PreviewEngine | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [placeholder, setPlaceholder] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -51,6 +52,7 @@ export default function PreviewPlayer({ voSrc, segments, onEngine }: PreviewPlay
     const offs = [
       engine.on('play', () => setPlaying(true)),
       engine.on('pause', () => setPlaying(false)),
+      engine.on('placeholder', (v) => setPlaceholder(v === 1)),
       engine.on('time', (t) => {
         if (timecodeRef.current) {
           timecodeRef.current.textContent = `${formatTime(t)} / ${formatTime(engine.duration)}`;
@@ -88,6 +90,12 @@ export default function PreviewPlayer({ voSrc, segments, onEngine }: PreviewPlay
             <rect x="12" y="14" width="20" height="16" rx="7" fill="#1C2530" stroke="rgba(255,255,255,.18)" />
             <path d="M22 14v-4" stroke="rgba(255,255,255,.3)" strokeWidth="1.5" />
           </svg>
+        )}
+        {placeholder && (
+          <div data-placeholder style={{ position: 'absolute', inset: 0, zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-2)', color: 'var(--text-3)' }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 5l18 14" /></svg>
+            <span style={{ fontSize: 'var(--fs-13)' }}>Clip missing — skipped (audio continues)</span>
+          </div>
         )}
       </div>
       <div className="player-controls">

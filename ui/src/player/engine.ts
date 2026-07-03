@@ -75,7 +75,7 @@ export interface PlayerStatsSummary {
   missedPreloads: number;
 }
 
-type EngineEvent = 'time' | 'play' | 'pause' | 'ended' | 'segment' | 'ready';
+type EngineEvent = 'time' | 'play' | 'pause' | 'ended' | 'segment' | 'ready' | 'placeholder';
 type Listener = (value: number) => void;
 
 const HAVE_METADATA = 1;
@@ -103,6 +103,10 @@ export class PreviewEngine {
   /** generation counter cancelling stale async seek/load handlers */
   private opGen = 0;
   private pendingLoadIdx: number | null = null;
+  /** clip srcs whose media failed to load (T-60: skip w/ placeholder) */
+  private deadSrcs = new Set<string>();
+  private inPlaceholder = false;
+  private errHandlers: [(() => void) | null, (() => void) | null] = [null, null];
 
   private rafId = 0;
   private disposed = false;
@@ -121,6 +125,7 @@ export class PreviewEngine {
   private listeners: Record<EngineEvent, Set<Listener>> = {
     time: new Set(), play: new Set(), pause: new Set(),
     ended: new Set(), segment: new Set(), ready: new Set(),
+    placeholder: new Set(),
   };
 
   constructor(audio: HTMLAudioElement, videoA: HTMLVideoElement, videoB: HTMLVideoElement) {
@@ -151,6 +156,10 @@ export class PreviewEngine {
     this.standbyReady = false;
     this.standbyPreparing = false;
     this.pendingLoadIdx = null;
+    // a new EDL may have replaced clips at the same URLs (redo overwrites
+    // <shotId>.mp4 in place) — give every clip a fresh chance to load
+    this.deadSrcs.clear();
+    this.exitPlaceholder();
     if (this.segments.length > 0) this.applyPosition(this.audio.currentTime || 0);
   }
 
@@ -309,8 +318,58 @@ export class PreviewEngine {
   private setSrc(slot: number, src: string): void {
     if (this.srcOf[slot] === src) return;
     this.srcOf[slot] = src;
-    this.vids[slot].src = src;
-    this.vids[slot].load();
+    const vid = this.vids[slot];
+    // one armed error listener per slot: a failed load otherwise never fires
+    // loadedmetadata and the segment loader stalls silently (T-60).
+    if (this.errHandlers[slot as 0 | 1]) {
+      vid.removeEventListener('error', this.errHandlers[slot as 0 | 1]!);
+    }
+    const onErr = () => this.markDead(src);
+    this.errHandlers[slot as 0 | 1] = onErr;
+    vid.addEventListener('error', onErr, { once: true });
+    vid.src = src;
+    vid.load();
+  }
+
+  /** A clip failed to load: remember it, unwedge any pending load/prep that
+   *  referenced it, and let the tick switch to the placeholder window. */
+  private markDead(src: string): void {
+    if (this.deadSrcs.has(src)) return;
+    this.deadSrcs.add(src);
+    this.opGen++; // cancel armed metadata/seeked handlers for this load
+    if (this.pendingLoadIdx !== null && this.segments[this.pendingLoadIdx]?.src === src) {
+      this.pendingLoadIdx = null;
+    }
+    if (this.standbyIdx >= 0 && this.segments[this.standbyIdx]?.src === src) {
+      this.standbyIdx = -1;
+      this.standbyReady = false;
+      this.standbyPreparing = false;
+    }
+  }
+
+  /** Next segment index at/after `from` whose clip is loadable. */
+  private nextAlive(from: number): number {
+    for (let i = Math.max(from, 0); i < this.segments.length; i++) {
+      if (!this.deadSrcs.has(this.segments[i].src)) return i;
+    }
+    return -1;
+  }
+
+  private enterPlaceholder(): void {
+    if (this.inPlaceholder) return;
+    this.inPlaceholder = true;
+    for (const v of this.vids) {
+      v.pause();
+      v.style.opacity = '0';
+    }
+    this.emit('placeholder', 1);
+  }
+
+  private exitPlaceholder(restoreVisibility = true): void {
+    if (!this.inPlaceholder) return;
+    this.inPlaceholder = false;
+    if (restoreVisibility) this.applyVisibility();
+    this.emit('placeholder', 0);
   }
 
   /** Run fn once video metadata is available (gen-guarded). */
@@ -348,6 +407,17 @@ export class PreviewEngine {
     this.opGen++;
     const gen = this.opGen;
 
+    // dead target: placeholder window instead of a load that can't succeed
+    if (this.deadSrcs.has(seg.src)) {
+      this.pendingLoadIdx = null;
+      this.curIdx = idx;
+      this.standbyIdx = -1;
+      this.standbyReady = false;
+      this.standbyPreparing = false;
+      this.enterPlaceholder();
+      return;
+    }
+
     // stale standby state after any explicit reposition
     this.standbyIdx = -1;
     this.standbyReady = false;
@@ -374,6 +444,7 @@ export class PreviewEngine {
         this.curIdx = idx;
         const old = this.activeVid();
         this.active = slot;
+        this.exitPlaceholder(false);
         this.applyVisibility();
         old.pause();
         if (this.playing && idx >= 0) void vid.play();
@@ -385,7 +456,7 @@ export class PreviewEngine {
   /** Preload the next segment into the hidden element, seeked + decoded. */
   private prepareStandby(idx: number): void {
     const seg = this.segments[idx];
-    if (!seg || this.standbyPreparing || this.standbyIdx === idx || this.pendingLoadIdx !== null) return;
+    if (!seg || this.deadSrcs.has(seg.src) || this.standbyPreparing || this.standbyIdx === idx || this.pendingLoadIdx !== null) return;
     this.standbyIdx = idx;
     this.standbyReady = false;
     this.standbyPreparing = true;
@@ -405,6 +476,7 @@ export class PreviewEngine {
 
   /** Instant A/B flip at a natural boundary (standby pre-armed). */
   private swapToStandby(idx: number, t: number): void {
+    this.exitPlaceholder(false); // swap sets visibility itself
     const seg = this.segments[idx];
     const vid = this.hiddenVid();
     const crossLagMs = (t - seg.timelineStart) * 1000;
@@ -431,22 +503,30 @@ export class PreviewEngine {
 
     const t = this.audio.currentTime;
     const idx = this.segmentAt(t);
+    const seg = idx >= 0 ? this.segments[idx] : null;
 
-    if (this.pendingLoadIdx === null && idx !== this.curIdx) {
-      if (idx === this.curIdx + 1 && this.standbyIdx === idx && this.standbyReady) {
+    if (seg && this.deadSrcs.has(seg.src)) {
+      // T-60 placeholder window: the clip is unloadable — hide video, let the
+      // VO master clock run on, keep the NEXT alive segment armed below.
+      this.enterPlaceholder();
+      this.curIdx = idx;
+    } else if (this.pendingLoadIdx === null && idx !== this.curIdx) {
+      if (this.standbyIdx === idx && this.standbyReady) {
+        // covers both the adjacent boundary and re-entry after a dead window
         this.swapToStandby(idx, t);
-      } else if (this.playing || idx !== this.curIdx) {
-        if (this.playing && idx === this.curIdx + 1) this.missedPreloads++;
+      } else {
+        if (this.playing && idx === this.nextAlive(this.curIdx + 1)) this.missedPreloads++;
         this.applyPosition(t);
       }
     } else if (this.pendingLoadIdx === null && idx >= 0) {
+      this.exitPlaceholder();
       this.syncActive(this.segments[idx], t);
     }
 
-    // keep the next segment armed in the hidden element
+    // keep the next ALIVE segment armed in the hidden element
     if (this.pendingLoadIdx === null) {
-      const nextIdx = Math.max(this.curIdx, 0) + (this.curIdx >= 0 ? 1 : 0);
-      if (nextIdx < this.segments.length && nextIdx !== this.curIdx) this.prepareStandby(nextIdx);
+      const nextIdx = this.nextAlive(this.curIdx >= 0 ? this.curIdx + 1 : 0);
+      if (nextIdx >= 0 && nextIdx !== this.curIdx) this.prepareStandby(nextIdx);
     }
 
     this.emit('time', t);
