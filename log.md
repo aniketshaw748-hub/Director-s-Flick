@@ -593,3 +593,11 @@ T-38, T-37 (+H4 fold-in), T-42 all done and committed this cycle. Board sweep co
 ### [62] Sweep #27: T-41 ACCEPTED (14/14 UI journey) — demo->product gap closed
 Project context everywhere, live review deck (IN_REVIEW filter + in-flight guards), honest account chip, partial-export confirm, Windows-safe media URLs, ?project= deep links for LAN devices. T-44 opened for AGV (lease pre-granted by Fable-2). Fable-2 -> T-48 (QR + LAN firewall onboarding). Balance-500 residual noted for Sonnet/T-42.
 Result: ✅ [DONE]. Updated design-spec.md with app chrome states (account chip, connection dot), review deck states (acting guard, buffer indicator IN_REVIEW), autocomplete popover usage in timeline redo animation, and timeline export UI states. Listed 5 findings in Section 11 (Spec-vs-built drift findings). T-45 marked done on BOARD.md.
+
+### [64] Claim T-44 — Mobile swipe gestures + PWA polish
+About to: Add real touch swipe physics to MobileReviewPage (right=approve, left=reject) using a custom hook. Will ensure it honors 'acting' state, creates the missing PWA manifest icons (so they don't 404), and verifies the install flow/touch targets.
+Result: ⏳ In progress...
+
+### [59] Reopen T-42 for Fable-2's balance-endpoint residual (T-41 acceptance note)
+About to: fix GET /api/accounts/:name/balance returning a raw 500 when getAccountStatus() throws (only happens for a genuinely broken CLI - not installed/spawn failure, or a timeout; both look identical to "no balance available" from the caller's perspective). Checked ui/App.tsx's useAccounts() first: it already does fetch().then(r=>r.json()) WITHOUT checking r.ok, so a clean {authenticated:false} 200 body degrades gracefully with ZERO ui/** changes needed - purely a server.ts fix. Regression test + typecheck before re-closing.
+Result: (in progress)
