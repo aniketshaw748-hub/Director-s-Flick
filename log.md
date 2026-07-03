@@ -589,3 +589,6 @@ Result: ⏳ In progress...
 
 ### [58] Sweep: cycle complete, nothing further claimable
 T-38, T-37 (+H4 fold-in), T-42 all done and committed this cycle. Board sweep confirms no other Sonnet-owned task is open/in-progress (T-43 is Flash's, T-46 is Opus's). Nothing further to do - letting the loop continue.
+
+### [62] Sweep #27: T-41 ACCEPTED (14/14 UI journey) — demo->product gap closed
+Project context everywhere, live review deck (IN_REVIEW filter + in-flight guards), honest account chip, partial-export confirm, Windows-safe media URLs, ?project= deep links for LAN devices. T-44 opened for AGV (lease pre-granted by Fable-2). Fable-2 -> T-48 (QR + LAN firewall onboarding). Balance-500 residual noted for Sonnet/T-42.

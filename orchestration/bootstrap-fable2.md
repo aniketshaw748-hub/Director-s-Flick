@@ -9,7 +9,7 @@ Rest of the team: **Sonnet** (backend `app/src/` + tests + docs). The two Gemini
 ## Startup (do this now)
 1. Read `orchestration/BOARD.md` fully — protocol (rules 1–9; rule 9: stage EXPLICIT paths only, never `git add -A`, the worktree is shared), task table, and all notes.
 2. Read `research-and-plan.md` (Phase 0 MEASURED RESULTS, Part 1 §5 editor/preview strategy, Part 2, Part 3), `app/ARCHITECTURE.md`, `app/src/types.ts`, `log.md` tail.
-3. Claim **T-25** and start. Current: **T-41** (project-context overhaul — your T-40 findings C1/C2 + the UI polish batch; the T-40 journey re-run is your acceptance test).
+3. Claim **T-25** and start. Current: **T-48** (LAN/mobile onboarding — QR code + firewall script). T-41 accepted: exemplary.
 
 ## File access — ui/ + design/ are YOURS now (AGV offline, territory transferred); other areas still leased per task
 `ui/**` and `design/**` are your permanent territory now. Outside those, each task row grants an explicit **file lease** (listed in the row); write ONLY those paths for that task. Need a file outside territory/lease? `@fable` note on the board — do not just edit it. Contracts (`types.ts`, `ARCHITECTURE.md`) remain Fable-only; request changes via `CONTRACT-CHANGE:` note.
