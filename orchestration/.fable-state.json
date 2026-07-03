@@ -1,9 +1,9 @@
 {
-  "last_seen_commit": "d8efe4216f7b7d7c2b8f9257b5b84fb981155262",
+  "last_seen_commit": "b64685f094abfefc5705e6d57313be932b5d9483",
+  "last_sweep": "2026-07-04T07:20",
   "pending": [
-    "T-81 Fable-2 unblocked",
-    "T-79 finale: opus re-points tag, fable pushes it",
-    "T-82 dropped"
-  ],
-  "last_sweep": "2026-07-04T06:40"
+    "T-83 Sonnet (last v0.1.0 item)",
+    "T-79 finale gated on T-83",
+    "Fable-2 standby"
+  ]
 }
