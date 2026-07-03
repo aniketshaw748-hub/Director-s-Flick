@@ -554,3 +554,6 @@ Done-count dip explained: Sonnet reopened T-37 to actually land the H4 overshoot
 
 ### [56] T-37 H4 result
 Result: Done, board updated. Buffer overshoot was two compounding bugs: the imageReadyCount snapshot didn't count IMAGE_QUEUED (in-flight) shots, AND it was a frozen const that never updated as the D-loop submitted within the same tick. Fixed both (count IMAGE_QUEUED + increment live, same pattern as the existing concurrency counters). Verified with a revert-and-confirm-fail check before restoring: without the fix, my new test hit max=5 with bufferSize=3 (matching the shape of Fable-2's live 5-vs-8 measurement); with the fix, max=3. typecheck clean, 73/73 on my own files (the one other failing test file is Opus's uncommitted T-35 WIP, unrelated, confirmed via git status before touching anything).
+
+### [59] Sweep #24: T-37 fully accepted (H4 landed)
+Buffer overshoot fixed with in-flight accounting; suite green on independent run. Sonnet -> T-42. T-41 code landing in pieces (Fable-2 still verifying); T-35 in progress (Opus).
