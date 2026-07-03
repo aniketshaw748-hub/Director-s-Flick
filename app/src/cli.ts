@@ -26,6 +26,7 @@ import { loadConfig } from './config.js';
 import type { ConfigOverrides } from './config.js';
 import { alignScript, computeTimeline, planShots } from './align.js';
 import { createStageProviders } from './providers/index.js';
+import { summarizeLedger, formatCostAmount, ledgerUnit, type CostUnit } from './cost-summary.js';
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue } from './queue.js';
 import { exportTimeline, probeDuration } from './media.js';
@@ -548,26 +549,43 @@ program
       const entries = db.listLedger();
       if (entries.length === 0) {
         console.log('ledger is empty');
-      } else {
-        console.log(
-          formatTable(
-            ['id', 'kind', 'model', 'preflight', 'charged', 'account', 'job'],
-            entries.map((e) => [
-              String(e.id ?? '-'),
-              e.kind,
-              e.model,
-              e.preflightCredits === null ? '-' : e.preflightCredits.toFixed(2),
-              e.chargedCredits === null ? '-' : e.chargedCredits.toFixed(2),
-              // Prefer the ledger row's own account_name (written at insert
-              // time since T-32); fall back to the _usage.json map for rows
-              // written before that column existed.
-              e.accountName ?? getJobAccount(e.jobId) ?? '-',
-              e.jobId,
-            ]),
-          ),
-        );
+        return;
       }
-      console.log(`total credits: ${db.totalCredits().toFixed(2)}`);
+      console.log(
+        formatTable(
+          ['id', 'kind', 'model', 'provider', 'unit', 'preflight', 'charged', 'account', 'job'],
+          entries.map((e) => [
+            String(e.id ?? '-'),
+            e.kind,
+            e.model,
+            e.provider ?? '-',
+            ledgerUnit(e),
+            e.preflightCredits === null ? '-' : e.preflightCredits.toFixed(2),
+            e.chargedCredits === null ? '-' : e.chargedCredits.toFixed(2),
+            // Prefer the ledger row's own account_name (written at insert
+            // time since T-32); fall back to the _usage.json map for rows
+            // written before that column existed.
+            e.accountName ?? getJobAccount(e.jobId) ?? '-',
+            e.jobId,
+          ]),
+        ),
+      );
+      // Unit-aware totals (T-46): credits and usd are reported separately -
+      // never summed (higgsfield prices in credits, fal in dollars).
+      const summary = summarizeLedger(entries);
+      console.log('');
+      for (const [unit, amount] of Object.entries(summary.totals)) {
+        console.log(`total ${unit}: ${formatCostAmount(unit as CostUnit, amount)}`);
+      }
+      // Per-account per-unit subtotals when the ledger spans >1 account/unit.
+      if (summary.byAccount.length > 1) {
+        console.log('by account:');
+        for (const b of summary.byAccount) {
+          console.log(
+            `  ${b.accountName ?? '(none)'} · ${formatCostAmount(b.unit, b.total)} (${b.entryCount})`,
+          );
+        }
+      }
     } finally {
       db.close();
     }
