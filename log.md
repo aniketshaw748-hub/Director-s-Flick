@@ -987,3 +987,7 @@ Team standby called after the tag push (efc7b5e). Session tally for the release:
 ### [102] Owner requested codebase cleanup -> T-86 (opus): audit-first prune of unreferenced phase0 binaries (~33MB tracked) + dead-code sweep with T-84/T-85 lease exclusions
 
 ### [103] Opus sibling-landmine audit: VO create path is the only base64 site. T-84 amended: JSON path capped at ~20MB decoded (413 + use-multipart), tested.
+
+### [56] Claim T-85 URGENT — FormData create-project upload (client half of the OOM fix)
+About to: replace the base64-in-JSON create call (my T-28 design — the encode loop is exactly what OOM-crashed the owner's tab on a real VO) with FormData per the Fable-approved T-84 contract: parts name/script/vo, File object appended directly so the browser streams from disk, NO manual Content-Type (boundary is browser-set), fileToBase64 deleted outright. Sonnet's T-84 server half is mid-flight in the tree (multer WIP visible) — will verify against it when it lands or coordinate timing on the board. Verification: create a project with a >100MB WAV in real Chrome, sampling renderer heap before/during/after — memory must stay flat, no Aw-Snap, 200 response; tsc clean.
+Result: — (in progress)
