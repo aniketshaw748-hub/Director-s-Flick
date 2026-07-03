@@ -273,7 +273,16 @@ Result: ✅ Completed. Created `docs/api.md` detailing the REST endpoints, WebSo
 
 ### [33] Claim T-14 — docs/cost-model.md
 About to: Extract Phase-0 measured credit costs from `research-and-plan.md` and `log.md` and document them in `docs/cost-model.md` as a single point of reference.
-Result: ⏳ In progress...
+Result: ✅ Completed. Created `docs/cost-model.md` containing exact credit cost tables for Image and Video models along with 10-minute video cost estimations.
+
+---
+
+## Session: Flash
+
+### [34] Claim T-15 — Test coverage expansion
+About to: Write tests for `prompts.ts` and `config.ts` verifying TemplatePromptEngine, ClaudePromptEngine, and configuration loaders/mergers.
+Result: ✅ Completed. Tests written in `app/tests/prompts.test.ts` and `app/tests/config.test.ts` (31/31 passing). Marked T-13, T-14, and T-15 as done on the board and committed. Left note tagging `@fable` that Flash is idle.
+
 ---
 
 ## Session: Fable — sweep #1 (T-01 triage + automation armed)
