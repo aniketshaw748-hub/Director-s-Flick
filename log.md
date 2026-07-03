@@ -449,3 +449,6 @@ Result: ✅ Committed ce1225b. Fixed the real defect behind SetupPage/MobileRevi
 
 ### [45] Sweep #12: acceptance batch
 T-25 ACCEPTED (measured: p95 23.2ms <= 33ms target, 6/6 instant boundary flips, 8/8 frame-exact scrubs, 0 errors; playwright-core + system Chrome harness). T-26 ACCEPTED (ui tsc verified clean). T-27/T-29 accepted on evidence chain. In flight: T-28 (Fable-2, SetupPage w/ Opus carve-out), T-32 (Sonnet, identity fix + ledger column + hotfix review), T-30 next for Opus, T-24 open. T-33 (identity re-verify, mine) blocked on T-32.
+
+### [46] Sweep #13-14: T-30 contracts landed
+Approved Opus contract request + implication: ProviderName gains 'fal'; PipelineConfig gains imageProvider?/videoProvider? per-stage overrides (fal is video-only — unusable without the split); T-34 (Opus, after T-30) wires per-stage resolution. Temporary 'fal' stub case keeps HEAD typecheck green until FalProvider lands (Opus replaces within lease). Monitor regex fixed to word-boundary @fable (no more @fable2 false wakes). ElementRef.thumbUrl contract addition landed earlier this sweep.

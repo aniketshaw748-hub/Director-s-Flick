@@ -1,11 +1,10 @@
 {
   "pending": [
-    "T-32 Sonnet",
+    "T-32 Sonnet -> unblocks my T-33",
     "T-28 Fable-2",
-    "T-26+T-30 Opus",
-    "T-24 Sonnet",
-    "T-33 blocked on T-32"
+    "T-30 Opus",
+    "T-24 Sonnet"
   ],
-  "last_seen_commit": "a2fbef4733168bd9639e94ef93dfbd57772153c7",
-  "last_sweep": "2026-07-03T21:21:05.4959109+05:30"
+  "last_seen_commit": "17b9fc311a604139dd5d16c645a25dc056cba2b3",
+  "last_sweep": "2026-07-03T21:28:16.6799896+05:30"
 }

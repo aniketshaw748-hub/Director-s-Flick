@@ -28,6 +28,10 @@ export function createProvider(config: PipelineConfig, account?: ProviderAccount
       return new MockProvider();
     case 'higgsfield-cli':
       return new HiggsfieldCliProvider(config, account);
+    // Temporary stub keeping HEAD's typecheck green between the ProviderName
+    // contract change and T-30 landing — Opus replaces this within its lease.
+    case 'fal':
+      throw new Error("provider 'fal' lands with T-30 (FalProvider)");
     default: {
       const unknown: never = config.provider;
       throw new Error(`Unknown provider: ${String(unknown)}`);
