@@ -633,3 +633,6 @@ Result: ✅ Done. Created design/desktop-settings.html replicating the app chrom
 
 ### [65] Sweep #30: T-42 residual accepted; T-46 scope approved; Flash -> T-50 (README)
 Sonnet re-closed the balance-endpoint 500 (96/96 green). Opus extracting cost-summary.ts helper for T-46 — approved. Flash idle -> T-50 top-level README quickstart. In flight: T-46 Opus, T-48 Fable-2, T-49 AGV, T-50 Flash, T-43 awaiting Sonnet review.
+
+### [63] T-43 review result
+Result: accounts.test.ts PASSES - genuinely hermetic (spawn fully mocked, zero real process), tests real behavior across balance-parsing variants, auth-failure detection, spawn args/env, error propagation. docs/api.md: found 2 real inaccuracies (GET /edl example uses invented start/end fields instead of the real timelineStart, missing projectId/lineIndex; shotEvent WS payload documents the full 8-value ShotState enum instead of the actual restricted IMAGE_READY|VIDEO_READY|PLACED - the exact confusion T-29's flaky-test fix already hit once) plus one timing-explained gap (GET /balance's graceful-degrade, my own later fix, not documented). Everything else checked line-by-line against server.ts is accurate. Posted verdict + both issues to the board for Flash, did not edit docs/api.md myself (not my file).
