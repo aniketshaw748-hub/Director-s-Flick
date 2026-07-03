@@ -6,6 +6,8 @@ import type { PlayerSegment } from '../player/engine';
 import { useProject } from '../project/ProjectContext';
 import { mediaBasename, mediaUrl } from '../paths';
 import { useAutocomplete } from '../useAutocomplete';
+import { drawWaveform, loadWaveform } from '../player/waveform';
+import type { WaveformPeaks } from '../player/waveform';
 import '../player/timeline.css';
 
 /** timeline strip scale: pixels per second */
@@ -75,9 +77,13 @@ export default function TimelinePage() {
   const trackRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+  const playedCanvasRef = useRef<HTMLCanvasElement>(null);
+  const playedClipRef = useRef<HTMLDivElement>(null);
   const redoTextRef = useRef<HTMLTextAreaElement>(null);
   const lastPlayedBars = useRef(0);
   const scrubbing = useRef(false);
+  const [peaks, setPeaks] = useState<WaveformPeaks | null>(null);
 
   const autocomplete = useAutocomplete(elements, redoPrompt, setRedoPrompt, redoTextRef);
   const placedShots = shots.filter((s) => s.state === 'PLACED').length;
@@ -150,6 +156,31 @@ export default function TimelinePage() {
     setRedoOpen(false);
   }, [projectName]);
 
+  // T-58: real VO waveform — decoded once per project (module-level cache),
+  // null (e.g. decode failure) falls back to the decorative seeded bars.
+  useEffect(() => {
+    setPeaks(null);
+    if (!projectName) return;
+    let alive = true;
+    void loadWaveform(projectName, `/api/project/${encodeURIComponent(projectName)}/vo`, PPS).then((p) => {
+      if (alive && p) setPeaks(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [projectName]);
+
+  // paint both strips once per peaks-load; progress reveal is style-only
+  useEffect(() => {
+    if (!peaks) return;
+    const styles = getComputedStyle(document.documentElement);
+    const grey = styles.getPropertyValue('--wave').trim() || 'rgba(255,255,255,.26)';
+    const lime = styles.getPropertyValue('--lime').trim() || '#C6FF4D';
+    if (baseCanvasRef.current) drawWaveform(baseCanvasRef.current, peaks, 56, grey);
+    if (playedCanvasRef.current) drawWaveform(playedCanvasRef.current, peaks, 56, lime);
+    if (playedClipRef.current) playedClipRef.current.style.width = '0px';
+  }, [peaks]);
+
   // real spend + account balances (cached server-side, status-only CLI)
   useEffect(() => {
     refreshCost();
@@ -219,8 +250,12 @@ export default function TimelinePage() {
       if (playheadRef.current) {
         playheadRef.current.style.transform = `translateX(${PAD + t * PPS}px)`;
       }
-      const wave = waveRef.current;
-      if (wave) {
+      if (playedClipRef.current) {
+        // real waveform: reveal the pre-painted lime strip — O(1) per frame
+        playedClipRef.current.style.width = `${Math.max(t * PPS, 0)}px`;
+      } else if (waveRef.current) {
+        // seeded-bars fallback
+        const wave = waveRef.current;
         const total = engine.duration || 1;
         const bars = wave.children;
         const played = Math.min(bars.length, Math.floor((t / total) * bars.length));
@@ -233,7 +268,7 @@ export default function TimelinePage() {
         lastPlayedBars.current = played;
       }
     });
-  }, [engine]);
+  }, [engine, peaks]);
 
   // Space toggles playback (unless typing in a field).
   useEffect(() => {
@@ -476,11 +511,20 @@ export default function TimelinePage() {
             )}
           </div>
           <div className="tl-audio">
-            <div className="tl-audio-wave" id="tl-wave" ref={waveRef} style={{ width: `${waveWidth}px` }}>
-              {barHeights.map((h, i) => (
-                <i key={i} style={{ height: `${h}%` }}></i>
-              ))}
-            </div>
+            {peaks ? (
+              <div className="tl-audio-wave" style={{ width: `${Math.max(peaks.columns, waveWidth)}px`, display: 'block', padding: 0, position: 'relative' }}>
+                <canvas ref={baseCanvasRef} data-waveform="base" style={{ position: 'absolute', left: 0, top: '4px' }} />
+                <div ref={playedClipRef} style={{ position: 'absolute', left: 0, top: '4px', width: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+                  <canvas ref={playedCanvasRef} />
+                </div>
+              </div>
+            ) : (
+              <div className="tl-audio-wave" id="tl-wave" ref={waveRef} style={{ width: `${waveWidth}px` }}>
+                {barHeights.map((h, i) => (
+                  <i key={i} style={{ height: `${h}%` }}></i>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
