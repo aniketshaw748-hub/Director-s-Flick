@@ -154,7 +154,7 @@ Easing: `--ease` `cubic-bezier(.2,0,0,1)` standard · `--ease-out` `cubic-bezier
 ### Settings screen (Desktop & Mobile)
 - **Desktop** — `desktop-settings.html`. Accessible via rail `.nav-btn` active state. Full workspace layout (`max-width: 960px`, centered). `.page-head` with "Discard" and "Save Changes" (`.btn-primary`) actions.
 - **Mobile** — `mobile-settings.html`. Mobile-specific chrome `.topbar` with back chevron and text `.btn-save` ("Save"). Scrollable vertical `.content` layout with safe-area padding.
-- **Components (Shared)** — `.section` containers with `.section-title` separated by hairline. Form inputs `.field` (label, `<select>` with custom chevron SVG, `.hint` subtext). `.bible-editor` for global styling rules + `.preset-pills`. Checkbox for "Mute video generations".
+- **Components (Shared)** — `.section` containers with `.section-title` separated by hairline. Form inputs `.field` (label, `<select>` with custom chevron SVG, `.hint` subtext). Prompt Engine section with backend toggle (`Template` / `LLM`) and `llmModel` text input. `.bible-editor` for global styling rules + `.preset-pills`. Checkbox for "Mute video generations".
 - **Cost Preview** — `.cost-card` displaying estimated credit/USD costs per stage based on selected models/providers. Uses `.v` (`--text-1` mono) and `.usd` (`--text-3` mono).
 
 ---

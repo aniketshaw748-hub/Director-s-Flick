@@ -193,6 +193,40 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
           </div>
         </section>
 
+        {/* Prompt Engine Section */}
+        <section className="settings-section">
+          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+            Prompt Engine
+            <span style={{ display: 'inline-flex', alignItems: 'center', height: '20px', padding: '0 6px', borderRadius: 'var(--r-sm)', fontSize: '10px', fontWeight: 600, background: 'var(--surface-3)', color: 'var(--text-2)', border: '1px solid var(--border-1)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+              Experimental
+            </span>
+          </h2>
+          <div className={isMobile ? "settings-field" : "settings-grid-2"}>
+            <div className="settings-field">
+              <label>Engine Backend</label>
+              <select 
+                value={config.promptBackend || 'template'} 
+                onChange={e => updateConfig({ promptBackend: e.target.value as 'template' | 'llm' })}
+              >
+                <option value="template">Template (Deterministic)</option>
+                <option value="llm">LLM (Anthropic API)</option>
+              </select>
+              <span className="hint">LLM mode uses Claude to write detailed prompts. Requires ANTHROPIC_API_KEY on the server. Falls back to Template on any error.</span>
+            </div>
+            <div className="settings-field">
+              <label>LLM Model</label>
+              <input 
+                type="text" 
+                value={config.llmModel || 'claude-opus-4-8'} 
+                onChange={e => updateConfig({ llmModel: e.target.value })}
+                disabled={config.promptBackend !== 'llm'}
+                style={{ opacity: config.promptBackend !== 'llm' ? 0.5 : 1 }}
+              />
+              <span className="hint">Anthropic model to use. Default is claude-opus-4-8.</span>
+            </div>
+          </div>
+        </section>
+
         {/* Style Bible Section */}
         <section className="settings-section">
           <h2 className="settings-section-title">Style Bible</h2>
