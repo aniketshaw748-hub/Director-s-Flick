@@ -683,3 +683,6 @@ About to:
 - Assert bad-input exits (unknown command, missing `--script` on full-run, etc.).
 - Ensure all subprocess invocations are platform-safe (using `node:path`, passing arguments as an array, using `npx tsx` or `npx tsx src/cli.ts` or `process.execPath` with `tsx` wrapper).
 Result: ⏳ In progress...
+
+### [69] Bootstrap delivery fix: Flash never saw T-56 (heading restructure broke my regex update)
+User reports both Gemini agents waiting. Root cause: bootstrap-flash.md now uses a "## Current priority" heading so my text replace no-op'd silently; AGV had T-57 but polled pre-push. Rewrote both Current-priority sections with full self-contained specs, superseded stale startup pointers, board ping posted.
