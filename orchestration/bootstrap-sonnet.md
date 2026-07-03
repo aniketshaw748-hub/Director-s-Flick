@@ -20,3 +20,7 @@ Current priority for you: **T-88 OWNER-DIRECTED** — phrase-level shot segmenta
 - Windows box: spawn with array args, node:path everywhere, `PYTHONIOENCODING=utf-8` for python, ffmpeg 8.1.1 + h264_nvenc on PATH, python 3.12 + stable-ts installed. Paths contain a space ("Video Automation") — quote accordingly.
 - Commit small + often, prefix `[sonnet]`, pull before working. Update your BOARD.md rows (claim → in-progress → done + result note). Append your log entries to `log.md` under a `## Session: Sonnet` heading — log the action BEFORE doing it.
 - Blocked or found something contract-level? Note it on the board and move to the next task; Fable arbitrates.
+
+
+## 🛑 WIND-DOWN (2026-07-04, owner order)
+All loops shut down. If you are reading this in a FUTURE session: read repo-root **resume.md** first, then BOARD.md protocol + your last row, then await Fable's assignment. Do not start poll loops until Fable re-activates the board.

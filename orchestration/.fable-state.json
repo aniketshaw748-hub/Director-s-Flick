@@ -1,8 +1,7 @@
 {
-  "last_sweep": "2026-07-04T17:30",
+  "last_sweep": "2026-07-04T18:05",
   "pending": [
-    "T-88 Sonnet segmentation",
-    "T-89 Opus master prompt"
+    "T-88 Sonnet segmentation - owner re-align gate"
   ],
-  "last_seen_commit": "0271d9e4b2838ed8e69a2bed318d19b92ba19b1e"
+  "last_seen_commit": "1f12217e067158f447739227dd5b8d62e043affe"
 }

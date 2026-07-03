@@ -22,3 +22,7 @@ After finishing ANY task: commit (`[fable2]` prefix, explicit paths), update you
 - Verify like your reputation depends on it: run the thing, measure it, write down the numbers. "Should work" is not done.
 - Windows box: node:path everywhere, spawn with array args, paths contain a space ("Video Automation") — quote accordingly. ffmpeg 8.1.1 + NVENC on PATH; python 3.12 + stable-ts installed.
 - Log to `log.md` under `## Session: Fable-2` — log the action BEFORE doing it (project convention).
+
+
+## 🛑 WIND-DOWN (2026-07-04, owner order)
+All loops shut down. If you are reading this in a FUTURE session: read repo-root **resume.md** first, then BOARD.md protocol + your last row, then await Fable's assignment. Do not start poll loops until Fable re-activates the board.

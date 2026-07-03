@@ -25,3 +25,7 @@ Stage EXPLICIT paths only (`git add ui/... design/...`). NEVER `git add -A` or `
 - NEVER run real Higgsfield generations or anything that spends credits. Use the mock data / WS `sync` state from `app/src/server.ts` (run it locally for development).
 - Commit small + often, prefix `[agv]`, pull before working. Update your BOARD.md rows; append log entries to `log.md` under your Antigravity heading — log the action BEFORE doing it (existing convention).
 - Windows paths contain a space — quote accordingly.
+
+
+## 🛑 WIND-DOWN (2026-07-04, owner order)
+All loops shut down. If you are reading this in a FUTURE session: read repo-root **resume.md** first, then BOARD.md protocol + your last row, then await Fable's assignment. Do not start poll loops until Fable re-activates the board.

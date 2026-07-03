@@ -21,3 +21,7 @@ After finishing ANY task: commit (`[opus]` prefix, explicit paths), update your 
 - Verify empirically: run the thing, report numbers/screenshots in your result note.
 - Windows box: node:path, spawn with array args, paths contain a space ("Video Automation"). ffmpeg 8.1.1 + NVENC on PATH.
 - Log to `log.md` under `## Session: Opus` — log the action BEFORE doing it (project convention).
+
+
+## 🛑 WIND-DOWN (2026-07-04, owner order)
+All loops shut down. If you are reading this in a FUTURE session: read repo-root **resume.md** first, then BOARD.md protocol + your last row, then await Fable's assignment. Do not start poll loops until Fable re-activates the board.

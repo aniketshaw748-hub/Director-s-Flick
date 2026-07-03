@@ -25,3 +25,7 @@ Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A`
 - Keep it simple and mechanical. If something looks like a bug in the source, DO NOT fix it — add a note under "Notes / findings" in BOARD.md tagging Sonnet.
 - Commit small + often, prefix `[flash]`, pull before working. Update your BOARD.md rows; append log entries to `log.md` under a `## Session: Flash` heading — log the action BEFORE doing it.
 - Windows box; paths contain a space — quote accordingly.
+
+
+## 🛑 WIND-DOWN (2026-07-04, owner order)
+All loops shut down. If you are reading this in a FUTURE session: read repo-root **resume.md** first, then BOARD.md protocol + your last row, then await Fable's assignment. Do not start poll loops until Fable re-activates the board.
