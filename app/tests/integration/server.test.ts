@@ -2,6 +2,7 @@ import { vi, describe, test, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { ProjectDb, PROJECTS_ROOT, projectDbPath } from '../../src/db.js';
@@ -98,6 +99,63 @@ global.setTimeout = (cb: any, ms?: number, ...args: any[]) => {
   }
   return timer;
 };
+
+// T-84: hand-built multipart/form-data POST that streams the file part
+// straight from disk (fs.createReadStream) into the HTTP request - never
+// holds the whole file in memory client-side either, so an RSS measurement
+// around the call reflects genuine server-side (multer) streaming, not just
+// "the client already had it buffered anyway".
+function postMultipartFile(
+  port: number,
+  fields: Record<string, string>,
+  file?: { fieldName: string; filePath: string; fileName: string },
+): Promise<{ status: number; body: any }> {
+  const boundary = `----t84boundary${randomUUID()}`;
+  const CRLF = '\r\n';
+  let preamble = '';
+  for (const [key, value] of Object.entries(fields)) {
+    preamble += `--${boundary}${CRLF}Content-Disposition: form-data; name="${key}"${CRLF}${CRLF}${value}${CRLF}`;
+  }
+  if (file) {
+    preamble += `--${boundary}${CRLF}Content-Disposition: form-data; name="${file.fieldName}"; filename="${file.fileName}"${CRLF}Content-Type: application/octet-stream${CRLF}${CRLF}`;
+  }
+  const epilogue = `${CRLF}--${boundary}--${CRLF}`;
+
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: 'localhost',
+        port,
+        path: '/api/projects',
+        method: 'POST',
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : undefined });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(preamble);
+    if (!file) {
+      req.end(epilogue);
+      return;
+    }
+    const fileStream = fs.createReadStream(file.filePath);
+    fileStream.on('error', reject);
+    fileStream.on('data', (chunk) => req.write(chunk));
+    fileStream.on('end', () => req.end(epilogue));
+  });
+}
 
 describe('server integration', () => {
   const tempProjectName = `temp_proj_api_test_${Date.now()}`;
@@ -1072,6 +1130,131 @@ describe('server integration', () => {
       });
       expect(res.status).toBe(400);
     });
+
+    test('POST /api/projects (multipart/form-data) creates a project, streaming the vo file to disk (T-84)', async () => {
+      const mpName = `${setupProjectName}_mp`;
+      const mpDir = path.join(PROJECTS_ROOT, mpName);
+      const srcFile = path.join(os.tmpdir(), `t84_src_${randomUUID()}.mp3`);
+      const bytes = Buffer.from('FAKE-MP3-BYTES-FOR-MULTIPART-TEST');
+      fs.writeFileSync(srcFile, bytes);
+      try {
+        const { status, body } = await postMultipartFile(
+          port,
+          { name: mpName, script: 'A multipart-created project.' },
+          { fieldName: 'vo', filePath: srcFile, fileName: 'my-voiceover.mp3' },
+        );
+        expect(status).toBe(200);
+        expect(body.project.name).toBe(mpName);
+        // extension is derived from the uploaded filename, same convention
+        // as the JSON path's voiceoverExt field.
+        const voPath = path.join(mpDir, 'voiceover.mp3');
+        expect(body.project.voPath).toBe(voPath);
+        expect(fs.existsSync(voPath)).toBe(true);
+        expect(fs.readFileSync(voPath)).toEqual(bytes);
+        expect(fs.existsSync(path.join(mpDir, 'script.txt'))).toBe(true);
+      } finally {
+        fs.rmSync(srcFile, { force: true });
+        if (fs.existsSync(mpDir)) fs.rmSync(mpDir, { recursive: true, force: true });
+      }
+    });
+
+    test('POST /api/projects (multipart) with no vo file part at all 400s, same as a missing voiceoverBase64', async () => {
+      const { status, body } = await postMultipartFile(port, {
+        name: `${setupProjectName}_novofile`,
+        script: 'A line.',
+      });
+      expect(status).toBe(400);
+      expect(body.error).toMatch(/voiceoverBase64.*or a multipart vo file/);
+    });
+
+    test('POST /api/projects (multipart) with an unexpected file field name gets a clean 400, not an HTML error page', async () => {
+      const p = path.join(os.tmpdir(), `t84_unused_${randomUUID()}.txt`);
+      fs.writeFileSync(p, 'unused');
+      try {
+        const { status, body } = await postMultipartFile(
+          port,
+          { name: `${setupProjectName}_wrongfield`, script: 'A line.' },
+          { fieldName: 'not-vo', filePath: p, fileName: 'unused.txt' },
+        );
+        expect(status).toBe(400);
+        expect(body.error).toMatch(/multipart upload error/);
+      } finally {
+        fs.rmSync(p, { force: true });
+      }
+    });
+
+    test('POST /api/projects (multipart) rejects an invalid name, cleaning up the streamed temp upload (T-84)', async () => {
+      const srcFile = path.join(os.tmpdir(), `t84_badname_${randomUUID()}.wav`);
+      fs.writeFileSync(srcFile, Buffer.from('irrelevant'));
+      try {
+        const { status, body } = await postMultipartFile(
+          port,
+          { name: 'bad name with spaces!', script: 'A line.' },
+          { fieldName: 'vo', filePath: srcFile, fileName: 'voiceover.wav' },
+        );
+        expect(status).toBe(400);
+        expect(body.error).toMatch(/name must be/);
+        // No orphaned temp upload left behind under app/tmp-uploads.
+        const tmpUploadsDir = path.join(PROJECTS_ROOT, '..', 'tmp-uploads');
+        const leftover = fs.existsSync(tmpUploadsDir) ? fs.readdirSync(tmpUploadsDir) : [];
+        expect(leftover).toHaveLength(0);
+      } finally {
+        fs.rmSync(srcFile, { force: true });
+      }
+    });
+
+    test('POST /api/projects (multipart) streams a 200MB file with flat server RSS (T-84)', async () => {
+      const bigProjectName = `${setupProjectName}_bigmp`;
+      const bigDir = path.join(PROJECTS_ROOT, bigProjectName);
+      const bigFile = path.join(os.tmpdir(), `t84_bigvo_${randomUUID()}.wav`);
+      const SIZE = 200 * 1024 * 1024;
+      const CHUNK = 8 * 1024 * 1024;
+      const chunkBuf = Buffer.alloc(CHUNK, 7);
+      try {
+        // Write the source file in reused-buffer chunks so the test's own
+        // setup doesn't hold 200MB in memory either.
+        await new Promise<void>((resolve, reject) => {
+          const ws = fs.createWriteStream(bigFile);
+          ws.on('error', reject);
+          let written = 0;
+          const writeNext = () => {
+            if (written >= SIZE) {
+              ws.end(() => resolve());
+              return;
+            }
+            const remaining = Math.min(CHUNK, SIZE - written);
+            const slice = remaining === CHUNK ? chunkBuf : chunkBuf.subarray(0, remaining);
+            written += remaining;
+            if (ws.write(slice)) process.nextTick(writeNext);
+            else ws.once('drain', writeNext);
+          };
+          writeNext();
+        });
+
+        const rssBefore = process.memoryUsage().rss;
+        const { status, body } = await postMultipartFile(
+          port,
+          { name: bigProjectName, script: 'A 200MB multipart smoke test.' },
+          { fieldName: 'vo', filePath: bigFile, fileName: 'voiceover.wav' },
+        );
+        const rssAfter = process.memoryUsage().rss;
+
+        expect(status).toBe(200);
+        expect(body.project.name).toBe(bigProjectName);
+        const voPath = path.join(bigDir, 'voiceover.wav');
+        expect(fs.existsSync(voPath)).toBe(true);
+        expect(fs.statSync(voPath).size).toBe(SIZE);
+
+        // A buffered (non-streaming) implementation would grow RSS by
+        // roughly the file size or more; a true streaming implementation
+        // only pays for small internal chunk buffers.
+        const growth = rssAfter - rssBefore;
+        expect(growth).toBeLessThan(SIZE * 0.5);
+      } finally {
+        fs.rmSync(bigFile, { force: true });
+        if (fs.existsSync(bigDir)) fs.rmSync(bigDir, { recursive: true, force: true });
+      }
+    }, 60000);
 
     test('POST /api/projects creates a project, then POST /align plans shots (and 409s once already planned)', async () => {
       const createRes = await fetch(`http://localhost:${port}/api/projects`, {

@@ -80,3 +80,7 @@ phase0/T33_*.png
 app/coverage/
 # T-86: unreferenced Phase-0 test voiceover (kept locally as evidence, untracked)
 phase0/t08_vo.wav
+# T-84: scratch dir for in-flight multipart uploads (streamed to disk, moved
+# into the real project dir or deleted on validation failure - nothing here
+# should ever be intentionally long-lived)
+app/tmp-uploads/

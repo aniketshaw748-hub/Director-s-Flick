@@ -1,10 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT, APP_ROOT } from './db.js';
 import { loadConfig, mergeLayer, type ConfigOverrides } from './config.js';
 import { createStageProviders } from './providers/index.js';
@@ -68,6 +70,48 @@ export function startServer(port = 4000) {
         smallJsonParser(req, res, next);
      }
   });
+
+  // T-84: multipart/form-data upload for POST /api/projects (live OOM fix -
+  // base64-in-JSON held an entire real VO, ~3x-inflated, in the browser tab's
+  // memory; multer streams the file part straight to a temp file on disk,
+  // never buffering it in RAM). The temp dir is on the SAME volume as
+  // PROJECTS_ROOT (both under APP_ROOT) so moving the upload into the real
+  // project dir once its name is known is a cheap rename, not a copy - this
+  // also sidesteps any dependency on `name`/`vo` field arrival order in the
+  // multipart body. Applied as route-level middleware only: multer no-ops
+  // for non-multipart requests (content-type mismatch), so the JSON path
+  // above keeps working unchanged for small hand-built payloads.
+  const uploadTmpDir = path.join(APP_ROOT, 'tmp-uploads');
+  fs.mkdirSync(uploadTmpDir, { recursive: true });
+  const upload = multer({
+     storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, uploadTmpDir),
+        filename: (_req, _file, cb) => cb(null, randomUUID()),
+     }),
+     limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB ceiling, not a buffering limit
+  });
+  // multer surfaces malformed multipart requests (wrong file field name,
+  // over the size limit, corrupt boundary, etc.) by calling next(err) -
+  // uncaught, that falls through to Express's default HTML error page. Wrap
+  // it so a bad multipart request gets the same clean JSON 400 shape as
+  // every other validation failure on this route.
+  const uploadVoField: express.RequestHandler = (req, res, next) => {
+     upload.single('vo')(req, res, (err: unknown) => {
+        if (err) {
+           if (req.file) {
+              try {
+                 fs.unlinkSync(req.file.path);
+              } catch {
+                 // best-effort only
+              }
+           }
+           const message = err instanceof Error ? err.message : String(err);
+           res.status(400).json({ error: `multipart upload error: ${message}` });
+           return;
+        }
+        next();
+     });
+  };
 
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
@@ -456,27 +500,41 @@ export function startServer(port = 4000) {
 
   // --- T-27 setup-flow endpoints -------------------------------------------
 
-  // Create a new project. Uploads are JSON+base64 rather than multipart: the
-  // standard multipart middleware (multer) would be a new dependency, and
-  // package.json is ARCHITECT-owned per ARCHITECTURE.md's module map (change
-  // by contract review only) - base64-in-JSON needs no new dependency on
-  // either side and is simple for a browser <input type="file"> to produce
-  // via FileReader, so it's functionally equivalent for this use case.
-  app.post('/api/projects', (req, res) => {
+  // Create a new project. Accepts EITHER multipart/form-data (part names
+  // `name`/`script`/`vo` per the T-84/T-85 contract - the vo file streams
+  // straight to disk via multer, never touching browser or server RAM as a
+  // whole blob) OR the original JSON+base64 body (voiceoverBase64/
+  // voiceoverExt - kept working for small hand-built payloads/existing
+  // tests). Exactly one of `req.file` (multipart) or `voiceoverBase64`
+  // (JSON) will be present per request.
+  app.post('/api/projects', uploadVoField, (req, res) => {
      const { name, script, voiceoverBase64, voiceoverExt } = req.body ?? {};
+     const cleanupUpload = () => {
+        // Sync: runs on the reject path only (not perf-sensitive), and
+        // guarantees the temp file is gone before the response is sent -
+        // callers observing a 4xx/5xx should never see a lingering upload.
+        if (req.file) {
+           try {
+              fs.unlinkSync(req.file.path);
+           } catch {
+              // already moved into place, or already gone - fine either way
+           }
+        }
+     };
      if (typeof name !== 'string' || !/^[A-Za-z0-9_-]+$/.test(name)) {
+        cleanupUpload();
         res.status(400).json({ error: 'name must be a non-empty string of letters/numbers/_/-' });
         return;
      }
      if (typeof script !== 'string' || !script.trim()) {
+        cleanupUpload();
         res.status(400).json({ error: 'script (narration text) is required' });
         return;
      }
-     if (typeof voiceoverBase64 !== 'string' || !voiceoverBase64) {
-        res.status(400).json({ error: 'voiceoverBase64 (base64-encoded audio) is required' });
+     if (!req.file && (typeof voiceoverBase64 !== 'string' || !voiceoverBase64)) {
+        res.status(400).json({ error: 'voiceoverBase64 (base64-encoded audio) or a multipart vo file is required' });
         return;
      }
-     const ext = typeof voiceoverExt === 'string' && voiceoverExt ? voiceoverExt.replace(/^\./, '') : 'wav';
      let db: ProjectDb | undefined;
      try {
         const dir = projectDir(name);
@@ -484,13 +542,24 @@ export function startServer(port = 4000) {
            fs.mkdirSync(path.join(dir, sub), { recursive: true });
         }
         const scriptPath = path.join(dir, 'script.txt');
-        const voPath = path.join(dir, `voiceover.${ext}`);
         fs.writeFileSync(scriptPath, script, 'utf8');
-        fs.writeFileSync(voPath, Buffer.from(voiceoverBase64, 'base64'));
+
+        let voPath: string;
+        if (req.file) {
+           const ext = path.extname(req.file.originalname).replace(/^\./, '') || 'wav';
+           voPath = path.join(dir, `voiceover.${ext}`);
+           fs.renameSync(req.file.path, voPath); // same-volume move, not a copy
+        } else {
+           const ext = typeof voiceoverExt === 'string' && voiceoverExt ? voiceoverExt.replace(/^\./, '') : 'wav';
+           voPath = path.join(dir, `voiceover.${ext}`);
+           fs.writeFileSync(voPath, Buffer.from(voiceoverBase64, 'base64'));
+        }
+
         db = openProjectDb(name);
         const project = db.ensureProject({ name, scriptPath, voPath, config: loadConfig(name) });
         res.json({ project });
      } catch (e: any) {
+        cleanupUpload(); // no-op if the file was already moved into place
         res.status(500).json({ error: e.message });
      } finally {
         db?.close();
