@@ -345,7 +345,7 @@ export interface CostLedgerEntry {
 // Pipeline configuration
 // ---------------------------------------------------------------------------
 
-export type ProviderName = 'mock' | 'higgsfield-cli' | 'fal';
+export type ProviderName = 'mock' | 'higgsfield-cli' | 'fal' | 'replicate';
 
 export interface PipelineConfig {
   /** which GenProvider to instantiate */
