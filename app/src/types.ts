@@ -382,6 +382,15 @@ export interface PipelineConfig {
   soundOff: boolean;
   /** per-project style bible injected into every prompt batch */
   styleBible: string;
+  /**
+   * Prompt-generation backend (contract change approved by Fable with T-55,
+   * 2026-07-03): 'template' (default) uses the deterministic engine in
+   * prompts.ts; 'llm' generates image/animation prompts via the Anthropic API
+   * (requires ANTHROPIC_API_KEY; falls back to 'template' when absent).
+   */
+  promptBackend?: 'template' | 'llm';
+  /** Anthropic model for promptBackend:'llm' (default 'claude-opus-4-8') */
+  llmModel?: string;
 }
 
 export const DEFAULT_CONFIG: PipelineConfig = {

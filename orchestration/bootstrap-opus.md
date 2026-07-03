@@ -7,7 +7,7 @@ Team: **Fable** (orchestrator — owns contracts, board, arbitration, credit spe
 ## Startup (do this now)
 1. Read `orchestration/BOARD.md` fully — protocol rules 1–9 (rule 9: stage EXPLICIT paths only, NEVER `git add -A` — the worktree is shared by four live sessions), task table, notes.
 2. Read `research-and-plan.md` (Phase 0 MEASURED RESULTS, Parts 1–3), `app/ARCHITECTURE.md`, `app/src/types.ts`, `design/tokens.css`, `log.md` tail.
-3. Current queue: **T-46** (unit-aware cli cost — small) then **T-47** (Replicate provider, mirrors your FalProvider). Live model-get samples for your T-35 parser are in orchestration/samples/. T-26/T-30/T-34/T-35 done — exceptional run.
+3. Current queue: **T-55** (LLM prompt engine — board row + note have full spec; contract fields already landed). T-26/T-30/T-34/T-35/T-46/T-47 all done+accepted — flawless run.
 
 ## File access — per-task leases
 You have no permanent territory; each task row lists your lease. For T-26: `design/design-spec.md` + `ui/src/**` EXCEPT `ui/src/player/**` and `ui/src/pages/TimelinePage.tsx` (Fable-2's active T-25 lease — do not touch). For T-30: `app/src/providers/fal.ts` (new) + a one-line registration in `app/src/providers/index.ts` (coordinate via board note if Sonnet is mid-edit there). Contracts (`types.ts`, `ARCHITECTURE.md`) are Fable-only — `CONTRACT-CHANGE:` note to request.

@@ -1,11 +1,11 @@
 {
-  "last_sweep": "2026-07-03T22:55",
-  "last_seen_commit": "329827f6d4890dc0e4609bc6eae575d20aa9eb0c",
+  "last_seen_commit": "c62f4a5887880dce5bfa11c54e3360860354bdd0",
+  "last_sweep": "2026-07-03T23:05",
   "pending": [
-    "T-46 Opus",
+    "T-47 Opus",
     "T-48 Fable-2",
-    "T-49 AGV",
-    "T-50 Flash",
-    "T-43 sonnet review"
+    "T-51/T-52 Sonnet",
+    "T-53 Flash",
+    "T-54 AGV"
   ]
 }
