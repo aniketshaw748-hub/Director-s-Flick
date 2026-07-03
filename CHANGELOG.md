@@ -85,11 +85,18 @@ board; this entry summarizes what shipped, grouped by area.
 - Docs: `README.md`, `app/ARCHITECTURE.md`, `docs/api.md`, `docs/cost-model.md`,
   `docs/user-guide.md`, and `docs/pilot-runbook.md` (the operator procedure for the
   first real-credit pilot, with a measured cost table).
-- Extensive hermetic `vitest` suite (250+ tests) covering the queue, providers,
+- Extensive hermetic `vitest` suite (330+ tests) covering the queue, providers,
   media/export, server integration, CLI subprocess behavior, and crash recovery, with
   targeted coverage lifts across the riskiest modules.
 - **100-shot scale test** preflight (mock, zero credits): all shots placed, EDL
   complete, memory flat, export duration correct — verdict **GO** on scale grounds.
+
+### Reliability & error handling
+- Alignment input hardening: malformed, empty, or otherwise unexpected alignment
+  inputs are handled defensively, so the pilot's own script/voiceover files cannot
+  crash the pipeline mid-run.
+- Operator-facing CLI failures print a single friendly line (no stack traces) and
+  exit non-zero — e.g. a zero-byte voiceover fails cleanly with one clear message.
 
 ### Known limitations (open going into the pilot)
 - Real per-job provider latency and real-1080p export wall-clock are not yet
