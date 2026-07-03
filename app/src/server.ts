@@ -9,6 +9,15 @@ import { loadConfig } from './config.js';
 import { createProvider } from './providers/index.js';
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue, type ShotEvent } from './queue.js';
+import {
+  listAccounts,
+  accountExists,
+  getActiveAccount,
+  setActiveAccount,
+  getAccountStatus,
+  addAccount,
+  credentialsPath,
+} from './accounts.js';
 
 interface OpenProject {
   db: ProjectDb;
@@ -51,7 +60,11 @@ export function startServer(port = 4000) {
 
     const db = openProjectDb(name);
     const config = loadConfig(name);
-    const provider = createProvider(config);
+    const activeAccount = getActiveAccount(name);
+    const provider = createProvider(
+      config,
+      activeAccount ? { credentialsPath: credentialsPath(activeAccount), accountName: activeAccount } : undefined,
+    );
     const prompts = createPromptEngine(config);
     const queue = new ShotQueue(db, provider, prompts, config);
 
@@ -109,6 +122,55 @@ export function startServer(port = 4000) {
      } catch(e: any) {
         res.status(404).json({ error: e.message });
      }
+  });
+
+  // Account management (T-05). Never spends credits: listing/status/add-account
+  // are all auth/status-only CLI calls, never a generation.
+  app.get('/api/accounts', (req, res) => {
+     res.json(listAccounts().map((name) => ({ name })));
+  });
+
+  app.get('/api/accounts/:name/status', async (req, res) => {
+     try {
+        const status = await getAccountStatus(req.params.name);
+        res.json(status);
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
+  });
+
+  // Kicks off the interactive `higgsfield auth login` flow scoped to this
+  // account and returns immediately (the flow itself is completed by the
+  // user in a browser and can take minutes) rather than blocking the request.
+  app.post('/api/accounts', (req, res) => {
+     const { name } = req.body ?? {};
+     if (typeof name !== 'string' || !name) {
+        res.status(400).json({ error: 'add-account requires a string "name" field' });
+        return;
+     }
+     addAccount(name).catch((err) => {
+        console.error(`[server] addAccount('${name}') failed:`, err);
+     });
+     res.json({ started: true, name });
+  });
+
+  // Switch which account a project's provider runs as. Drops the cached
+  // ShotQueue/provider so the next access rebuilds it with the new account's
+  // credentials (safe: state resumes from listShots()/listOpenJobs(), same
+  // as the crash-recovery path above).
+  app.post('/api/project/:name/account', (req, res) => {
+     const { account } = req.body ?? {};
+     if (typeof account !== 'string' || !account) {
+        res.status(400).json({ error: 'switch-account requires a string "account" field' });
+        return;
+     }
+     if (!accountExists(account)) {
+        res.status(404).json({ error: `unknown account '${account}' (no credentials.json)` });
+        return;
+     }
+     setActiveAccount(req.params.name, account);
+     openProjects.delete(req.params.name);
+     res.json({ success: true });
   });
 
   app.get('/api/project/:name/media/:type/:file', (req, res) => {

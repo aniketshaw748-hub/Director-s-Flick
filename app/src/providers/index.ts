@@ -15,13 +15,19 @@ export type { MockProviderOptions } from './mock.js';
 export { HiggsfieldCliProvider, AuthRequiredError, AuthError } from './higgsfield-cli.js';
 export type { HiggsfieldCliOptions } from './higgsfield-cli.js';
 
+/** Optional per-account info (see accounts.ts) threaded into HiggsfieldCliProvider. */
+export interface ProviderAccountOpts {
+  credentialsPath?: string;
+  accountName?: string;
+}
+
 /** Instantiate the GenProvider selected by config.provider. */
-export function createProvider(config: PipelineConfig): GenProvider {
+export function createProvider(config: PipelineConfig, account?: ProviderAccountOpts): GenProvider {
   switch (config.provider) {
     case 'mock':
       return new MockProvider();
     case 'higgsfield-cli':
-      return new HiggsfieldCliProvider(config);
+      return new HiggsfieldCliProvider(config, account);
     default: {
       const unknown: never = config.provider;
       throw new Error(`Unknown provider: ${String(unknown)}`);

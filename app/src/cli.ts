@@ -5,13 +5,14 @@
  *   init     <name> --script <path> --vo <path>   create project + db
  *   align    <name>                               alignScript -> computeTimeline -> planShots -> insertShots
  *   elements <name> [--add <id:name:category>]    register/list ElementRefs
- *   run      [name] [--auto-approve]              ShotQueue.run
+ *   accounts [--add <name>] [--status]            list/add Higgsfield accounts (T-05)
+ *   run      [name] [--auto-approve] [--account <name>]  ShotQueue.run
  *            [--script <p> --vo <p> [--provider <p>] [--project <n>] [--elements <json>]]
  *            with --script/--vo: full end-to-end pipeline (init + align +
  *            queue + export + summary) in one shot — Phase 1 headless mode.
  *   status   <name>                               shots by state, open jobs, credit total
  *   export   <name> [--out <path>]                exportTimeline from EDL
- *   cost     <name>                               ledger dump + totalCredits
+ *   cost     <name>                               ledger dump + totalCredits (account-tagged)
  *
  * Output is concise and ASCII-only. Exits non-zero on failure.
  */
@@ -29,6 +30,13 @@ import { createPromptEngine } from './prompts.js';
 import { ShotQueue } from './queue.js';
 import { exportTimeline, probeDuration } from './media.js';
 import { startServer } from './server.js';
+import {
+  listAccounts,
+  addAccount,
+  getAccountStatus,
+  getJobAccount,
+  credentialsPath as accountCredentialsPath,
+} from './accounts.js';
 import type {
   EDLEntry,
   ElementCategory,
@@ -203,16 +211,21 @@ async function stepRunQueue(
   db: ProjectDb,
   config: PipelineConfig,
   autoApproveFlag: boolean,
+  accountName?: string,
 ): Promise<void> {
   // Phase 1 has no review UI: mock-provider runs always auto-approve.
   const autoApprove = autoApproveFlag || config.provider === 'mock';
   if (config.provider === 'higgsfield-cli') {
     console.log('provider: higgsfield-cli (REAL credits will be spent)');
+    if (accountName) console.log(`account: ${accountName}`);
   }
   console.log(
     `running queue (provider=${config.provider}, auto-approve=${autoApprove ? 'on' : 'off'})`,
   );
-  const provider = createProvider(config);
+  const provider = createProvider(
+    config,
+    accountName ? { credentialsPath: accountCredentialsPath(accountName), accountName } : undefined,
+  );
   const prompts = createPromptEngine(config);
   const queue = new ShotQueue(db, provider, prompts, config);
   await queue.run({ autoApprove });
@@ -332,6 +345,38 @@ program
   });
 
 program
+  .command('accounts')
+  .description('list registered Higgsfield accounts, or add a new one (T-05)')
+  .option('--add <name>', 'register a new account: spawns `higgsfield auth login` scoped to it')
+  .option('--status', 'fetch live auth/balance status for each listed account (spawns the CLI)')
+  .action(async (opts: { add?: string; status?: boolean }) => {
+    if (opts.add) {
+      console.log(`spawning: higgsfield auth login (account '${opts.add}')`);
+      const result = await addAccount(opts.add);
+      if (result.code === 0) {
+        console.log(`account '${opts.add}' ready`);
+      } else {
+        return fail(`auth login exited with code ${result.code}: ${result.stderr || result.stdout}`);
+      }
+      return;
+    }
+    const names = listAccounts();
+    if (names.length === 0) {
+      console.log('no accounts registered - use: cli accounts --add <name>');
+      return;
+    }
+    if (opts.status) {
+      for (const name of names) {
+        const s = await getAccountStatus(name);
+        const balance = s.balance !== null ? `${s.balance.toFixed(2)} credits` : 'balance unknown';
+        console.log(`${name}: ${s.authenticated ? balance : 'not authenticated'}`);
+      }
+    } else {
+      console.log(formatTable(['name'], names.map((n) => [n])));
+    }
+  });
+
+program
   .command('run')
   .description(
     'run the shot queue; with --script/--vo runs the full pipeline end-to-end (init+align+queue+export)',
@@ -343,6 +388,7 @@ program
   .option('--provider <provider>', 'mock | higgsfield-cli')
   .option('--project <name>', 'project name (full-pipeline mode)')
   .option('--elements <json>', 'JSON array of {id,name,category} to register')
+  .option('--account <name>', 'use a specific account\'s credentials (see: cli accounts)')
   .action(
     async (
       nameArg: string | undefined,
@@ -353,6 +399,7 @@ program
         provider?: string;
         project?: string;
         elements?: string;
+        account?: string;
       },
     ) => {
       const overrides: ConfigOverrides = {};
@@ -402,7 +449,7 @@ program
           console.log(`shots already planned (${db.listShots().length}) - skipping align`);
         }
 
-        await stepRunQueue(db, config, Boolean(opts.autoApprove));
+        await stepRunQueue(db, config, Boolean(opts.autoApprove), opts.account);
 
         let finalPath: string | undefined;
         if (fullPipeline) {
@@ -487,13 +534,14 @@ program
       } else {
         console.log(
           formatTable(
-            ['id', 'kind', 'model', 'preflight', 'charged', 'job'],
+            ['id', 'kind', 'model', 'preflight', 'charged', 'account', 'job'],
             entries.map((e) => [
               String(e.id ?? '-'),
               e.kind,
               e.model,
               e.preflightCredits === null ? '-' : e.preflightCredits.toFixed(2),
               e.chargedCredits === null ? '-' : e.chargedCredits.toFixed(2),
+              getJobAccount(e.jobId) ?? '-',
               e.jobId,
             ]),
           ),

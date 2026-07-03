@@ -45,6 +45,8 @@ import type {
   VideoJobSpec,
 } from '../types.js';
 import { measuredPreflightCredits } from './mock.js';
+import { resolveCliInvocation, stripAnsi, isAuthFailureText, truncate } from './cli-invocation.js';
+import { tagJobAccount } from '../accounts.js';
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -68,67 +70,6 @@ export class AuthRequiredError extends Error {
 export { AuthRequiredError as AuthError };
 
 // ---------------------------------------------------------------------------
-// CLI invocation resolution (Windows npm-shim safe)
-// ---------------------------------------------------------------------------
-
-interface CliInvocation {
-  command: string;
-  prefixArgs: string[];
-}
-
-let cachedInvocation: CliInvocation | null = null;
-
-function resolveCliInvocation(override?: string): CliInvocation {
-  if (override) return { command: override, prefixArgs: [] };
-  if (!cachedInvocation) cachedInvocation = computeCliInvocation();
-  return cachedInvocation;
-}
-
-function computeCliInvocation(): CliInvocation {
-  if (process.platform !== 'win32') {
-    return { command: 'higgsfield', prefixArgs: [] };
-  }
-  const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
-  // npm's global bin dir is the usual home of the shim; make sure it is searched.
-  if (process.env.APPDATA) dirs.push(path.join(process.env.APPDATA, 'npm'));
-  for (const dir of dirs) {
-    const exe = path.join(dir, 'higgsfield.exe');
-    if (fs.existsSync(exe)) return { command: exe, prefixArgs: [] };
-    const cmdShim = path.join(dir, 'higgsfield.cmd');
-    if (fs.existsSync(cmdShim)) {
-      const binScript = resolveNpmBinScript(dir);
-      if (binScript) {
-        // Run the package's JS entry with the current node executable:
-        // plain array args, no shell, no .cmd (Node >= 20 EINVAL-blocks .cmd).
-        return { command: process.execPath, prefixArgs: [binScript] };
-      }
-      // Last resort: run the shim through cmd.exe with array args. Only
-      // reached when the npm package layout next to the shim is unreadable.
-      return { command: 'cmd.exe', prefixArgs: ['/d', '/s', '/c', cmdShim] };
-    }
-  }
-  // Not found on PATH; let spawn fail with a clear error at run time.
-  return { command: 'higgsfield', prefixArgs: [] };
-}
-
-/** Resolve the real JS bin script of the globally installed npm package. */
-function resolveNpmBinScript(shimDir: string): string | null {
-  try {
-    const pkgDir = path.join(shimDir, 'node_modules', 'higgsfield');
-    const raw = fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8');
-    const pkg = JSON.parse(raw) as { bin?: string | Record<string, string> };
-    let rel: string | undefined;
-    if (typeof pkg.bin === 'string') rel = pkg.bin;
-    else if (pkg.bin) rel = pkg.bin['higgsfield'] ?? Object.values(pkg.bin)[0];
-    if (!rel) return null;
-    const script = path.resolve(pkgDir, rel);
-    return fs.existsSync(script) ? script : null;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // CLI output parsing helpers
 // ---------------------------------------------------------------------------
 
@@ -136,21 +77,6 @@ interface CliRunResult {
   code: number;
   stdout: string;
   stderr: string;
-}
-
-const ANSI_RE = /\x1B\[[0-9;]*[A-Za-z]/g;
-
-function stripAnsi(text: string): string {
-  return text.replace(ANSI_RE, '');
-}
-
-function isAuthFailureText(text: string): boolean {
-  return /session expired|not authenticated/i.test(text);
-}
-
-function truncate(text: string, max = 400): string {
-  const t = text.trim();
-  return t.length <= max ? t : `${t.slice(0, max)}...`;
 }
 
 /** Best-effort JSON extraction from possibly noisy CLI stdout. */
@@ -373,6 +299,17 @@ export interface HiggsfieldCliOptions {
   pollTimeoutMs?: number;
   /** Timeout for the synchronous `create --wait` fallback (default 15 min). */
   waitTimeoutMs?: number;
+  /**
+   * Path to a per-account credentials.json (see accounts.ts). When set,
+   * every spawned `higgsfield` call gets HIGGSFIELD_CREDENTIALS_PATH pointed
+   * at it, so this provider instance always runs as that account regardless
+   * of the CLI's default global session. Absent = use the CLI's default.
+   */
+  credentialsPath?: string;
+  /** Account name paired with credentialsPath, used to tag submitted jobs
+   * for cost_ledger attribution (accounts.ts::tagJobAccount) — no db.ts/
+   * types.ts schema change needed (see T-05 board note). */
+  accountName?: string;
 }
 
 export class HiggsfieldCliProvider implements GenProvider {
@@ -384,6 +321,8 @@ export class HiggsfieldCliProvider implements GenProvider {
   private readonly submitTimeoutMs: number;
   private readonly pollTimeoutMs: number;
   private readonly waitTimeoutMs: number;
+  private readonly credentialsPath: string | undefined;
+  private readonly accountName: string | undefined;
 
   /** Terminal results cached from `create --wait` fallback or prior polls. */
   private readonly resultCache = new Map<string, JobResult>();
@@ -398,6 +337,8 @@ export class HiggsfieldCliProvider implements GenProvider {
     this.submitTimeoutMs = opts.submitTimeoutMs ?? 120_000;
     this.pollTimeoutMs = opts.pollTimeoutMs ?? 60_000;
     this.waitTimeoutMs = opts.waitTimeoutMs ?? 900_000;
+    this.credentialsPath = opts.credentialsPath;
+    this.accountName = opts.accountName;
   }
 
   /**
@@ -481,6 +422,7 @@ export class HiggsfieldCliProvider implements GenProvider {
             };
       }
       this.resultCache.set(jobId, result);
+      this.tagAccount(jobId);
       return jobId;
     }
 
@@ -497,7 +439,13 @@ export class HiggsfieldCliProvider implements GenProvider {
     if (TERMINAL_STATUSES.has(maybe.status) && maybe.resultUrl) {
       this.resultCache.set(jobId, maybe);
     }
+    this.tagAccount(jobId);
     return jobId;
+  }
+
+  /** Record which account this job was submitted under (cost_ledger attribution). */
+  private tagAccount(jobId: string): void {
+    if (this.accountName) tagJobAccount(jobId, this.accountName);
   }
 
   private async buildCreateArgs(spec: ImageJobSpec | VideoJobSpec): Promise<string[]> {
@@ -583,7 +531,12 @@ export class HiggsfieldCliProvider implements GenProvider {
     return new Promise<CliRunResult>((resolve, reject) => {
       const child = spawn(command, [...prefixArgs, ...args], {
         windowsHide: true,
-        env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+        env: {
+          ...process.env,
+          NO_COLOR: '1',
+          FORCE_COLOR: '0',
+          ...(this.credentialsPath ? { HIGGSFIELD_CREDENTIALS_PATH: this.credentialsPath } : {}),
+        },
       });
       let stdout = '';
       let stderr = '';
