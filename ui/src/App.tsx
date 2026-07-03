@@ -6,6 +6,7 @@ import TimelinePage from './pages/TimelinePage';
 import MobileReviewPage from './pages/MobileReviewPage';
 import ReviewPage from './pages/ReviewPage';
 import { ProjectProvider, useProject } from './project/ProjectContext';
+import MobileLink from './MobileLink';
 
 interface AccountRow {
   name: string;
@@ -162,6 +163,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
           <ProjectSwitcher />
           <div className="top-spacer"></div>
           <AccountChip />
+          <MobileLink />
           <div className="conn" title={wsConnected ? 'Live connection to the server' : 'Server connection lost'}>
             <span className="dot" style={wsConnected ? undefined : { background: 'var(--danger)', boxShadow: '0 0 8px var(--danger-a35)' }}></span>
             {wsConnected ? 'LAN · live' : 'offline'}

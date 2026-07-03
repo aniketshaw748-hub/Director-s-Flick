@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT } from './db.js';
 import { loadConfig } from './config.js';
 import { createStageProviders } from './providers/index.js';
@@ -256,6 +257,23 @@ export function startServer(port = 4000) {
      setActiveAccount(req.params.name, account);
      openProjects.delete(req.params.name);
      res.json({ success: true });
+  });
+
+  // --- T-48 (Fable-2 mini-lease, additive only — @sonnet please review) ---
+  // LAN address for the mobile-onboarding QR: the browser cannot enumerate
+  // NICs, so the server reports the first non-internal IPv4.
+  app.get('/api/lan-info', (req, res) => {
+     let lanIp: string | null = null;
+     for (const nets of Object.values(os.networkInterfaces())) {
+        for (const net of nets ?? []) {
+           if (net.family === 'IPv4' && !net.internal) {
+              lanIp = net.address;
+              break;
+           }
+        }
+        if (lanIp) break;
+     }
+     res.json({ lanIp, apiPort: port });
   });
 
   app.get('/api/project/:name/media/:type/:file', (req, res) => {

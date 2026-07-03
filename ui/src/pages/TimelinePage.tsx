@@ -271,11 +271,17 @@ export default function TimelinePage() {
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  const runExport = async () => {
+  // force=true only from the partial-placement confirm (T-42: server 409s a
+  // partial export without it — the guard pair for the inline dialog below).
+  const runExport = async (force = false) => {
     setConfirmPartial(false);
     setExportState({ running: true, stage: 'Starting export…', pct: 2 });
     try {
-      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/export`, { method: 'POST' });
+      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(force ? { force: true } : {}),
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? `${res.status}`);
       setExportState((s) =>
@@ -360,7 +366,7 @@ export default function TimelinePage() {
                   {missingCount} of {shots.length} shots are not placed yet — the export will skip those lines.
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
-                  <button className="btn btn-secondary" style={{ flex: 1, color: 'var(--warn)' }} onClick={() => void runExport()}>
+                  <button className="btn btn-secondary" style={{ flex: 1, color: 'var(--warn)' }} onClick={() => void runExport(true)}>
                     Export partial
                   </button>
                   <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmPartial(false)}>
