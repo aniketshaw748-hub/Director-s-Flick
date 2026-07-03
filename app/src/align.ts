@@ -44,6 +44,7 @@ export function alignScript(
   scriptPath: string,
   audioPath: string,
   outJsonPath: string,
+  opts?: { onProgress?: (line: string) => void },
 ): Promise<AlignedLine[]> {
   return new Promise((resolve, reject) => {
     try {
@@ -64,6 +65,12 @@ export function alignScript(
     child.stderr.setEncoding('utf-8');
     child.stdout.on('data', (chunk: string) => {
       process.stdout.write(chunk);
+      if (opts?.onProgress) {
+        for (const line of chunk.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed) opts.onProgress(trimmed);
+        }
+      }
     });
     child.stderr.on('data', (chunk: string) => {
       stderrBuf += chunk;

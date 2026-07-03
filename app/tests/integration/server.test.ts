@@ -121,6 +121,20 @@ describe('server integration', () => {
   });
 
   afterAll(async () => {
+    // Stop the server's background queue.run() loop for this project BEFORE
+    // closing anything else. Since T-27/T-09 the loop runs indefinitely for
+    // non-autoApprove (review-gate) mode by design - without this it keeps
+    // ticking after the db/server below are torn down and throws "database
+    // connection is not open" against the just-closed db on its next tick.
+    if (port) {
+      try {
+        await fetch(`http://localhost:${port}/api/project/${tempProjectName}/stop`, { method: 'POST' });
+        await new Promise((resolve) => originalSetTimeout(resolve, 100));
+      } catch {
+        // Server may already be down in some failure paths - fine to ignore.
+      }
+    }
+
     // Teardown WS
     if (ws) {
       ws.close();
@@ -155,6 +169,21 @@ describe('server integration', () => {
     // Restore original setTimeout
     global.setTimeout = originalSetTimeout;
   });
+
+  /** Poll db.getShot(shotId) until it reaches `expected` or the timeout
+   * elapses (rejects with the last-seen state on timeout). Replaces a fixed
+   * sleep for state transitions driven by the background queue.run() loop,
+   * which can take a variable number of ticks. */
+  async function waitForShotState(shotId: string, expected: string, timeoutMs: number) {
+    const start = Date.now();
+    let last = db.getShot(shotId)!;
+    while (Date.now() - start < timeoutMs) {
+      last = db.getShot(shotId)!;
+      if (last.state === expected) return last;
+      await new Promise((resolve) => originalSetTimeout(resolve, 20));
+    }
+    throw new Error(`waitForShotState: timed out waiting for '${expected}'; last state was '${last.state}'`);
+  }
 
   test('GET /api/projects returns the list including temp project', async () => {
     const res = await fetch(`http://localhost:${port}/api/projects`);
@@ -195,20 +224,24 @@ describe('server integration', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
-    // Wait for the ShotQueue loop to process and broadcast state transitions (IN_REVIEW -> APPROVED -> VIDEO_QUEUED -> VIDEO_READY -> PLACED)
-    // Since we sped up the loop to 50ms, this will complete in under 400ms.
-    await new Promise((resolve) => originalSetTimeout(resolve, 500));
+    // The ShotQueue loop processes IN_REVIEW -> APPROVED -> VIDEO_QUEUED ->
+    // VIDEO_READY -> PLACED over multiple ticks (submit, poll, download all
+    // take a variable number of 50ms-sped-up iterations) - a fixed sleep here
+    // is exactly the flakiness Fable flagged; poll for the terminal state
+    // instead, with a generous timeout well above the expected worst case.
+    await waitForShotState(shotId, 'PLACED', 5000);
+    // DB state and the emit() that fires alongside it happen synchronously in
+    // queue.ts, but the WS push to this test's client is a real (loopback)
+    // socket round-trip - give it a moment to arrive before asserting on
+    // wsMessages, or this races and sometimes reads an empty buffer.
+    await new Promise((resolve) => originalSetTimeout(resolve, 100));
 
-    // Assert transitions took place
-    const updatedShotApprove = db.getShot(shotId)!;
-    console.log("SHOT STATE AFTER APPROVE:", updatedShotApprove);
-    console.log("WS MESSAGES RECEIVED:", wsMessages);
-    console.log("OPEN DBS COUNT:", openDbs.length);
-    expect(updatedShotApprove.state).toBe('PLACED');
-
-    // Assert WebSocket shotEvents were pushed
+    // Assert WebSocket shotEvents were pushed. 'APPROVED' isn't one of them
+    // by design (ShotEvent.state is only IMAGE_READY | VIDEO_READY | PLACED -
+    // the three states T-04 calls out as needing an immediate push; approve()
+    // itself is a synchronous DB write with no async job tied to it yet).
     const shotEventsApprove = wsMessages.filter((m) => m.type === 'shotEvent' && m.shotId === shotId);
-    expect(shotEventsApprove.map((e) => e.state)).toContain('APPROVED');
+    expect(shotEventsApprove.map((e) => e.state)).toContain('VIDEO_READY');
     expect(shotEventsApprove.map((e) => e.state)).toContain('PLACED');
 
     // B. TEST EDIT
@@ -226,7 +259,13 @@ describe('server integration', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
-    await new Promise((resolve) => originalSetTimeout(resolve, 100));
+    // No delay needed: the server handler `await`s queue.requestEdit() fully
+    // (job submitted, state set to IMAGE_QUEUED) before responding, so the
+    // state is already correct the instant fetch() resolves. Adding a delay
+    // here is actively harmful now that the background loop runs
+    // continuously (T-09/T-27) - it can race ahead and advance the shot
+    // further (e.g. to IN_REVIEW again once mock "generation" completes)
+    // before a fixed-sleep check gets to look.
     const updatedShotEdit = db.getShot(shotId)!;
     expect(updatedShotEdit.state).toBe('IMAGE_QUEUED');
     expect(updatedShotEdit.imagePrompt).toContain('make it brighter');
@@ -246,7 +285,8 @@ describe('server integration', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
-    await new Promise((resolve) => originalSetTimeout(resolve, 100));
+    // Same reasoning as the edit case above: requestRedo() is fully awaited
+    // (including the PromptEngine regeneration + submit) before responding.
     const updatedShotRedoGen = db.getShot(shotId)!;
     expect(updatedShotRedoGen.state).toBe('IMAGE_QUEUED');
     expect(updatedShotRedoGen.imagePrompt).toBeDefined();
@@ -266,7 +306,6 @@ describe('server integration', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
-    await new Promise((resolve) => originalSetTimeout(resolve, 100));
     const updatedShotRedoCustom = db.getShot(shotId)!;
     expect(updatedShotRedoCustom.state).toBe('IMAGE_QUEUED');
     expect(updatedShotRedoCustom.imagePrompt).toBe('custom exact prompt');
@@ -286,7 +325,6 @@ describe('server integration', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });
 
-    await new Promise((resolve) => originalSetTimeout(resolve, 100));
     const updatedShotAnim = db.getShot(shotId)!;
     expect(updatedShotAnim.state).toBe('VIDEO_QUEUED');
     expect(updatedShotAnim.animationPrompt).toBe('custom anim prompt');

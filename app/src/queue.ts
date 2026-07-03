@@ -30,6 +30,7 @@ export class ShotQueue extends EventEmitter {
   private prompts: PromptEngine;
   private config: PipelineConfig;
   private project: Project;
+  private stopped = false;
 
   constructor(db: ProjectDb, provider: GenProvider, prompts: PromptEngine, config: PipelineConfig) {
     super();
@@ -40,13 +41,28 @@ export class ShotQueue extends EventEmitter {
     this.project = db.getProject()!;
   }
 
+  /** Signal run() to exit at the top of its next iteration (T-27: explicit
+   * start/stop from the setup flow). A stopped instance is done for good -
+   * construct a new ShotQueue to resume (safe: state persists in the db). */
+  stop(): void {
+    this.stopped = true;
+  }
+
   async run(opts: { autoApprove: boolean }): Promise<void> {
     let idleCount = 0;
-    while (true) {
+    while (!this.stopped) {
       const shots = this.db.listShots();
       const allPlaced = shots.length > 0 && shots.every((s: Shot) => s.state === 'PLACED');
-      
-      if (shots.length > 0 && allPlaced) {
+
+      // Only exit-when-done in autoApprove mode (CLI/mock bounded runs, so
+      // `cli run`'s awaited promise resolves and export can proceed). In
+      // review-gate mode (server.ts, autoApprove=false) this must NOT exit
+      // just because every shot happens to be PLACED at this snapshot - new
+      // work can arrive later (a fresh `align`, or a redo/edit resetting a
+      // placed shot back to an earlier state), and nothing else restarts a
+      // naturally-completed loop the way T-27's explicit /run does for a
+      // stopped one. Same reasoning as the autoApprove-gated idle-break below.
+      if (opts.autoApprove && shots.length > 0 && allPlaced) {
          break;
       }
 
