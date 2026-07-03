@@ -1,10 +1,10 @@
 {
+  "last_sweep": "2026-07-03T20:39:13.3555237+05:30",
   "pending": [
-    "T-10/T-05 next for Sonnet",
+    "T-10/T-05 Sonnet",
     "T-21 Flash",
     "T-22 AGV",
     "T-08 blocked on user auth"
   ],
-  "last_sweep": "2026-07-03T20:38:06.9384651+05:30",
-  "last_seen_commit": "787c8e741677230ab5edd7880a879466505eda70"
+  "last_seen_commit": "201ce04e0399d7897740b3b6cd33d42a8993b373"
 }

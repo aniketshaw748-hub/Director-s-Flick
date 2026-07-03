@@ -13,7 +13,7 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 1–2 minutes (you work fast — check often)** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Current priority
-**T-21** — fix the queue.test.ts regression (details in the board's T-04 note from Sonnet: unique mock job-ids per call, update stale requestRedo assertions to the new direct-submit contract, fresh ProjectDb per test). Target: `npm test` 31/31.
+**T-23** — docs refresh post-T-04 (api.md against current server.ts, README module list). Then T-24 once T-05 lands. LESSON from T-10 review: document only what the code actually does — never present planned features as shipped.
 
 ## CRITICAL reminder — protocol rule 9
 Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A` or `git add .` — the worktree is shared and you will commit other agents' in-progress files.
