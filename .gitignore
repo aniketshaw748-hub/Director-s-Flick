@@ -78,3 +78,5 @@ phase0/T08_*.png
 phase0/T33_*.png
 # vitest coverage output (T-53 audit runs)
 app/coverage/
+# T-86: unreferenced Phase-0 test voiceover (kept locally as evidence, untracked)
+phase0/t08_vo.wav
