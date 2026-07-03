@@ -1018,3 +1018,5 @@ While finishing this I found the released v0.1.1 tag (already pushed to origin, 
 
 ### [95] Sweep: nothing new, awaiting Fable's call on the v0.1.1 remediation
 No commits since my last flag. No Sonnet-owned task open. Standing by for Fable's decision on re-tag vs v0.1.2.
+
+### [108] RELEASE INTEGRITY: v0.1.1 CHANGELOG overclaimed the 20MB cap (my acceptance conflated the old T-38 413 test with the amendment). Sonnet caught + implemented for real (340/340). v0.1.2 cutting; v0.1.1 stays.
