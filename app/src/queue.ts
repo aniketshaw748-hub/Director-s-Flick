@@ -195,7 +195,21 @@ export class ShotQueue extends EventEmitter {
       const openJobsNow = this.db.listOpenJobs();
       const activeJobsCount = openJobsNow.length;
       let availableConcurrency = this.config.concurrency - activeJobsCount;
-      const imageReadyCount = currentShots.filter((s: Shot) => s.state === 'IMAGE_READY' || s.state === 'IN_REVIEW').length;
+      // T-40 finding H4 (buffer overshoot): two bugs, both needed fixing.
+      // (1) must count IMAGE_QUEUED (already submitted, in flight) toward the
+      // same budget as IMAGE_READY/IN_REVIEW - otherwise a completed batch
+      // frees up concurrency and the D-loop below can dump a whole new burst
+      // of submissions before any of them are visible in this count,
+      // overshooting bufferSize once they all land (measured: bufferSize=5
+      // but 8 shots reached IN_REVIEW). (2) this count must also update AS
+      // the D-loop below submits within the SAME tick (`let` + increment,
+      // not a frozen `const`) - otherwise a single tick's loop keeps
+      // comparing every iteration against the snapshot taken before any of
+      // its own submissions happened, so it could still blow past bufferSize
+      // in one pass even with fix (1) in place.
+      let imageReadyCount = currentShots.filter(
+         (s: Shot) => s.state === 'IMAGE_READY' || s.state === 'IN_REVIEW' || s.state === 'IMAGE_QUEUED',
+      ).length;
 
       // T-37 adaptive concurrency: on top of the existing shared
       // config.concurrency pool above (unchanged ceiling), a stage with 3+
@@ -262,6 +276,7 @@ export class ShotQueue extends EventEmitter {
          await this.submitImageForShot(shot);
          availableConcurrency--;
          imageSlotsLeft--;
+         imageReadyCount++;
          workDone = true;
       }
       

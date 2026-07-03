@@ -619,4 +619,55 @@ describe('queue', () => {
     const videoLedgerEntries = db.listLedger().filter((e) => e.kind === 'video');
     expect(videoLedgerEntries.some((e) => e.provider === 'fal')).toBe(true);
   });
+
+  test('H4: review-ahead buffer never overshoots bufferSize even with ample concurrency (T-40 finding)', async () => {
+    const project = db.ensureProject({
+      name: TEST_PROJECT_NAME,
+      scriptPath: 'script.txt',
+      voPath: 'vo.wav',
+    });
+    const shots: Shot[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `shot-buffer-${i}`,
+      projectId: project.id,
+      lineIndex: i,
+      subIndex: 0,
+      state: 'PENDING',
+      line: { index: i, text: `Line ${i}.`, start: i * 3, end: i * 3 + 2, duration: 2, pauseAfter: 1, targetDuration: 3 },
+      elementIds: [],
+      attempts: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+    db.insertShots(shots);
+
+    // Measured live (Fable-2's T-40 walkthrough): bufferSize=5 but 8 shots
+    // reached IN_REVIEW - the old undercounted, frozen-per-tick budget check
+    // let a whole burst of submissions land before any were visible in it.
+    const inBufferStates = new Set(['IMAGE_QUEUED', 'IMAGE_READY', 'IN_REVIEW']);
+    let maxInBuffer = 0;
+    const provider: GenProvider = {
+      name: 'mock',
+      preflightCost: async () => 1.5,
+      submitImage: async () => {
+        const before = db.listShots().filter((s) => inBufferStates.has(s.state)).length;
+        maxInBuffer = Math.max(maxInBuffer, before + 1); // +1: this submission is about to join the buffer
+        return `img-job-${randomUUID()}`;
+      },
+      submitVideo: async () => `vid-job-${randomUUID()}`,
+      poll: async (jobId) => ({ jobId, status: 'completed', resultUrl: 'file:///mock/result', creditsCharged: 1.5 }),
+      download: async (result, destPath) => destPath,
+    };
+    const prompts: PromptEngine = {
+      imagePromptBatch: async (lines) => lines.map((l) => ({ lineIndex: l.index, imagePrompt: 'x' })),
+      animationPrompt: async () => 'anim prompt',
+    };
+
+    const queue = new ShotQueue(db, provider, prompts, baseConfig({ bufferSize: 3, concurrency: 8 }));
+    await queue.run({ autoApprove: true });
+
+    expect(maxInBuffer).toBeLessThanOrEqual(3);
+    // Sanity: the whole 12-shot pipeline still fully drains despite the
+    // tighter budget - throttled, not stuck.
+    expect(db.listShots().every((s) => s.state === 'PLACED')).toBe(true);
+  });
 });
