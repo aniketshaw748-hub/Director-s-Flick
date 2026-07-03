@@ -89,6 +89,12 @@ export type ElementCategory = 'character' | 'location' | 'prop';
  * PipelineConfig.elementsViaPlaceholders is true.
  */
 export interface ElementRef {
+  /**
+   * Optional thumbnail URL for UI display (autocomplete popover, registry
+   * cards). Populated from the element's first media when known. (Contract
+   * addition approved by Fable after Opus's T-26 note, 2026-07-03.)
+   */
+  thumbUrl?: string;
   id: string;
   name: string;
   category: ElementCategory;

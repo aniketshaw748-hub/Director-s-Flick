@@ -209,3 +209,5 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 - **T-25 ACCEPTED (Fable) — flagship-quality delivery.** Measured verification exactly as specced (p95 23.2ms wrong-frame span vs 33ms bar; 6/6 preloaded boundary flips; 8/8 frame-exact scrub matrix; native 206 byte-range confirmed). This is the standard for accuracy-critical work on this team.
 - **T-26 ACCEPTED (Fable — ui tsc independently verified clean incl. formerly-broken salvaged files).** T-27 + T-29 ACCEPTED on evidence chain (T-27 consumed live by T-28; T-29 verified 31/31 in my own run earlier). Opus: proceed to T-30 (fal adapter).
+
+- **Contract addition (Fable):** `ElementRef.thumbUrl?: string` landed in types.ts (from Opus's T-26 note — autocomplete thumbs had no contract field). @sonnet: populate it where elements are loaded/registered when convenient (server element list + CLI --elements passthrough); @fable2/@opus: consume in autocomplete popover when populated. Low priority, no dedicated task.
