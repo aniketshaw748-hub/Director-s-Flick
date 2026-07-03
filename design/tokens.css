@@ -1,0 +1,134 @@
+/* ============================================================
+   AI Video Pipeline — Design Tokens
+   Dark theme, Higgsfield-style: near-black layers + lime accent.
+   Single source of truth. Copy this block inline per mockup file,
+   or import once in the React app root.
+   ============================================================ */
+
+:root {
+  /* ---------- Color: background layers (darkest → most elevated) ---------- */
+  --bg-0: #0A0A0B;            /* app root / page */
+  --bg-1: #0E0E10;            /* chrome: sidebar, topbar, rails */
+  --surface-1: #141416;       /* cards, panels */
+  --surface-2: #1A1A1D;       /* nested surfaces, inputs, hover on surface-1 */
+  --surface-3: #212125;       /* highest elevation: popovers, hover on surface-2 */
+  --overlay: rgba(6, 6, 8, 0.72);      /* modal / sheet backdrop */
+  --scrim: linear-gradient(180deg, rgba(6,6,8,0) 0%, rgba(6,6,8,0.82) 100%); /* text-over-image */
+
+  /* ---------- Color: borders ---------- */
+  --border-1: rgba(255, 255, 255, 0.07);   /* default hairline on all surfaces */
+  --border-2: rgba(255, 255, 255, 0.12);   /* hover / emphasized */
+  --border-3: rgba(255, 255, 255, 0.18);   /* active-but-not-accent */
+
+  /* ---------- Color: text ---------- */
+  --text-1: #F2F3EE;          /* primary — slightly warm-green white */
+  --text-2: #A5A8A0;          /* secondary: labels, meta */
+  --text-3: #6E716A;          /* tertiary: hints, timestamps at rest */
+  --text-disabled: #494B44;
+
+  /* ---------- Color: lime accent (the signature) ---------- */
+  --lime: #C6FF4D;            /* primary actions, active states, playhead, progress */
+  --lime-bright: #D7FF7B;     /* hover on lime fills */
+  --lime-deep: #A8E635;       /* pressed on lime fills */
+  --lime-ink: #121600;        /* text/icons ON lime fills — never white on lime */
+  --lime-a08: rgba(198, 255, 77, 0.08);
+  --lime-a12: rgba(198, 255, 77, 0.12);   /* tinted chip / row background */
+  --lime-a20: rgba(198, 255, 77, 0.20);   /* tinted border */
+  --lime-a35: rgba(198, 255, 77, 0.35);   /* strong tinted border / focus ring */
+
+  /* ---------- Color: semantic ---------- */
+  /* success intentionally = lime (approve IS the primary action; one green only) */
+  --danger: #FF5C5C;          /* reject, destructive, failed jobs */
+  --danger-a12: rgba(255, 92, 92, 0.12);
+  --danger-a35: rgba(255, 92, 92, 0.35);
+  --warn: #FFB454;            /* moderation retries, low balance, trims */
+  --warn-a12: rgba(255, 180, 84, 0.12);
+  --info: #8AB8F0;            /* rare: neutral notices only */
+
+  /* ---------- Typography ---------- */
+  /* Self-contained system grotesque stack (Inter/Geist if installed, Segoe UI
+     Variable on Windows). No font files, no CDNs. */
+  --font-sans: "Inter", "Geist", "Segoe UI Variable Display", "Segoe UI",
+               system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* Mono is the "instrument readout" voice: ALL timecodes, durations, credits,
+     counts, job ids. Never used for prose. */
+  --font-mono: "Geist Mono", "JetBrains Mono", "Cascadia Code", "SF Mono",
+               Consolas, "Roboto Mono", monospace;
+
+  --fs-11: 11px;   /* kbd caps, overline labels (uppercase, +0.08em tracking) */
+  --fs-12: 12px;   /* meta, chips, queue states, mono readouts */
+  --fs-13: 13px;   /* secondary UI text, list rows */
+  --fs-14: 14px;   /* base body / controls */
+  --fs-16: 16px;   /* emphasized body — the script line on review cards */
+  --fs-18: 18px;   /* panel titles */
+  --fs-22: 22px;   /* page/section titles */
+  --fs-28: 28px;   /* display, big numbers (est. credits, export %) */
+
+  --lh-tight: 1.2;    /* headings, big numbers */
+  --lh-body: 1.5;     /* prose, script lines */
+  --lh-ui: 1.35;      /* buttons, chips, rows */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;     /* rare — big numbers only */
+
+  --track-tight: -0.02em;   /* headings ≥18px */
+  --track-caps: 0.08em;     /* uppercase overlines */
+
+  /* ---------- Spacing (4px base) ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ---------- Radius ---------- */
+  --r-sm: 8px;      /* chips, kbd, small thumbs */
+  --r-md: 12px;     /* buttons, inputs, queue items */
+  --r-lg: 16px;     /* cards, panels (the "rounded-2xl" look) */
+  --r-xl: 20px;     /* hero review card, preview player */
+  --r-2xl: 24px;    /* bottom sheet top corners, dialogs */
+  --r-full: 999px;  /* pills, dots, avatar */
+
+  /* ---------- Elevation ---------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.60);   /* dialogs, sheets, popovers */
+  --glow-lime: 0 0 0 1px var(--lime-a20), 0 0 24px rgba(198, 255, 77, 0.15);
+  --glow-lime-strong: 0 0 0 1px var(--lime-a35), 0 0 40px rgba(198, 255, 77, 0.25);
+  --glow-danger: 0 0 0 1px var(--danger-a35), 0 0 40px rgba(255, 92, 92, 0.22);
+
+  /* ---------- Motion ---------- */
+  --t-fast: 150ms;   /* hover, focus, chip toggles */
+  --t-med: 200ms;    /* card enters, popovers, queue reorder */
+  --t-slow: 250ms;   /* sheet slide-up, dialog scale-in, swipe fly-out */
+  --ease: cubic-bezier(0.2, 0, 0, 1);        /* standard */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate: enters, sheets */
+
+  /* ---------- Component-specific ---------- */
+  --wave: rgba(255, 255, 255, 0.26);   /* unplayed waveform bars */
+  --wave-played: var(--lime);          /* bars behind the playhead */
+  --playhead: var(--lime);             /* 2px line + 6px glow, all screens */
+  --focus-ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--lime-a35);
+}
+
+/* Reduced motion: collapse all transitions/animations. Swipe still works —
+   the card snaps instead of animating. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+    --t-slow: 0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

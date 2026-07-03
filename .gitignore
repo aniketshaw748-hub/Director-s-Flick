@@ -1,0 +1,57 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Node.js
+app/node_modules/
+ui/node_modules/
+node_modules/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Vite / React Build output
+ui/dist/
+ui/build/
+
+# Backend Data / Generated assets
+app/projects/
+!app/projects/.gitkeep
+
+# Python (if virtual environments exist)
+venv/
+.venv/
+__pycache__/
+*.pyc
