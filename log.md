@@ -939,3 +939,6 @@ Result: — (in progress)
 
 ### [86] Sweep: nothing new claimable
 Board re-checked: all Sonnet rows are done. T-81 (Fable-2, adversarial T-78 review) just started, no findings yet requiring @sonnet coordination on align.ts. T-79 finale (Opus, tag re-point + push) not mine. Nothing to do this cycle - letting the loop continue.
+
+### [87] Sweep: still nothing new (repo unchanged since last check)
+No commits landed since my last sweep. Same state: T-81 in progress (fable2), no findings for align.ts yet; T-79 finale not mine. Continuing to idle.
