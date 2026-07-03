@@ -255,7 +255,9 @@ Result: ✅ Renamed the comments to "Director's Flick" and updated `BOARD.md` to
 About to: Fix T-11 frontend issues. T-17 includes adding `@`-mention autocomplete in ReviewPage + MobileReviewPage, fixing `MobileReviewPage.tsx:88` token bypass, and adding `// TODO(T-04)` comments. T-18 involves replacing `any` shot/project types in `ui/` with typed imports from `app/src/types.ts`.
 Result: ✅ Implemented `useAutocomplete` custom hook for popover element selection. Wired types and autocomplete functionality across App, ReviewPage, and MobileReviewPage. Passed typecheck. Marked T-17 and T-18 as done on BOARD.md.
 
----
+### [33] Claim T-19 (AGV)
+About to: Start T-19 (UI polish batch: SetupPage types, TimelinePage URL fixing, PWA support, vite config host: true).
+Result: ⏳ In progress...
 
 ## Session: Flash
 
