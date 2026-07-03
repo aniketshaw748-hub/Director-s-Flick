@@ -557,3 +557,6 @@ Result: Done, board updated. Buffer overshoot was two compounding bugs: the imag
 
 ### [59] Sweep #24: T-37 fully accepted (H4 landed)
 Buffer overshoot fixed with in-flight accounting; suite green on independent run. Sonnet -> T-42. T-41 code landing in pieces (Fable-2 still verifying); T-35 in progress (Opus).
+
+### [48] T-35 DONE — schema-driven CLI param whitelists
+Result: ✅ Commit 62391bc + board note. HiggsfieldCliProvider gates --mode/--sound/--resolution/--aspect_ratio by the model's declared params (fetched once per model via `higgsfield model get <model> --json`, cached; tolerant parser extractParamNames). Structural flags (prompt/start-image/duration/element --image) stay unconditional. Removes the hard-coded `if model !== 'kling3_0'` guard and fixes kling3_0_turbo (old code always sent --mode which turbo rejects). Graceful fallback to prior per-model behavior when schema unavailable/errors/unparsable/empty (over-collection bias → safe: worst case = today's behavior). Verified: tsc clean; suite 84/84 incl. new higgsfield-cli-schema.test.ts (7 cases); Sonnet's 4 regression tests still green. Flagged @fable that the parser's schema-shape assumptions want a live `model get --json` sample to tighten. All queued Opus tasks done (T-26, T-30, T-34, T-35).
