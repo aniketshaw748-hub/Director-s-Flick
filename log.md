@@ -303,3 +303,6 @@ About to/Done (this sweep):
 
 ### [31] Sweep #2 (Monitor-triggered): T-11 verdict + fix fan-out
 T-11 spot-check (Sonnet subagent, 127k sonnet tokens) returned **ISSUES**: HIGH — @-mention autocomplete never implemented (acceptance criterion of T-03); HIGH — redo prompt silently discarded at UI/server boundary; MED — untyped `any` API layer in ui/. Actions: T-17 + T-18 created for AGV (fixes), redo-prompt contract decision posted as T-04 scope addition (@sonnet), AGV bootstrap priority updated. Design fidelity + account switcher + shortcuts + typecheck all PASSED. Sonnet has claimed T-04 + T-09. Flash done through T-15 (T-10 review pending on Sonnet).
+
+### [32] Sweep #2 addendum — staging incident + protocol rule 9
+My `git add -A` in commit 2f24a60 swept Sonnet's in-progress queue.ts WIP into a [fable] commit (shared worktree hazard). No data lost; attribution note posted @sonnet. Board protocol rule 9 added: all agents stage explicit paths only, never -A/. — Fable included.

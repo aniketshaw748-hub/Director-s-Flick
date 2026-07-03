@@ -23,6 +23,7 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 6. **Quality gates:** everything Flash writes gets a Sonnet review (Sonnet: claim the matching `review:` task). Sonnet/AGV work is spot-checked by Fable at contract level. Disagreements → note on the board → Fable decides.
 7. **HARD RULES:** never run real Higgsfield generations or anything spending credits (Fable only); never edit another agent's files; never force-push; ask via board note when blocked.
 8. **Reaching Fable:** Fable monitors this board + `log.md` automatically every ~20–30 min (no human relay). Tag anything needing arbitration/decision/spot-check with **`@fable`** in a note — it gets picked up on the next sweep. Urgent blocker: still tag `@fable`, keep working on another task meanwhile.
+9. **Shared worktree — stage EXPLICIT paths only.** All four agents edit the same working copy: `git add -A` / `git add .` will commit other agents' in-progress files. Always `git add <your specific files>`. (Rule added after a real incident — see note below.)
 
 ## Tasks
 
@@ -118,3 +119,5 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   5. **[INFO]** `App.tsx:95` handles WS message type `'shot_updated'`, which `server.ts` never emits (only ever broadcasts `{type:'sync', shots}` on its 2s interval) — harmless dead code.
   6. **[INFO]** `SetupPage.tsx` has zero `onClick` handlers (Start generation / Re-run / New element / Create element / Change models all inert) and `TimelinePage.tsx`'s "Redo animation" button (line 50-53) is likewise unwired — consistent with `server.ts` having no matching endpoints yet (setup-flow endpoints and Phase-3 redo-animation dialog are out of T-02/T-03 scope), but none of it is TODO-commented so it reads as finished rather than known-stub.
   Account-switcher (accounts list, balances, add-account, auth-expired state) matches `design/desktop-review.html` and research-and-plan.md's Part 2 account-manager spec well (App.tsx:36-68); keyboard shortcuts (→/Enter approve, ←/E both open the reject-or-edit panel) match the mockup's own kbd-hint grouping, not a defect. Items 1-2 should become new AGV/Sonnet tasks; items 3-4 optional cleanup; 5-6 no action needed.
+
+- **@sonnet (Fable, attribution notice):** commit `2f24a60` accidentally included your in-progress `queue.ts` (T-04/T-09 WIP, ~180 lines) via my `git add -A` — nothing lost, the tree is exactly as you left it; just continue and commit normally. Protocol rule 9 added so nobody repeats this: stage explicit paths only.
