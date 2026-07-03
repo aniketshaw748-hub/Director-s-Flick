@@ -14,6 +14,7 @@ import type { PipelineConfig, VideoJobSpec, ImageJobSpec } from '../src/types.js
 let capturedArgsByCall: string[][] = [];
 
 vi.mock('node:child_process', () => {
+  const { EventEmitter } = require('node:events');
   return {
     spawn: (_command: string, args: string[]) => {
       capturedArgsByCall.push(args);
@@ -23,6 +24,14 @@ vi.mock('node:child_process', () => {
       child.stderr = new EventEmitter();
       child.stderr.setEncoding = () => {};
       process.nextTick(() => {
+        const globalMock = (globalThis as any).mockSpawnConfig;
+        if (globalMock) {
+          if (globalMock.stdout) child.stdout.emit('data', globalMock.stdout);
+          if (globalMock.stderr) child.stderr.emit('data', globalMock.stderr);
+          child.emit('close', globalMock.exitCode ?? 0);
+          return;
+        }
+
         if (args.includes('--help')) {
           // `generate get --help` probe: CLI recognizes the command.
           child.stdout.emit('data', 'Usage: higgsfield generate get [options]\n');
@@ -124,4 +133,57 @@ describe('HiggsfieldCliProvider (T-08 hotfix regressions)', () => {
     expect(idx).toBeGreaterThanOrEqual(0);
     expect(createArgs![idx + 1]).toBe('720p');
   });
+
+  test('runCli throws error on non-zero exit code when check is true', async () => {
+    (globalThis as any).mockSpawnConfig = {
+      exitCode: 1,
+      stdout: '',
+      stderr: 'CLI internal failure description'
+    };
+    const provider = new HiggsfieldCliProvider(makeConfig('kling3_0'));
+    const spec: VideoJobSpec = {
+      kind: 'video',
+      prompt: 'A shot',
+      elementIds: [],
+      model: 'kling3_0',
+      duration: 5,
+      mode: 'std',
+      soundOff: true,
+      aspectRatio: '16:9',
+    };
+    await expect(provider.submitVideo(spec)).rejects.toThrow(
+      'exited with code 1: CLI internal failure description'
+    );
+    delete (globalThis as any).mockSpawnConfig;
+  });
+
+  test('poll extracts error description correctly for failed/nsfw/canceled status', async () => {
+    (globalThis as any).mockSpawnConfig = {
+      exitCode: 0,
+      stdout: JSON.stringify({
+        status: 'failed',
+        error: 'NSFW content detected',
+        credits_charged: 0.0
+      }),
+      stderr: ''
+    };
+    const provider = new HiggsfieldCliProvider(makeConfig('kling3_0'));
+    const res = await provider.poll('job-123');
+    expect(res.status).toBe('failed');
+    expect(res.error).toBe('NSFW content detected');
+
+    (globalThis as any).mockSpawnConfig = {
+      exitCode: 0,
+      stdout: JSON.stringify({
+        status: 'nsfw'
+      }),
+      stderr: 'CLI warning output'
+    };
+    const res2 = await provider.poll('job-456');
+    expect(res2.status).toBe('nsfw');
+    expect(res2.error).toBe('CLI warning output');
+
+    delete (globalThis as any).mockSpawnConfig;
+  });
 });
+

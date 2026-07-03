@@ -176,4 +176,48 @@ describe('media', () => {
     expect(doneEvent.outputPath).toBe(path.resolve('final.mp4'));
     expect(doneEvent.durationSeconds).toBe(mockFfprobeDuration);
   });
+
+  test('exportTimeline throws on empty EDL entries', async () => {
+    await expect(exportTimeline([], 'vo.wav', 'final.mp4')).rejects.toThrow(
+      '[media] exportTimeline: EDL is empty'
+    );
+  });
+
+  test('exportTimeline warns on non-contiguous EDL entries', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    
+    const entries: EDLEntry[] = [
+      {
+        id: 'entry-1',
+        projectId: 'proj-1',
+        shotId: 'shot-1',
+        lineIndex: 0,
+        clipPath: 'clip0.mp4',
+        inPoint: 0.0,
+        outPoint: 4.5,
+        timelineStart: 0.0,
+        duration: 4.5,
+      },
+      {
+        id: 'entry-2',
+        projectId: 'proj-1',
+        shotId: 'shot-2',
+        lineIndex: 1,
+        clipPath: 'clip1.mp4',
+        inPoint: 1.0,
+        outPoint: 4.0,
+        timelineStart: 8.0, // gap of 3.5s (prev end is 4.5)
+        duration: 3.0,
+      },
+    ];
+
+    await exportTimeline(entries, 'vo.wav', 'final.mp4');
+
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    const warnCall = consoleWarnSpy.mock.calls[0]![0];
+    expect(warnCall).toContain('are not contiguous');
+    
+    consoleWarnSpy.mockRestore();
+  });
 });
+
