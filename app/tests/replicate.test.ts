@@ -302,3 +302,127 @@ describe('ReplicateProvider.download', () => {
     ).rejects.toBeInstanceOf(ReplicateError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Branch-coverage stragglers (T-82, test-only): status variants, output-url
+// shapes, error extraction, local-file download, mime-by-extension.
+// ---------------------------------------------------------------------------
+
+describe('ReplicateProvider branch coverage (T-82)', () => {
+  test('submit returning no prediction id throws ReplicateError', async () => {
+    const p = makeProvider(vi.fn().mockResolvedValueOnce(jsonRes({ status: 'starting' }, { status: 201 })));
+    await expect(p.submitVideo(videoSpec())).rejects.toBeInstanceOf(ReplicateError);
+  });
+
+  test('poll maps canceled -> canceled with an error string', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(jsonRes({ status: 'canceled', error: 'aborted' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    const r = await p.poll('pred-1');
+    expect(r.status).toBe('canceled');
+    expect(r.error).toBe('aborted');
+  });
+
+  test('poll maps an unknown status to in_progress (default branch)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(submitRes()).mockResolvedValueOnce(jsonRes({ status: 'weird' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('pred-1')).status).toBe('in_progress');
+  });
+
+  test('poll extracts a plain string output url', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(jsonRes({ status: 'succeeded', output: 'https://replicate.delivery/a.mp4' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('pred-1')).resultUrl).toBe('https://replicate.delivery/a.mp4');
+  });
+
+  test('poll extracts the first url from an array output', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(
+        jsonRes({ status: 'succeeded', output: ['not-a-url', 'https://replicate.delivery/b.mp4'] }),
+      );
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('pred-1')).resultUrl).toBe('https://replicate.delivery/b.mp4');
+  });
+
+  test('poll extracts an { url } object output', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(jsonRes({ status: 'succeeded', output: { url: 'https://replicate.delivery/c.mp4' } }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    expect((await p.poll('pred-1')).resultUrl).toBe('https://replicate.delivery/c.mp4');
+  });
+
+  test('poll succeeded with no usable output url -> failed, error from detail', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(jsonRes({ status: 'succeeded', output: null, detail: 'moderation flagged' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    const r = await p.poll('pred-1');
+    expect(r.status).toBe('failed');
+    expect(r.error).toBe('moderation flagged');
+  });
+
+  test('a non-ok status response throws ReplicateError carrying the extracted error', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(jsonRes({ title: 'server error' }, { status: 500, statusText: 'Server Error' }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    await expect(p.poll('pred-1')).rejects.toThrow(/server error/);
+  });
+
+  test('a non-ok, non-JSON status body still throws ReplicateError', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(submitRes())
+      .mockResolvedValueOnce(binRes(new Uint8Array([9, 9]), { status: 502 }));
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec());
+    await expect(p.poll('pred-1')).rejects.toBeInstanceOf(ReplicateError);
+  });
+
+  test('download copies a local (non-http) result path instead of fetching', async () => {
+    const src = path.join(tmpDir, 'src.mp4');
+    await fsp.writeFile(src, Buffer.from('REPL-BYTES'));
+    const fetchImpl = vi.fn();
+    const p = makeProvider(fetchImpl);
+    const dest = path.join(tmpDir, 'out', 'copied.mp4');
+    expect(await p.download({ jobId: 'x', status: 'completed', resultUrl: src }, dest)).toBe(dest);
+    expect((await fsp.readFile(dest)).toString()).toBe('REPL-BYTES');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('a local .jpg start image is inlined as an image/jpeg data URI (mimeForExt)', async () => {
+    const jpg = path.join(tmpDir, 'start.jpg');
+    await fsp.writeFile(jpg, START_IMAGE_BYTES);
+    const fetchImpl = vi.fn().mockResolvedValueOnce(submitRes());
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec({ startImage: jpg }));
+    expect(String(fetchImpl.mock.calls[0][1].body)).toContain('data:image/jpeg;base64,');
+  });
+
+  test('a local .webp start image is inlined as an image/webp data URI', async () => {
+    const webp = path.join(tmpDir, 'start.webp');
+    await fsp.writeFile(webp, START_IMAGE_BYTES);
+    const fetchImpl = vi.fn().mockResolvedValueOnce(submitRes());
+    const p = makeProvider(fetchImpl);
+    await p.submitVideo(videoSpec({ startImage: webp }));
+    expect(String(fetchImpl.mock.calls[0][1].body)).toContain('data:image/webp;base64,');
+  });
+});
