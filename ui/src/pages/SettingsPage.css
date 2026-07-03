@@ -1,0 +1,292 @@
+/* SettingsPage.css */
+
+.settings-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.settings-page.desktop {
+  overflow-y: auto;
+  align-items: center;
+  padding: var(--sp-8);
+}
+
+.settings-page.desktop .settings-container {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+}
+
+.settings-page.desktop .page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border-1);
+  padding-bottom: var(--sp-4);
+}
+
+.settings-page.desktop .page-head h1 {
+  font-size: var(--fs-22);
+  font-weight: 600;
+  letter-spacing: -.02em;
+}
+
+.settings-page.desktop .page-head p {
+  color: var(--text-2);
+  font-size: var(--fs-14);
+  margin-top: var(--sp-1);
+}
+
+.settings-page.desktop .page-actions {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+/* Common form elements */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.settings-page.mobile .settings-section {
+  gap: var(--sp-4);
+}
+
+.settings-section-title {
+  font-size: var(--fs-18);
+  font-weight: 600;
+  letter-spacing: -.02em;
+}
+
+.settings-page.mobile .settings-section-title {
+  font-size: var(--fs-16);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border-1);
+}
+
+.settings-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+}
+
+.settings-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-4);
+}
+
+.settings-page.mobile .settings-grid-3,
+.settings-page.mobile .settings-grid-2 {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.settings-field label {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-field select,
+.settings-field input[type="text"] {
+  height: 44px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-14);
+  color: var(--text-1);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.settings-field select:focus,
+.settings-field input[type="text"]:focus {
+  border-color: var(--lime-a35);
+}
+
+.settings-field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A5A8A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-3) center;
+}
+
+.settings-field .hint {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.settings-bible-editor {
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  min-height: 120px;
+  width: 100%;
+  resize: vertical;
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  color: var(--text-2);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.settings-bible-editor:focus {
+  border-color: var(--lime-a35);
+  color: var(--text-1);
+}
+
+.preset-pills {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+}
+
+.preset-pill {
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  border: 1px solid var(--border-1);
+  font-size: var(--fs-12);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.preset-pill:active {
+  background: var(--surface-1);
+  border-color: var(--border-2);
+  color: var(--text-1);
+}
+
+/* Cost Preview Card */
+.settings-cost-card {
+  padding: var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.settings-cost-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-cost-card-head h3 {
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+.settings-cost-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-1);
+}
+
+.settings-cost-row:last-child {
+  border-bottom: none;
+}
+
+.settings-cost-row .item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.settings-cost-row .v {
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  color: var(--text-1);
+}
+
+.settings-cost-row .usd {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  margin-left: var(--sp-2);
+}
+
+/* Mobile Chrome */
+.settings-page.mobile .topbar {
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-1);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.settings-page.mobile .top-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+.settings-page.mobile .btn-nav {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.settings-page.mobile .btn-save {
+  color: var(--lime);
+  font-weight: 600;
+  font-size: var(--fs-14);
+}
+
+.settings-page.mobile .content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  padding-bottom: calc(var(--sp-8) + env(safe-area-inset-bottom));
+}
+
+.not-ready-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-2);
+  padding: var(--sp-8);
+}
+
+.not-ready-state svg {
+  color: var(--text-3);
+  margin-bottom: var(--sp-4);
+}

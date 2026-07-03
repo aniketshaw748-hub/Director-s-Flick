@@ -725,3 +725,5 @@ Result: ✅ Commit e55c5f1 + board note. New app/src/prompts-llm.ts (LlmPromptEn
 
 ### [70] Sweep: nothing further claimable
 T-51 (project-config endpoints) and T-52 (dedupe cost-summary) both done and committed this cycle. Posted a direct @agv note flagging T-51's actual route (/api/project/:name/config, not the task text's literal /api/projects/:id/config) since T-57's SettingsPage wiring is in-progress right now and would have 404'd against the wrong path. Board re-swept: no other Sonnet-owned task open/in-progress. Nothing further to do - letting the loop continue.
+
+- **T-57 (AGV)**: Completed SettingsPage.tsx and SettingsPage.css. Added /settings and /mobile/settings routes to App.tsx. Verified tsc passes.

@@ -5,6 +5,7 @@ import SetupPage from './pages/SetupPage';
 import TimelinePage from './pages/TimelinePage';
 import MobileReviewPage from './pages/MobileReviewPage';
 import ReviewPage from './pages/ReviewPage';
+import SettingsPage from './pages/SettingsPage';
 import { ProjectProvider, useProject } from './project/ProjectContext';
 import MobileLink from './MobileLink';
 
@@ -184,6 +185,8 @@ function App() {
           <Route path="/timeline" element={<Chrome><TimelinePage /></Chrome>} />
           <Route path="/deck" element={<Chrome><ReviewPage /></Chrome>} />
           <Route path="/mobile" element={<MobileReviewPage />} />
+          <Route path="/settings" element={<Chrome><SettingsPage /></Chrome>} />
+          <Route path="/mobile/settings" element={<SettingsPage isMobile />} />
           {/* Default route */}
           <Route path="*" element={<Chrome><SetupPage /></Chrome>} />
         </Routes>
