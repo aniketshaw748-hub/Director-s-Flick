@@ -357,3 +357,6 @@ Result: ✅ Completed. Rewrote `docs/api.md` against current `server.ts` routes 
 
 ### [37] Sweep #6: T-21 verified (31/31), T-10 accepted, docs follow-ups queued
 Ran npm test independently: 31/31 — T-21 accepted. T-10 verdict accepted: tests/gitignore/cost-model PASS; two doc defects -> T-23 (api.md stale post-T-04 + README missing server.ts) and T-24 (user-guide S3 documents unshipped AccountManager as fact — correction blocked on T-05). Flash bootstrap updated with priorities + dont-document-the-plan-as-shipped lesson. In flight: T-05 (Sonnet), T-22 (AGV).
+
+### [38] Sweep #7: T-22 accepted; Fable-2 joins the team
+T-22 verified (shotEvent live in App.tsx, dead handler gone, tsc clean) — review flow end-to-end on mock provider. User added a second Fable 5 terminal: integrated as **Fable-2**, hard-problems engineer with per-task file leases (no permanent territory; [fable2] commits). First assignment T-25: timeline preview playback engine (VO audio master clock, A/B video swap, frame-accurate trims, measured A/V drift target <=33ms) — the hardest accuracy-critical task remaining. Lease: ui/src/player/**, TimelinePage.tsx, server.ts media routes. Bootstrap: orchestration/bootstrap-fable2.md (user pastes into terminal #2). In flight: T-05 (Sonnet), T-23 (Flash), T-25 (Fable-2). Blocked on user: T-08 auth.

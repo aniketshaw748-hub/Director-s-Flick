@@ -1,10 +1,11 @@
 {
-  "last_sweep": "2026-07-03T20:39:13.3555237+05:30",
+  "last_sweep": "2026-07-03T20:42:24.6116642+05:30",
+  "last_seen_commit": "b92520a70f8d1bf23e8e4c4b856fba53c06d37a2",
   "pending": [
-    "T-10/T-05 Sonnet",
-    "T-21 Flash",
-    "T-22 AGV",
+    "T-05 Sonnet in-progress",
+    "T-22 AGV in-progress",
+    "T-23 Flash",
+    "T-24 blocked on T-05",
     "T-08 blocked on user auth"
-  ],
-  "last_seen_commit": "201ce04e0399d7897740b3b6cd33d42a8993b373"
+  ]
 }
