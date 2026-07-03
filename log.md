@@ -612,3 +612,6 @@ Result: ✅ [DONE]. Created useSwipe hook for touch dragging physics and wired i
 
 ### [60] T-42 residual result (balance endpoint graceful degrade)
 Result: Done, board updated. GET /balance now returns 200 {authenticated:false, balance:null, error} instead of a raw 500 when getAccountStatus() throws (broken CLI / timeout) - same shape it already returns without throwing for the "not authenticated" case. Confirmed zero ui/** changes needed first: App.tsx's useAccounts() never checks r.ok, just reads the JSON body defensively. Regression test mocks accounts.ts::getAccountStatus to throw for one account, verifies the degrade. typecheck + full suite 96/96 green (12 files).
+
+### [64] Sweep #29: T-44 accepted; AGV -> T-49 (settings screen design)
+Mobile swipe gestures verified (tsc clean) + accepted. New T-49: design/desktop-settings.html — the missing config surface for per-stage providers (T-34), models, style bible, account binding. In flight: T-46 Opus, T-48 Fable-2, T-43 awaiting Sonnet review.

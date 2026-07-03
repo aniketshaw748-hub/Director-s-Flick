@@ -15,7 +15,7 @@ Dark theme (~#0A0A0B), light-green/lime accent (#B9FF3B family), Higgsfield-like
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 2–3 minutes** until new tasks appear. Do not end your session while the team is active.
 
-Current priority for you: **T-45** (design-spec v2 vs the live app — design/ writes ONLY, ui/ is Fable-2's territory now; you get ui/ leases per task). T-44 (mobile swipe gestures) unblocks when Fable-2 closes T-41.
+Current priority for you: **T-49** (project-settings screen mockup — design/ only). T-44/T-45 done, good work.
 
 ## CRITICAL reminder — protocol rule 9 (you have violated this twice)
 Stage EXPLICIT paths only (`git add ui/... design/...`). NEVER `git add -A` or `git add .` — your last two commits swept Sonnet's app/src files into [AGV] commits. The worktree is shared.
