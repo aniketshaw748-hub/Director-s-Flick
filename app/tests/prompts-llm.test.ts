@@ -175,3 +175,90 @@ describe('LlmPromptEngine.animationPrompt', () => {
     expect(warn.mock.calls.some((c) => String(c[0]).includes('animation call failed'))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Branch-coverage stragglers (T-82, test-only): constructor env-key path,
+// reply-shape fallbacks, model-skipped lines, null-client animation, the
+// non-fragile (location) element path, and the empty-name element guard.
+// All hermetic — no network, no ANTHROPIC_API_KEY call.
+// ---------------------------------------------------------------------------
+
+const LOCATION: ElementRef = { id: 'loc-uuid', name: 'Lighthouse', category: 'location' };
+const LOC_TAG = '<<<loc-uuid>>>';
+
+describe('LlmPromptEngine branch coverage (T-82)', () => {
+  test('constructor takes the env-key branch when no client is injected (no network at construction)', () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-dummy-never-called';
+    try {
+      const engine = new LlmPromptEngine(config()); // executes `new Anthropic()` — construction only, no API call
+      expect(engine).toBeInstanceOf(LlmPromptEngine);
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+
+  test('a reply with no text block falls back to the template', async () => {
+    const create = vi.fn(async () => ({ content: [{ type: 'tool_use' }] }));
+    const engine = new LlmPromptEngine(config(), { client: { messages: { create } }, warn: vi.fn() });
+    const [out] = await engine.imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toContain('Featuring Hapie');
+    expect(out.imagePrompt).toContain(TAG);
+  });
+
+  test('a result whose "prompts" is not an array -> the line uses the template', async () => {
+    const { client } = mockClient({ prompts: 'not-an-array' });
+    const [out] = await new LlmPromptEngine(config(), { client }).imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toContain('Featuring Hapie');
+  });
+
+  test('non-object entries in the prompts array are skipped', async () => {
+    const { client } = mockClient({ prompts: [null, 42, 'x'] });
+    const [out] = await new LlmPromptEngine(config(), { client }).imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toContain('Featuring Hapie');
+  });
+
+  test('a line the model skipped uses the template; a returned line uses the model output', async () => {
+    const { client } = mockClient({ prompts: [{ lineIndex: 0, imagePrompt: `A figure climbs ${TAG}` }] });
+    const engine = new LlmPromptEngine(config(), { client });
+    const out = await engine.imagePromptBatch([line(0), line(1, 'Hapie reaches the top.')], [HAPIE], '');
+    expect(out).toHaveLength(2);
+    expect(out[0].imagePrompt).toContain(TAG); // model output for line 0
+    expect(out[1].imagePrompt).toContain('Featuring Hapie'); // template for the skipped line 1
+  });
+
+  test('animationPrompt with no client falls back to the template', async () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const warn = vi.fn();
+      const out = await new LlmPromptEngine(config(), { warn }).animationPrompt(shot(), [HAPIE]);
+      expect(out).toContain(TAG);
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('ANTHROPIC_API_KEY'))).toBe(true);
+    } finally {
+      if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+
+  test('an animation reply lacking a string animationPrompt falls back to the template', async () => {
+    const { client } = mockClient({ notThePrompt: 'oops' });
+    const out = await new LlmPromptEngine(config(), { client, warn: vi.fn() }).animationPrompt(shot(), [HAPIE]);
+    expect(out).toContain(TAG);
+  });
+
+  test('a location-only shot is not "fragile" (no character/prop) — motion prompt passes through', async () => {
+    const { client } = mockClient({ animationPrompt: `Slow drift over the cliffs ${LOC_TAG}` });
+    const s = shot({ elementIds: ['loc-uuid'] });
+    const out = await new LlmPromptEngine(config(), { client }).animationPrompt(s, [LOCATION]);
+    expect(out).toContain('drift');
+    expect(out).toContain(LOC_TAG);
+  });
+
+  test('an element with an all-whitespace name never matches (relevantElements guard)', async () => {
+    const BLANK: ElementRef = { id: 'blank-uuid', name: '   ', category: 'character' };
+    const { client } = mockClient({ prompts: [{ lineIndex: 0, imagePrompt: 'A figure <<<blank-uuid>>>' }] });
+    const [out] = await new LlmPromptEngine(config(), { client }).imagePromptBatch([line()], [BLANK], '');
+    expect(out.lineIndex).toBe(0); // no crash; blank-named element is simply never name-matched
+  });
+});
