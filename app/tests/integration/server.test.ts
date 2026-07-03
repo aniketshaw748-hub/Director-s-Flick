@@ -34,6 +34,10 @@ vi.mock('../../src/db.js', async (importOriginal) => {
 // throwing, e.g. spawn failure or timeout) for one magic account name, real
 // behavior for everything else.
 const THROWING_ACCOUNT = '__throws_for_balance_degrade_test__';
+// T-73: addAccount() spawns the REAL `higgsfield auth login` CLI flow -
+// never let that happen from a test. Records calls so POST /api/accounts
+// can be verified without any real subprocess.
+const mockAddAccountCalls: string[] = [];
 vi.mock('../../src/accounts.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../src/accounts.js')>();
   return {
@@ -43,6 +47,29 @@ vi.mock('../../src/accounts.js', async (importOriginal) => {
         throw new Error('Failed to spawn Higgsfield CLI: simulated ENOENT');
       }
       return (original.getAccountStatus as any)(name, ...rest);
+    },
+    addAccount: async (name: string) => {
+      mockAddAccountCalls.push(name);
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  };
+});
+
+// T-73: alignScript() spawns a real python (stable-ts) subprocess - mock just
+// that one function (computeTimeline/planShots are pure and run for real
+// against this fake output, exercising the actual timeline-rule logic).
+let mockAlignFail: Error | null = null;
+vi.mock('../../src/align.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/align.js')>();
+  return {
+    ...original,
+    alignScript: async (_script: string, _audio: string, _out: string, opts?: { onProgress?: (l: string) => void }) => {
+      if (mockAlignFail) throw mockAlignFail;
+      opts?.onProgress?.('mock alignment progress');
+      return [
+        { index: 0, text: 'A line.', start: 0, end: 2, words: [] },
+        { index: 1, text: 'Another line.', start: 3, end: 5, words: [] },
+      ];
     },
   };
 });
@@ -533,6 +560,111 @@ describe('server integration', () => {
     }
   }, 20_000); // real ffmpeg trim+concat+mux of one short real clip
 
+  test('POST /export 500s for an unknown project (blanket catch, same pattern as align/cost-summary) and 409s when the EDL is empty', async () => {
+    let res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_export_${Date.now()}/export`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(500);
+
+    const emptyName = `temp_proj_export_empty_${Date.now()}`;
+    const emptyDir = path.join(PROJECTS_ROOT, emptyName);
+    extraDirsToClean.push(emptyDir);
+    const createRes = await fetch(`http://localhost:${port}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: emptyName,
+        script: 'A line.',
+        voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+        voiceoverExt: 'wav',
+      }),
+    });
+    expect(createRes.status).toBe(200);
+    res = await fetch(`http://localhost:${port}/api/project/${emptyName}/export`, { method: 'POST' });
+    expect(res.status).toBe(409);
+    await fetch(`http://localhost:${port}/api/project/${emptyName}/stop`, { method: 'POST' }).catch(() => {});
+  });
+
+  test('POST /export honors a custom outPath and writes a real .srt sidecar when alignment.json is present (T-68)', async () => {
+    const srtName = `temp_proj_export_srt_${Date.now()}`;
+    const srtDir = path.join(PROJECTS_ROOT, srtName);
+    fs.mkdirSync(srtDir, { recursive: true });
+    fs.cpSync(srcDir, srtDir, { recursive: true });
+    for (const suffix of ['-wal', '-shm']) {
+      const f = path.join(srtDir, `pipeline.db${suffix}`);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    extraDirsToClean.push(srtDir);
+    try {
+      const srtDb = new ProjectDb(srtName, projectDbPath(srtName));
+      const project = srtDb.getProject()!;
+      // The copied database retains the fixture's original `name` row
+      // ('test_project') - server.ts's export handler resolves the
+      // alignment.json path via `projectDir(project.name)`, so without this
+      // rename it would read test_project's REAL alignment.json (a
+      // different, pre-existing fixture) instead of the one this test
+      // writes into srtDir below.
+      srtDb.db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(srtName, project.id);
+      srtDb.db.prepare('DELETE FROM edl').run();
+      srtDb.db.prepare('DELETE FROM cost_ledger').run();
+      srtDb.db.prepare('DELETE FROM jobs').run();
+      srtDb.db.prepare('DELETE FROM shots').run();
+      const now = new Date().toISOString();
+      const shot: Shot = {
+        id: 'srt-shot-0',
+        projectId: project.id,
+        lineIndex: 0,
+        subIndex: 0,
+        state: 'PLACED',
+        line: { index: 0, text: 'A captioned line.', start: 0, end: 2, duration: 2, pauseAfter: 1, targetDuration: 2 },
+        elementIds: [],
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      srtDb.insertShots([shot]);
+      const realClip = path.join(srtDir, 'clips', '231fb6e6-74e2-4214-892e-5de028eefc62.mp4');
+      srtDb.upsertEdlEntry({
+        id: randomUUID(),
+        projectId: project.id,
+        shotId: shot.id,
+        lineIndex: 0,
+        clipPath: realClip,
+        inPoint: 0,
+        outPoint: 2,
+        timelineStart: 0,
+        duration: 2,
+      });
+      srtDb.close();
+
+      // A real alignment.json so exportSrtSidecar's SUCCESS path (not just
+      // its already-covered swallowed-failure path) gets exercised.
+      fs.writeFileSync(
+        path.join(srtDir, 'alignment.json'),
+        JSON.stringify({ lines: [{ text: 'A captioned line.', start: 0, end: 2 }] }),
+        'utf-8',
+      );
+
+      const customOutPath = path.join(srtDir, 'export', 'custom-name.mp4');
+      const res = await fetch(`http://localhost:${port}/api/project/${srtName}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outPath: customOutPath }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.outputPath).toBe(path.resolve(customOutPath));
+      expect(fs.existsSync(customOutPath)).toBe(true);
+
+      const srtPath = path.join(srtDir, 'export', 'custom-name.srt');
+      expect(fs.existsSync(srtPath)).toBe(true);
+      const srtContent = fs.readFileSync(srtPath, 'utf-8');
+      expect(srtContent).toContain('A captioned line.');
+    } finally {
+      await fetch(`http://localhost:${port}/api/project/${srtName}/stop`, { method: 'POST' }).catch(() => {});
+    }
+  }, 20_000); // real ffmpeg trim+concat+mux of one short real clip
+
   // --- T-42 residual (T-41 note): balance endpoint graceful degrade --------
 
   test('GET /balance degrades gracefully (200, authenticated:false) instead of 500 when the CLI is broken', async () => {
@@ -621,6 +753,56 @@ describe('server integration', () => {
       expect(res.status).toBe(400);
     });
 
+    test('PATCH rejects a non-object models value with 400 (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ models: 'not-an-object' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects a non-string models.image value with 400 (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ models: { image: 123 } }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects a non-string styleBible value with 400 (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ styleBible: 123 }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects a non-string accountName value with 400 (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName: 123 }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('GET /config 404s for an unknown project (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_config_${Date.now()}/config`);
+      expect(res.status).toBe(404);
+    });
+
+    test('PATCH /config 404s for an unknown project (T-73)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_config_${Date.now()}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ styleBible: 'x' }),
+      });
+      expect(res.status).toBe(404);
+    });
+
     test('PATCH rejects an invalid promptBackend value with 400 (T-62)', async () => {
       const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
         method: 'PATCH',
@@ -702,5 +884,436 @@ describe('server integration', () => {
 
       configWs.close();
     });
+  });
+
+  // --- T-73: server.ts coverage lift ----------------------------------------
+
+  describe('account management endpoints', () => {
+    test('GET /api/accounts lists accounts', async () => {
+      const res = await fetch(`http://localhost:${port}/api/accounts`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any[];
+      expect(Array.isArray(body)).toBe(true);
+    });
+
+    test('GET /api/accounts/:name/status returns 200 with authenticated:false for an unknown account', async () => {
+      const res = await fetch(`http://localhost:${port}/api/accounts/no-such-account-xyz/status`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.authenticated).toBe(false);
+      expect(body.balance).toBeNull();
+    });
+
+    test('GET /api/accounts/:name/status returns 500 when the CLI is genuinely broken', async () => {
+      const res = await fetch(`http://localhost:${port}/api/accounts/${THROWING_ACCOUNT}/status`);
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as any;
+      expect(typeof body.error).toBe('string');
+    });
+
+    test('POST /api/accounts requires a string name field (400)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('POST /api/accounts kicks off addAccount and responds immediately (started:true)', async () => {
+      mockAddAccountCalls.length = 0;
+      const res = await fetch(`http://localhost:${port}/api/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'new-test-account' }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body).toEqual({ started: true, name: 'new-test-account' });
+      expect(mockAddAccountCalls).toContain('new-test-account');
+    });
+
+    test('POST /api/project/:name/account requires a string account field (400)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('POST /api/project/:name/account 404s for an account with no credentials', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: 'no-such-account-xyz' }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    test('POST /api/project/:name/account switches successfully for a real (fake-credentialed) account', async () => {
+      const accountName = `temp_switch_test_account_${Date.now()}`;
+      fs.mkdirSync(accountDir(accountName), { recursive: true });
+      fs.writeFileSync(credentialsPath(accountName), '{}');
+      try {
+        const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/account`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account: accountName }),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ success: true });
+      } finally {
+        if (fs.existsSync(accountDir(accountName))) {
+          fs.rmSync(accountDir(accountName), { recursive: true, force: true });
+        }
+      }
+    });
+  });
+
+  describe('lan-info, media, edl, vo endpoints', () => {
+    test('GET /api/lan-info always responds with {lanIp, apiPort}, even offline', async () => {
+      const res = await fetch(`http://localhost:${port}/api/lan-info`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body).toHaveProperty('lanIp');
+      // apiPort reflects the literal argument startServer() was called with
+      // (this file passes 0 for "OS picks a free port"), not the OS-resolved
+      // actual `port` this test file otherwise uses to reach it.
+      expect(body.apiPort).toBe(0);
+    });
+
+    test('GET media route serves an existing image file', async () => {
+      const res = await fetch(
+        `http://localhost:${port}/api/project/${tempProjectName}/media/images/231fb6e6-74e2-4214-892e-5de028eefc62.png`,
+      );
+      expect(res.status).toBe(200);
+    });
+
+    test('GET media route 404s for a missing file', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/media/images/does-not-exist.png`);
+      expect(res.status).toBe(404);
+    });
+
+    test('GET /edl returns the EDL and 404s for an unknown project', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/edl`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(await res.json())).toBe(true);
+
+      const bogusRes = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_edl_${Date.now()}/edl`);
+      expect(bogusRes.status).toBe(404);
+    });
+
+    test('GET /vo streams the voiceover and 404s for an unknown project', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/vo`);
+      expect(res.status).toBe(200);
+
+      const bogusRes = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_vo_${Date.now()}/vo`);
+      expect(bogusRes.status).toBe(404);
+    });
+
+    test('GET /vo 404s when the project exists but its voiceover file is missing', async () => {
+      const noVoName = `temp_proj_no_vo_${Date.now()}`;
+      const noVoDir = path.join(PROJECTS_ROOT, noVoName);
+      extraDirsToClean.push(noVoDir);
+      const createRes = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: noVoName,
+          script: 'A line.',
+          voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(createRes.status).toBe(200);
+      const { project } = (await createRes.json()) as any;
+      fs.unlinkSync(project.voPath);
+
+      const res = await fetch(`http://localhost:${port}/api/project/${noVoName}/vo`);
+      expect(res.status).toBe(404);
+      await fetch(`http://localhost:${port}/api/project/${noVoName}/stop`, { method: 'POST' }).catch(() => {});
+    });
+  });
+
+  describe('setup-flow endpoints (projects/align/run)', () => {
+    const setupProjectName = `temp_proj_setup_${Date.now()}`;
+    const runProjectName = `temp_proj_run_${Date.now()}`;
+
+    beforeAll(() => {
+      extraDirsToClean.push(path.join(PROJECTS_ROOT, setupProjectName), path.join(PROJECTS_ROOT, runProjectName));
+    });
+
+    afterAll(async () => {
+      await fetch(`http://localhost:${port}/api/project/${setupProjectName}/stop`, { method: 'POST' }).catch(() => {});
+      await fetch(`http://localhost:${port}/api/project/${runProjectName}/stop`, { method: 'POST' }).catch(() => {});
+    });
+
+    test('POST /api/projects validates name/script/voiceoverBase64 (400s)', async () => {
+      const base = { name: `${setupProjectName}_unused`, script: 'A line.', voiceoverBase64: 'AA==' };
+      let res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...base, name: 'bad name with spaces!' }),
+      });
+      expect(res.status).toBe(400);
+
+      res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...base, script: undefined }),
+      });
+      expect(res.status).toBe(400);
+
+      res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...base, voiceoverBase64: undefined }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('POST /api/projects creates a project, then POST /align plans shots (and 409s once already planned)', async () => {
+      const createRes = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: setupProjectName,
+          script: 'A line.\nAnother line.',
+          voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(createRes.status).toBe(200);
+
+      const alignRes = await fetch(`http://localhost:${port}/api/project/${setupProjectName}/align`, { method: 'POST' });
+      expect(alignRes.status).toBe(200);
+      const alignBody = (await alignRes.json()) as any;
+      expect(alignBody.success).toBe(true);
+      expect(alignBody.shotCount).toBeGreaterThan(0);
+
+      // Already has shots planned - align refuses to re-plan.
+      const secondAlignRes = await fetch(`http://localhost:${port}/api/project/${setupProjectName}/align`, { method: 'POST' });
+      expect(secondAlignRes.status).toBe(409);
+    });
+
+    test('POST /align on an unknown project 500s (its catch is a blanket one, not a dedicated 404)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_align_${Date.now()}/align`, {
+        method: 'POST',
+      });
+      expect(res.status).toBe(500);
+    });
+
+    test('POST /align surfaces a real alignScript failure as a 500', async () => {
+      const failName = `temp_proj_align_fail_${Date.now()}`;
+      extraDirsToClean.push(path.join(PROJECTS_ROOT, failName));
+      const createRes = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: failName,
+          script: 'A line.',
+          voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(createRes.status).toBe(200);
+
+      mockAlignFail = new Error('stable-ts crashed (simulated)');
+      try {
+        const res = await fetch(`http://localhost:${port}/api/project/${failName}/align`, { method: 'POST' });
+        expect(res.status).toBe(500);
+        const body = (await res.json()) as any;
+        expect(body.error).toContain('stable-ts crashed');
+      } finally {
+        mockAlignFail = null;
+        await fetch(`http://localhost:${port}/api/project/${failName}/stop`, { method: 'POST' }).catch(() => {});
+      }
+    });
+
+    test('POST /run: cold start builds+starts fresh, is idempotent while running, and rebuilds after /stop', async () => {
+      const createRes = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: runProjectName,
+          script: 'A line.',
+          voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(createRes.status).toBe(200);
+
+      // Cold start: never opened via GET/align/WS before - exercises the
+      // "not yet cached" branch (getOrOpenProject builds + starts fresh).
+      let res = await fetch(`http://localhost:${port}/api/project/${runProjectName}/run`, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect((await res.json()).running).toBe(true);
+
+      // Idempotent: already cached AND already running - no-op branch.
+      res = await fetch(`http://localhost:${port}/api/project/${runProjectName}/run`, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect((await res.json()).running).toBe(true);
+
+      // After an explicit stop, /run rebuilds a fresh queue and restarts it.
+      await fetch(`http://localhost:${port}/api/project/${runProjectName}/stop`, { method: 'POST' });
+      res = await fetch(`http://localhost:${port}/api/project/${runProjectName}/run`, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect((await res.json()).running).toBe(true);
+    });
+
+    test('POST /run on an unknown project 404s', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_run_${Date.now()}/run`, {
+        method: 'POST',
+      });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('elements endpoint', () => {
+    test('GET /elements lists elements, 404s for an unknown project', async () => {
+      let res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/elements`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(await res.json())).toBe(true);
+
+      res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_elements_${Date.now()}/elements`);
+      expect(res.status).toBe(404);
+    });
+
+    test('POST /elements validates id/name/category/thumbUrl (400s) and succeeds', async () => {
+      const base = `http://localhost:${port}/api/project/${tempProjectName}/elements`;
+      const post = (body: unknown) =>
+        fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+      expect((await post({})).status).toBe(400); // missing id
+      expect((await post({ id: 'x' })).status).toBe(400); // missing name
+      expect((await post({ id: 'x', name: 'y', category: 'not-a-category' })).status).toBe(400);
+      expect((await post({ id: 'x', name: 'y', category: 'character', thumbUrl: 123 })).status).toBe(400);
+
+      const res = await post({ id: randomUUID(), name: 'Test Element', category: 'character' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ success: true });
+    });
+  });
+
+  describe('balance and cost-summary endpoints', () => {
+    test('GET /balance succeeds (cached:false) then serves from cache (cached:true)', async () => {
+      const accountName = `no-such-balance-account-${Date.now()}`;
+      let res = await fetch(`http://localhost:${port}/api/accounts/${accountName}/balance`);
+      expect(res.status).toBe(200);
+      let body = (await res.json()) as any;
+      expect(body.cached).toBe(false);
+      expect(body.authenticated).toBe(false);
+
+      res = await fetch(`http://localhost:${port}/api/accounts/${accountName}/balance`);
+      body = (await res.json()) as any;
+      expect(body.cached).toBe(true);
+    });
+
+    test('GET /cost-summary returns totals/byAccount for a real project, 500s for an unknown one', async () => {
+      let res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/cost-summary`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body).toHaveProperty('totals');
+      expect(body).toHaveProperty('byAccount');
+
+      res = await fetch(`http://localhost:${port}/api/project/temp_proj_bogus_cost_${Date.now()}/cost-summary`);
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('shot action endpoint edge cases', () => {
+    test('rejects an unknown action with 400', async () => {
+      const shots = db.listShots();
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/shots/${shots[0]!.id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'not-a-real-action' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('edit without instructions returns 400', async () => {
+      const shots = db.listShots();
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/shots/${shots[0]!.id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'edit' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('an unknown shotId causes a 500 (the queue action rejects with "shot not found")', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/shots/does-not-exist/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      });
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('T-67 production static-serving / SPA fallback', () => {
+    // These exercise the REAL ui/dist build already present in this repo
+    // checkout (confirmed by the "[server] serving ui from ..." startup log)
+    // rather than faking one - startServer() decides once, at startup,
+    // whether to register this middleware at all, so a dist dir created
+    // mid-test would be too late to matter.
+
+    // Express's OWN default 404/error pages are also generic HTML documents
+    // (title "error", a <pre> body) - "<!doctype html>" alone doesn't
+    // distinguish them from the real SPA shell, so assert on something only
+    // the actual built index.html contains.
+    const SPA_MARKER = "director's flick";
+
+    test('GET a non-/api/ client-side route serves the built index.html', async () => {
+      const res = await fetch(`http://localhost:${port}/some/client/side/route`);
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body.toLowerCase()).toContain(SPA_MARKER);
+    });
+
+    test('GET an unmatched /api/ path does NOT get the SPA fallback', async () => {
+      const res = await fetch(`http://localhost:${port}/api/this-route-does-not-exist`);
+      expect(res.status).not.toBe(200);
+      const body = await res.text();
+      expect(body.toLowerCase()).not.toContain(SPA_MARKER);
+    });
+
+    test('a non-GET request to a client-side path does NOT get the SPA fallback', async () => {
+      const res = await fetch(`http://localhost:${port}/some/client/side/route`, { method: 'POST' });
+      expect(res.status).not.toBe(200);
+      const body = await res.text();
+      expect(body.toLowerCase()).not.toContain(SPA_MARKER);
+    });
+  });
+
+  test('the periodic 2s full-state sync broadcasts to connected clients (T-73)', async () => {
+    // setInterval (unlike this file's setTimeout override) genuinely needs
+    // real wall-clock time to fire - no way around a real wait here.
+    wsMessages.length = 0;
+    await new Promise((resolve) => originalSetTimeout(resolve, 2100));
+    const syncMsg = wsMessages.find((m) => m.type === 'sync' && !('project' in m));
+    expect(syncMsg).toBeDefined();
+    expect(Array.isArray(syncMsg.shots)).toBe(true);
+  }, 5_000);
+
+  test('onServerError logs and calls process.exit(1) on EADDRINUSE (T-73)', () => {
+    // Exercises the REAL error-handling closure via the REAL captured server
+    // instance (no source change) - process.exit is mocked so this can't
+    // actually kill the test worker; the real code unconditionally re-throws
+    // right after (dead code in production, since process.exit(1) never
+    // returns there), so the mocked call surfaces as a thrown error here.
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const err = Object.assign(new Error('listen EADDRINUSE: address already in use'), { code: 'EADDRINUSE' });
+      expect(() => serverInstance!.emit('error', err)).toThrow();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errorSpy.mock.calls.some((call) => String(call[0]).includes('already in use'))).toBe(true);
+    } finally {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
   });
 });
