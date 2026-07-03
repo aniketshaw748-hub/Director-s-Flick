@@ -320,3 +320,14 @@ AGV delivered T-17/T-18 in one commit (a86b635). Fable verification: tsc clean, 
 
 ### [34] Sweep #4 (Monitor-triggered): T-04/T-09 accepted, T-21/T-22 fanned out
 Sonnet delivered T-04+T-09 with full verification (typecheck, auto-approve e2e final.mp4, curl-driven non-auto-approve flow, live shotEvent WS pushes) + approved redo-contract refinement (verbatim prompt when supplied, PromptEngine regen when absent, direct submit). Accepted. AGV finished T-19/T-20. Fan-out: T-21 (Flash — 30/31 test regression, per Sonnet's diagnosis), T-22 (AGV — review-flow integration on the now-live backend). Rule-9 reinforcement written into Flash + AGV bootstraps (AGV swept app/src files twice). Sonnet next: T-10 review then T-05 AccountManager. Still blocked on user: T-08 (higgsfield auth login).
+
+---
+
+## Session: Sonnet
+
+### [35] Claim T-05 (AccountManager) + T-10 (review Flash's T-06/T-07/T-12-15 output)
+About to: T-10 first — run `npx vitest run` myself, read the test files for tautologies/real-assertion coverage, spot-check README.md/docs/user-guide.md/docs/api.md/docs/cost-model.md against the actual code, check `.gitignore` doesn't exclude anything needed. Read-only + notes (Flash owns `app/tests/**`/`docs/**`/`README.md`/`.gitignore` — no edits there). Then T-05 — new `app/src/accounts.ts`: per-account credential files at `app/accounts/<name>/credentials.json`, `HIGGSFIELD_CREDENTIALS_PATH` env injection per CLI spawn (touches `providers/higgsfield-cli.ts`), add-account flow, per-account balance check, account-tag on `cost_ledger` (may need a `CONTRACT-CHANGE` note if `CostLedgerEntry`/db schema needs an account column — types.ts/db.ts are Fable's), switch-account endpoint on `server.ts`. Will run `npm run typecheck` before marking either done.
+Result: — (in progress)
+
+### [35] Sweep #5: ARCHITECTURE.md contract canonicalized
+The @fable tag was Sonnet's swept-commit flag (already handled). Closed my own promise from the T-04 acceptance: review-verb contract in ARCHITECTURE.md now matches the approved implementation (requestEdit w/ referenceImagePath; requestRedo/redoAnimation with optional verbatim prompt, PromptEngine regen fallback, direct submit). Team state: T-21 (Flash) + T-22 (AGV) queued; Sonnet on T-10 then T-05; T-08 awaits user auth.

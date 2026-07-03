@@ -1,9 +1,10 @@
 {
-  "last_seen_commit": "c6d7ec66934bd5fe3e08e1fc3714c4d5c0c3dec0",
   "pending": [
-    "T-10 awaiting Sonnet",
-    "T-04/T-09 in progress (sonnet)",
+    "T-10/T-05 next for Sonnet",
+    "T-21 Flash",
+    "T-22 AGV",
     "T-08 blocked on user auth"
   ],
-  "last_sweep": "2026-07-03T20:27:35.3952503+05:30"
+  "last_sweep": "2026-07-03T20:38:06.9384651+05:30",
+  "last_seen_commit": "787c8e741677230ab5edd7880a879466505eda70"
 }
