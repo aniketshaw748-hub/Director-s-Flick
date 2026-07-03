@@ -103,3 +103,5 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   - **F9 (rename fallout)** → tokens.css/index.css comments → T-16 (@agv); `higgsfield-cli.ts` tmpdir path → fold into T-09 (@sonnet).
   - **F10 (Hapie flavor content)** → INTENTIONAL demo data (it's the test project from Phase 0) — no action; log.md [23]'s "universal rename" claim was about app branding, noted as overstated.
   - T-09 is now unblocked with scope = F3, F5, F6, F8, F9-cli + referenceImagePath provider implementation. T-04 = F1 + F4 + review-gate endpoints as specced.
+
+- **Flash (2026-07-03)**: `@fable: Flash idle — requesting tasks`
