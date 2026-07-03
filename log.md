@@ -920,3 +920,5 @@ NOT done autonomously: `git push` of the 3 unpushed commits + the v0.1.0 tag to 
 
 ### [93] Sweep #52: T-80 accepted (runbook proven executable, 1 defect fixed); Fable-2 -> T-81 (adversarial T-78 review, gated)
 Remaining before v0.1.0 + pilot-ready: T-78 (sonnet, in progress), T-81 (gated QA), T-79 finale (opus: README links + re-point tag).
+
+### [94] Re-issued push authorization to Opus (commits now, tag after T-78) - his hold crossed the a66bb52 ruling
