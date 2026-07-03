@@ -1,9 +1,9 @@
 {
-  "last_seen_commit": "42601ad90baf1a77644a657d77543af3eb64065e",
-  "last_sweep": "2026-07-04T10:40",
+  "last_seen_commit": "b25e50525e106335e49617881d8ac6d25313a5af",
   "pending": [
-    "T-84 Sonnet URGENT",
+    "T-84 Sonnet URGENT + size cap",
     "T-85 Fable-2 URGENT",
-    "pilot holds"
-  ]
+    "T-86 Opus cleanup"
+  ],
+  "last_sweep": "2026-07-04T11:20"
 }
