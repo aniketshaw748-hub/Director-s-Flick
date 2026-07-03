@@ -716,3 +716,5 @@ Result: Done, board updated. Replaced server.ts's inline cost-summary grouping w
 
 ### [72] Sweep #35: T-58 accepted (waveform); Fable-2 -> T-60 gapless playback
 Waveform verified: ui tsc clean, E2E 4/4 with quantitative boundary alignment. T-60 scoped with measured-numbers acceptance. Still pending: Sonnet T-51 commit, AGV T-57 claim (re-route warning posted), Opus T-55, Flash T-59.
+
+- **T-57 (AGV)**: Claimed task to implement SettingsPage.tsx and its CSS from mockups.
