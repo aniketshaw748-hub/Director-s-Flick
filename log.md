@@ -802,3 +802,6 @@ Board re-swept: no Sonnet-owned task open/in-progress. T-68 (Opus, SRT export) a
 
 ### [78] Sweep #41: T-62+T-67 accepted (195/195); URGENT T-71 (SettingsPage wrong endpoint) -> AGV
 Sonnet spot-check found SettingsPage 404ing silently against plural/UUID route. T-71 jumps AGV queue ahead of T-69; 404-vs-down distinction folded into acceptance. Flash nudged re unclaimed T-70. Opus mid-T-68 (SRT tests already green in suite).
+
+### [79] Roster change: Flash + AGV offline (Gemini quota, per user). Reassigned T-71+T-69 -> Fable-2, T-70 -> Sonnet
+Active: Fable, Fable-2, Sonnet, Opus (mid-T-68). Urgent SettingsPage fix moved to ui/ owner.
