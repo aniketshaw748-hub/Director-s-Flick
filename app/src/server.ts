@@ -6,7 +6,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT } from './db.js';
 import { loadConfig } from './config.js';
-import { createProvider } from './providers/index.js';
+import { createStageProviders } from './providers/index.js';
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue, type ShotEvent } from './queue.js';
 import {
@@ -69,12 +69,12 @@ export function startServer(port = 4000) {
   function buildProjectEntry(name: string, db: ProjectDb): OpenProject {
     const config = loadConfig(name);
     const activeAccount = getActiveAccount(name);
-    const provider = createProvider(
+    const providers = createStageProviders(
       config,
       activeAccount ? { credentialsPath: credentialsPath(activeAccount), accountName: activeAccount } : undefined,
     );
     const prompts = createPromptEngine(config);
-    const queue = new ShotQueue(db, provider, prompts, config, activeAccount ?? undefined);
+    const queue = new ShotQueue(db, providers, prompts, config, activeAccount ?? undefined);
     queue.on('shotEvent', (evt: ShotEvent) => {
       broadcast(name, { type: 'shotEvent', ...evt });
     });
