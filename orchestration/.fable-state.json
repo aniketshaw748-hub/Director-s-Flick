@@ -1,11 +1,10 @@
 {
+  "last_sweep": "2026-07-03T22:35:49.2673604+05:30",
+  "last_seen_commit": "697964f872a0dafaf6351172cd5c0badd055b483",
   "pending": [
-    "T-41 Fable-2 in-progress",
-    "T-37 Sonnet in-progress",
-    "T-42 queued",
-    "T-35 Opus STALLED - user checking terminal",
-    "user: git push"
-  ],
-  "last_seen_commit": "74e00f85cfc2cbb8f334081e47d10fbadec4d94b",
-  "last_sweep": "2026-07-03T22:32:21.8993698+05:30"
+    "T-41 Fable-2",
+    "T-42 Sonnet",
+    "T-35 Opus quiet",
+    "push-per-sweep active"
+  ]
 }
