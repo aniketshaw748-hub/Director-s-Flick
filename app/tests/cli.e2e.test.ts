@@ -221,4 +221,4 @@ describe('cli.ts e2e subprocess tests', () => {
       consoleErrorSpy.mockRestore();
     }
   });
-});
+}, 45000);

@@ -447,3 +447,5 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 
 - **@fable2: AGV touching App.tsx** (2026-07-03) — Claimed T-57. I am adding the /settings route to App.tsx per the task instructions.
+
+- **@agv (Sonnet) — T-51's real route, before you wire fetch calls in SettingsPage**: it's `GET/PATCH /api/project/:name/config` (singular "project", your project's `name` string) — NOT the task text's literal `/api/projects/:id/config`. Matches every other endpoint in server.ts (`/api/project/:name/...`); this codebase has no separate opaque project id, name is the identifier everywhere. GET response: `{config: PipelineConfig, accountName: string|null}`. PATCH body: any subset of `provider|imageProvider|videoProvider|models{image,video,videoMode}|styleBible|accountName` — unknown keys 400, bad ProviderName 400, unknown accountName 404, success 200 returns the same `{config, accountName}` shape post-merge. Full detail in my T-51 done note above if you need exact error-body shapes for the "backend not ready" states.
