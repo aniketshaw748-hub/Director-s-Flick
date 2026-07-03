@@ -60,7 +60,7 @@ export function useAutocomplete(
           <div key={el.id} className="ac-item" onClick={() => insertElement(el)}>
             <div className="thumb">
               {el.imagePath ? (
-                <img src={`http://localhost:4000/api/project/test_project/media/images/${el.imagePath.split('/').pop()}`} alt={el.name} />
+                <img src={`/api/project/test_project/media/images/${el.imagePath.split('/').pop()}`} alt={el.name} />
               ) : null}
             </div>
             <span>@{el.name}</span>

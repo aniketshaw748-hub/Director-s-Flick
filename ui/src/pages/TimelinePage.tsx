@@ -12,8 +12,20 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
   const totalDuration = shots.length > 0 ? shots[shots.length - 1].line.start + shots[shots.length - 1].line.targetDuration : 582;
   const placedShots = shots.filter(s => s.state === 'PLACED').length;
   
-  // Hardcoded for visual mockup if no shots are placed
+  const [isExporting, setIsExporting] = React.useState(false);
+
+  // TODO(T-05): Wire actual credits used endpoint when AccountManager is ready
   const creditsUsed = 842.5;
+
+  const handleExport = () => {
+    // TODO(T-04): Wire export endpoint
+    setIsExporting(true);
+  };
+
+  const handleCancelExport = () => {
+    // TODO(T-04): Wire cancel export endpoint
+    setIsExporting(false);
+  };
 
   return (
     <div className="workspace">
@@ -37,11 +49,17 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
             <div className="stats-row"><span>Credits used</span><span className="v">{creditsUsed} cr</span></div>
           </div>
           <div className="progress-container">
-            <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-12)', color: 'var(--text-2)', marginBottom: '8px'}}>
-               <span>Exporting...</span><span className="mono" style={{color: 'var(--lime)'}}>45%</span>
-            </div>
-            <div className="progress-bar"><div className="progress-fill"></div></div>
-            <button className="btn btn-secondary" style={{width: '100%', color: 'var(--danger)'}}>Cancel export</button>
+            {isExporting ? (
+              <>
+                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-12)', color: 'var(--text-2)', marginBottom: '8px'}}>
+                   <span>Exporting... ETA 2m</span><span className="mono" style={{color: 'var(--lime)'}}>45%</span>
+                </div>
+                <div className="progress-bar"><div className="progress-fill"></div></div>
+                <button className="btn btn-secondary" style={{width: '100%', color: 'var(--danger)'}} onClick={handleCancelExport}>Cancel export</button>
+              </>
+            ) : (
+              <button className="btn btn-primary" style={{width: '100%'}} onClick={handleExport} disabled={placedShots === 0}>Export timeline</button>
+            )}
           </div>
         </div>
       </div>
@@ -71,11 +89,11 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
                  const isActive = shot.state === 'PLACED';
                  return (
                    <div key={shot.id} className="tl-clip" style={{width: `${width}px`, borderColor: isActive ? 'var(--lime-a35)' : undefined}}>
-                     <div className="thumb">
-                       {shot.videoPath && (
-                         <img src={`http://localhost:4000/api/project/test_project/media/videos/${shot.videoPath.split('/').pop()?.replace('.mp4', '.jpg')}`} style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e: any) => e.target.style.display='none'} />
-                       )}
-                     </div>
+                      <div className="thumb">
+                        {shot.videoPath && (
+                          <img src={`/api/project/test_project/media/videos/${shot.videoPath.split('/').pop()?.replace('.mp4', '.jpg')}`} style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e: any) => e.target.style.display='none'} alt={`Shot ${shot.lineIndex + 1}`} />
+                        )}
+                      </div>
                      <span className="lbl">L{(shot.lineIndex + 1).toString().padStart(2, '0')}</span>
                    </div>
                  );

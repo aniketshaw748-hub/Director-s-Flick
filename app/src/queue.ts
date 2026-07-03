@@ -330,13 +330,36 @@ export class ShotQueue extends EventEmitter {
     await this.submitImageForShot(shot, { prompt, referenceImagePath: shot.imagePath });
   }
 
-  async requestRedo(shotId: string): Promise<void> {
-    this.db.updateShotState(shotId, 'PROMPTED', { imagePrompt: undefined });
+  /**
+   * Redo = fresh generation, no reference image. Per Fable's T-04 contract
+   * decision (T-11 finding 2): if the caller supplies a rewritten prompt, use
+   * it verbatim (desktop's "Rewrite prompt" box always sends one); otherwise
+   * regenerate via the PromptEngine (mobile's "Redo (generate fresh prompt)"
+   * sends none). Submits directly (IN_REVIEW -> IMAGE_QUEUED, like Edit) so a
+   * shot never sits PROMPTED without a real prompt.
+   */
+  async requestRedo(shotId: string, prompt?: string): Promise<void> {
+    const shot = this.db.getShot(shotId);
+    if (!shot) throw new Error(`requestRedo: shot not found: ${shotId}`);
+    let finalPrompt = prompt;
+    if (!finalPrompt) {
+       const elements = this.db.listElements();
+       const [generated] = await this.prompts.imagePromptBatch([shot.line], elements, this.config.styleBible);
+       finalPrompt = generated?.imagePrompt;
+       if (!finalPrompt) throw new Error(`requestRedo: prompt engine returned no prompt for shot ${shotId}`);
+    }
+    await this.submitImageForShot(shot, { prompt: finalPrompt });
   }
 
-  async redoAnimation(shotId: string, newPrompt: string): Promise<void> {
+  /**
+   * Same rule as requestRedo (Fable's T-04 contract decision): a supplied
+   * prompt is used verbatim; otherwise regenerate via the PromptEngine.
+   * Always resubmits against the same start_image (shot.imagePath).
+   */
+  async redoAnimation(shotId: string, prompt?: string): Promise<void> {
     const shot = this.db.getShot(shotId);
-    if (!shot) throw new Error("Shot not found");
-    await this.submitVideoForShot(shot, newPrompt);
+    if (!shot) throw new Error(`redoAnimation: shot not found: ${shotId}`);
+    const finalPrompt = prompt || (await this.prompts.animationPrompt(shot, this.db.listElements()));
+    await this.submitVideoForShot(shot, finalPrompt);
   }
 }

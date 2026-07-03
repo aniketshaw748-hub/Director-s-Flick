@@ -19,6 +19,7 @@ Local AI-video pipeline: Script + Voiceover &rarr; Aligned Lines &rarr; Consiste
    cd app
    npm install
    ```
+> **Mobile Review over LAN:** The Vite dev server is configured with `host: true`. To access the mobile review interface from your phone, connect to the same Wi-Fi network and navigate to `http://<your-local-ip>:5173/mobile` in your mobile browser. The UI is PWA-ready and can be installed to your home screen!
 3. **Frontend Setup**:
    ```bash
    cd ../ui

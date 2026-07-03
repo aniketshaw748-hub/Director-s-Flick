@@ -60,6 +60,9 @@ export function startServer(port = 4000) {
     });
     queue.run({ autoApprove: false }).catch((err) => {
       console.error(`[server] queue.run failed for project '${name}':`, err);
+      // Drop the cached entry so a later request/connection reopens (and
+      // retries) the project instead of leaving it permanently stuck.
+      openProjects.delete(name);
     });
 
     const entry: OpenProject = { db, queue };
@@ -120,13 +123,19 @@ export function startServer(port = 4000) {
      }
   });
 
-  // Review-gate actions: approve / edit(instructions) / redo / redoAnimation,
-  // delegated to the project's live ShotQueue (owns this state-machine logic).
+  // Review-gate actions: approve / edit(instructions) / redo(prompt?) /
+  // redoAnimation(prompt?), delegated to the project's live ShotQueue (owns
+  // this state-machine logic). Field names match the actual UI callers
+  // (ReviewPage/MobileReviewPage always send `instructions` + `prompt`
+  // together; only the one relevant to `action` is used) - per Fable's T-04
+  // contract decision (T-11 finding 2): a supplied `prompt` is used verbatim
+  // for redo/redoAnimation, otherwise the PromptEngine regenerates one.
   app.post('/api/project/:name/shots/:shotId/action', async (req, res) => {
      try {
         const { queue } = getOrOpenProject(req.params.name);
         const { shotId } = req.params;
-        const { action, instructions, animationPrompt } = req.body ?? {};
+        const { action, instructions, prompt } = req.body ?? {};
+        const userPrompt = typeof prompt === 'string' && prompt ? prompt : undefined;
         switch (action) {
            case 'approve':
               await queue.approve(shotId);
@@ -139,14 +148,10 @@ export function startServer(port = 4000) {
               await queue.requestEdit(shotId, instructions);
               break;
            case 'redo':
-              await queue.requestRedo(shotId);
+              await queue.requestRedo(shotId, userPrompt);
               break;
            case 'redoAnimation':
-              if (typeof animationPrompt !== 'string' || !animationPrompt) {
-                 res.status(400).json({ error: 'redoAnimation requires a string "animationPrompt" field' });
-                 return;
-              }
-              await queue.redoAnimation(shotId, animationPrompt);
+              await queue.redoAnimation(shotId, userPrompt);
               break;
            default:
               res.status(400).json({ error: `unknown action '${action}'` });

@@ -17,7 +17,7 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
   const handleAction = async (action: string) => {
     if (!activeShot) return;
     try {
-      await fetch(`http://localhost:4000/api/project/test_project/shots/${activeShot.id}/action`, {
+      await fetch(`/api/project/test_project/shots/${activeShot.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, instructions: editInstructions })
@@ -45,7 +45,7 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
           <div className="swipe-card card-fg" id="front-card">
             <div className="card-image">
               {activeShot.imagePath ? (
-                <img src={`http://localhost:4000/api/project/test_project/media/images/${activeShot.imagePath.split('/').pop()}`} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                <img src={`/api/project/test_project/media/images/${activeShot.imagePath.split('/').pop()}`} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="Shot frame" />
               ) : (
                 <svg viewBox="0 0 44 44" width="88" height="88"><rect x="12" y="14" width="20" height="16" rx="7" fill="#1C2530" stroke="rgba(255,255,255,.18)"/><circle cx="19" cy="22" r="2.4" fill="#C6FF4D"/><circle cx="25" cy="22" r="2.4" fill="#C6FF4D"/><path d="M22 14v-4" stroke="rgba(255,255,255,.3)" strokeWidth="1.5"/><circle cx="22" cy="8" r="1.8" fill="#C6FF4D" opacity=".8"/></svg>
               )}

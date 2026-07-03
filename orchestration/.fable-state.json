@@ -1,8 +1,9 @@
 {
-  "last_sweep": "2026-07-03T20:20:16.9358541+05:30",
+  "last_seen_commit": "c6d7ec66934bd5fe3e08e1fc3714c4d5c0c3dec0",
   "pending": [
     "T-10 awaiting Sonnet",
+    "T-04/T-09 in progress (sonnet)",
     "T-08 blocked on user auth"
   ],
-  "last_seen_commit": "092836497bdcb0cb9a315e5d23b9c52a42fe09c7"
+  "last_sweep": "2026-07-03T20:27:35.3952503+05:30"
 }

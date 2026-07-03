@@ -1,0 +1,17 @@
+{
+  "name": "Director's Flick",
+  "short_name": "Flick",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#06080b",
+  "theme_color": "#06080b",
+  "description": "Mobile review app for Director's Flick.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

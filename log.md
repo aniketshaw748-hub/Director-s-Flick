@@ -255,9 +255,11 @@ Result: ✅ Renamed the comments to "Director's Flick" and updated `BOARD.md` to
 About to: Fix T-11 frontend issues. T-17 includes adding `@`-mention autocomplete in ReviewPage + MobileReviewPage, fixing `MobileReviewPage.tsx:88` token bypass, and adding `// TODO(T-04)` comments. T-18 involves replacing `any` shot/project types in `ui/` with typed imports from `app/src/types.ts`.
 Result: ✅ Implemented `useAutocomplete` custom hook for popover element selection. Wired types and autocomplete functionality across App, ReviewPage, and MobileReviewPage. Passed typecheck. Marked T-17 and T-18 as done on BOARD.md.
 
-### [33] Claim T-19 (AGV)
-About to: Start T-19 (UI polish batch: SetupPage types, TimelinePage URL fixing, PWA support, vite config host: true).
-Result: ⏳ In progress...
+### [33] Claim T-19 and T-20 (AGV)
+About to: Start T-19 (UI polish batch: SetupPage types, TimelinePage URL fixing, PWA support, vite config host: true) and T-20 (Export panel + cost meter UI on TimelinePage).
+Result: ✅ Completed both tasks. 
+For T-19: Added proxy for API endpoints in `vite.config.ts`, changed hardcoded `localhost:4000` URLs to relative paths in the UI code to support access from other devices. Added PWA `manifest.json` and viewport config to `index.html`. Added note about LAN mobile access to `README.md`.
+For T-20: Added export state to `TimelinePage.tsx`, matching the mockup structure but making the export button vs progress bar toggleable with a mocked state. Added TODO comments to `App.tsx` and `TimelinePage.tsx` for missing endpoint wiring (T-04 and T-05). Passed typecheck. Marked T-19 and T-20 as done on BOARD.md.
 
 ## Session: Flash
 

@@ -34,6 +34,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
           <div className="top-spacer"></div>
           
           <div style={{ position: 'relative' }}>
+            {/* TODO(T-05): Wire account balances, names, and auth states */}
             <button className={`account-chip ${isAcctDropdownOpen ? 'active' : ''}`} onClick={() => setIsAcctDropdownOpen(!isAcctDropdownOpen)}>
               <span className="initial">N</span>
               <span className="name">NexGen Studio</span>
@@ -87,7 +88,7 @@ function App() {
   const [elements, setElements] = useState<ElementRef[]>([]);
   
   useEffect(() => {
-    fetch('http://localhost:4000/api/project/test_project')
+    fetch('/api/project/test_project')
       .then(res => res.json())
       .then(data => {
         if (data.elements) setElements(data.elements);
@@ -95,7 +96,7 @@ function App() {
       .catch(console.error);
 
     // Basic WebSocket connection
-    const ws = new WebSocket('ws://localhost:4000/?project=test_project');
+    const ws = new WebSocket(`ws://${window.location.host}/ws/?project=test_project`);
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

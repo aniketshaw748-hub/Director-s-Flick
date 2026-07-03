@@ -62,7 +62,7 @@ export default function SetupPage({ shots }: { shots: Shot[] }) {
           </div>
           <div className="align-list align-fade">
             {shots.length > 0 ? (
-              shots.map((shot: any, idx: number) => (
+              shots.map((shot: Shot, idx: number) => (
                 <React.Fragment key={shot.id}>
                   <div className="align-row">
                     <span className="ln">L{(shot.lineIndex + 1).toString().padStart(2, '0')}</span>
