@@ -88,24 +88,27 @@ function parseProvider(v: string): ProviderName {
   return fail(`invalid provider '${v}' (expected mock | higgsfield-cli)`);
 }
 
-/** Parse an --add spec: `id:name:category` (element ids are UUIDs, no colons). */
+/** Parse an --add spec: `id:name:category[:thumbUrl]` (element ids are UUIDs,
+ * no colons; thumbUrl may itself contain colons, e.g. https://..., so
+ * everything after the category segment is rejoined verbatim). */
 function parseElementSpec(spec: string): ElementRef {
-  const first = spec.indexOf(':');
-  const last = spec.lastIndexOf(':');
-  if (first <= 0 || last === first || last === spec.length - 1) {
-    return fail(`invalid element spec '${spec}' (expected id:name:category)`);
+  const parts = spec.split(':');
+  if (parts.length < 3) {
+    return fail(`invalid element spec '${spec}' (expected id:name:category[:thumbUrl])`);
   }
-  const id = spec.slice(0, first);
-  const name = spec.slice(first + 1, last);
-  const category = spec.slice(last + 1);
+  const id = parts[0]!;
+  const name = parts[1]!;
+  const category = parts[2]!;
+  const thumbUrl = parts.length > 3 ? parts.slice(3).join(':') : undefined;
+  if (!id) return fail(`invalid element spec '${spec}' (empty id)`);
   if (!name) return fail(`invalid element spec '${spec}' (empty name)`);
   if (!isElementCategory(category)) {
     return fail(`invalid element category '${category}' (expected character | location | prop)`);
   }
-  return { id, name, category };
+  return thumbUrl ? { id, name, category, thumbUrl } : { id, name, category };
 }
 
-/** Parse --elements JSON: [{id,name,category}, ...]. */
+/** Parse --elements JSON: [{id,name,category,thumbUrl?}, ...]. */
 function parseElementsJson(json: string): ElementRef[] {
   let parsed: unknown;
   try {
@@ -116,13 +119,16 @@ function parseElementsJson(json: string): ElementRef[] {
   if (!Array.isArray(parsed)) return fail('--elements must be a JSON array');
   return parsed.map((e, i) => {
     if (e === null || typeof e !== 'object') return fail(`--elements[${i}] must be an object`);
-    const { id, name, category } = e as Record<string, unknown>;
+    const { id, name, category, thumbUrl } = e as Record<string, unknown>;
     if (typeof id !== 'string' || !id) return fail(`--elements[${i}].id must be a string`);
     if (typeof name !== 'string' || !name) return fail(`--elements[${i}].name must be a string`);
     if (typeof category !== 'string' || !isElementCategory(category)) {
       return fail(`--elements[${i}].category must be character | location | prop`);
     }
-    return { id, name, category };
+    if (thumbUrl !== undefined && typeof thumbUrl !== 'string') {
+      return fail(`--elements[${i}].thumbUrl must be a string when present`);
+    }
+    return thumbUrl ? { id, name, category, thumbUrl } : { id, name, category };
   });
 }
 

@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS cost_ledger (
   model             TEXT NOT NULL,
   preflight_credits REAL,
   charged_credits   REAL,
+  account_name      TEXT,
   created_at        TEXT NOT NULL
 );
 
@@ -130,10 +131,24 @@ CREATE TABLE IF NOT EXISTS elements (
   project_id TEXT NOT NULL REFERENCES projects(id),
   name       TEXT NOT NULL,
   category   TEXT NOT NULL CHECK (category IN ('character','location','prop')),
+  thumb_url  TEXT,
   created_at TEXT NOT NULL,
   UNIQUE (project_id, name)
 );
 `;
+
+/**
+ * Add a column to an already-created table if it's missing (SQLite has no
+ * `ADD COLUMN IF NOT EXISTS`). Needed because `CREATE TABLE IF NOT EXISTS`
+ * only affects brand-new databases — an existing project's db predating a
+ * schema addition needs an explicit migration.
+ */
+function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Row <-> type mapping
@@ -188,6 +203,17 @@ function rowToShot(r: ShotRow): Shot {
   return shot;
 }
 
+function rowToElementRef(r: {
+  id: string;
+  name: string;
+  category: ElementRef['category'];
+  thumb_url: string | null;
+}): ElementRef {
+  const el: ElementRef = { id: r.id, name: r.name, category: r.category };
+  if (r.thumb_url !== null) el.thumbUrl = r.thumb_url;
+  return el;
+}
+
 export interface JobRow {
   id: string;
   projectId: string;
@@ -229,6 +255,9 @@ export class ProjectDb {
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('foreign_keys = ON');
     this.db.exec(SCHEMA);
+    // Migrate columns added after a project's db was first created.
+    ensureColumn(this.db, 'cost_ledger', 'account_name', 'TEXT');
+    ensureColumn(this.db, 'elements', 'thumb_url', 'TEXT');
   }
 
   close(): void {
@@ -639,26 +668,27 @@ export class ProjectDb {
   upsertElement(projectId: string, el: ElementRef): void {
     this.db
       .prepare(
-        `INSERT INTO elements (id, project_id, name, category, created_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET name = excluded.name, category = excluded.category`,
+        `INSERT INTO elements (id, project_id, name, category, thumb_url, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET
+           name = excluded.name, category = excluded.category, thumb_url = excluded.thumb_url`,
       )
-      .run(el.id, projectId, el.name, el.category, now());
+      .run(el.id, projectId, el.name, el.category, el.thumbUrl ?? null, now());
   }
 
   listElements(): ElementRef[] {
-    const rows = this.db.prepare(`SELECT id, name, category FROM elements ORDER BY name`).all() as {
-      id: string;
-      name: string;
-      category: ElementRef['category'];
-    }[];
-    return rows.map((r) => ({ id: r.id, name: r.name, category: r.category }));
+    const rows = this.db
+      .prepare(`SELECT id, name, category, thumb_url FROM elements ORDER BY name`)
+      .all() as { id: string; name: string; category: ElementRef['category']; thumb_url: string | null }[];
+    return rows.map((r) => rowToElementRef(r));
   }
 
   getElementByName(name: string): ElementRef | undefined {
     const r = this.db
-      .prepare(`SELECT id, name, category FROM elements WHERE name = ?`)
-      .get(name) as { id: string; name: string; category: ElementRef['category'] } | undefined;
-    return r ? { id: r.id, name: r.name, category: r.category } : undefined;
+      .prepare(`SELECT id, name, category, thumb_url FROM elements WHERE name = ?`)
+      .get(name) as
+      | { id: string; name: string; category: ElementRef['category']; thumb_url: string | null }
+      | undefined;
+    return r ? rowToElementRef(r) : undefined;
   }
 }

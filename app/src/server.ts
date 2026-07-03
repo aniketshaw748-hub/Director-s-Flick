@@ -362,7 +362,7 @@ export function startServer(port = 4000) {
            res.status(404).json({ error: 'project not found' });
            return;
         }
-        const { id, name, category } = req.body ?? {};
+        const { id, name, category, thumbUrl } = req.body ?? {};
         if (typeof id !== 'string' || !id) {
            res.status(400).json({ error: 'id (Higgsfield element UUID) is required' });
            return;
@@ -375,7 +375,11 @@ export function startServer(port = 4000) {
            res.status(400).json({ error: 'category must be character | location | prop' });
            return;
         }
-        db.upsertElement(project.id, { id, name, category });
+        if (thumbUrl !== undefined && typeof thumbUrl !== 'string') {
+           res.status(400).json({ error: 'thumbUrl must be a string when present' });
+           return;
+        }
+        db.upsertElement(project.id, thumbUrl ? { id, name, category, thumbUrl } : { id, name, category });
         res.json({ success: true });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
