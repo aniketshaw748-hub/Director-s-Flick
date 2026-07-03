@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { Shot, ElementRef } from '../../../app/src/types';
+import { useAutocomplete } from '../useAutocomplete';
 
-export default function MobileReviewPage({ shots }: { shots: any[] }) {
+export default function MobileReviewPage({ shots, elements }: { shots: Shot[], elements: ElementRef[] }) {
+  const editRef = React.useRef<HTMLInputElement>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editInstructions, setEditInstructions] = useState('');
+  
+  const { onChange: onEditChange, AutocompletePopover: EditPopover } = useAutocomplete(elements, editInstructions, setEditInstructions, editRef);
 
   // Find the first shot ready for review
   const activeShot = shots.find(s => s.state === 'IMAGE_READY');
@@ -79,14 +84,16 @@ export default function MobileReviewPage({ shots }: { shots: any[] }) {
         <div className="sheet-handle"></div>
         <div className="sheet-title">Reject image</div>
         
-        <div style={{display:'flex', gap:'8px', marginBottom:'16px'}}>
+        <div style={{display:'flex', gap:'8px', marginBottom:'16px', position: 'relative'}}>
           <input 
+            ref={editRef}
             type="text" 
             value={editInstructions}
-            onChange={e => setEditInstructions(e.target.value)}
+            onChange={onEditChange}
             placeholder="Edit instructions (e.g. make it darker)" 
-            style={{flex:1, background:'var(--surface-2)', border:'1px solid var(--border-1)', color:'white', padding:'8px 12px', borderRadius:'8px'}}
+            style={{flex:1, background:'var(--surface-2)', border:'1px solid var(--border-1)', color:'var(--text-1)', padding:'8px 12px', borderRadius:'var(--r-sm)'}}
           />
+          <EditPopover />
         </div>
 
         <button className="btn-row" onClick={() => handleAction('edit')} disabled={!editInstructions}>

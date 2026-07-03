@@ -1,6 +1,7 @@
 import React from 'react';
+import type { Shot } from '../../../app/src/types';
 
-export default function SetupPage({ shots }: { shots: any[] }) {
+export default function SetupPage({ shots }: { shots: Shot[] }) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = (seconds % 60).toFixed(1);

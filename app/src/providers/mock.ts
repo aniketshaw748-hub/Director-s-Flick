@@ -122,6 +122,12 @@ export class MockProvider implements GenProvider {
   }
 
   async submitImage(spec: ImageJobSpec): Promise<string> {
+    if (spec.referenceImagePath) {
+      // Edit (image-to-image): mock "variant" = the reference image itself,
+      // so callers/tests can assert the edit path actually used the reference
+      // rather than generating an unrelated fresh sample.
+      return this.enqueue('image', spec, spec.referenceImagePath);
+    }
     const sample = rotate(SAMPLE_IMAGES, this.imageCount++);
     return this.enqueue('image', spec, sample);
   }
@@ -171,11 +177,16 @@ export class MockProvider implements GenProvider {
 
   private enqueue(kind: 'image' | 'video', spec: JobSpec, sampleFile: string): string {
     const id = randomUUID();
+    // sampleFile is normally a bare filename under sampleDir (rotated sample);
+    // an absolute path (edit's referenceImagePath) is used as-is.
+    const samplePath = path.isAbsolute(sampleFile)
+      ? sampleFile
+      : path.join(this.sampleDir, sampleFile);
     this.jobs.set(id, {
       id,
       kind,
       spec,
-      samplePath: path.join(this.sampleDir, sampleFile),
+      samplePath,
       submittedAt: Date.now(),
     });
     return id;

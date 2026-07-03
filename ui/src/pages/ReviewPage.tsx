@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import type { Shot, ElementRef } from '../../../app/src/types';
+import { useAutocomplete } from '../useAutocomplete';
 
-export default function ReviewPage({ shots }: { shots: any[] }) {
+export default function ReviewPage({ shots, elements }: { shots: Shot[], elements: ElementRef[] }) {
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const [editInstructions, setEditInstructions] = useState('');
   const [redoPrompt, setRedoPrompt] = useState('');
@@ -59,6 +61,12 @@ export default function ReviewPage({ shots }: { shots: any[] }) {
       return part;
     });
   };
+
+  const editRef = React.useRef<HTMLTextAreaElement>(null);
+  const redoRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const { onChange: onEditChange, AutocompletePopover: EditPopover } = useAutocomplete(elements, editInstructions, setEditInstructions, editRef);
+  const { onChange: onRedoChange, AutocompletePopover: RedoPopover } = useAutocomplete(elements, redoPrompt, setRedoPrompt, redoRef);
 
   return (
     <div className="workspace">
@@ -124,8 +132,9 @@ export default function ReviewPage({ shots }: { shots: any[] }) {
         <div style={{ flex: 1, padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
             <span style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Edit instructions</span>
-            <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', color: 'var(--text-1)', fontSize: 'var(--fs-14)' }}>
-              <textarea value={editInstructions} onChange={e => setEditInstructions(e.target.value)} style={{ width: '100%', height: '100px', background: 'transparent', border: 'none', color: 'inherit', resize: 'none' }} placeholder="e.g. make it darker, remove the bird..."></textarea>
+            <div style={{ position: 'relative', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', color: 'var(--text-1)', fontSize: 'var(--fs-14)' }}>
+              <textarea ref={editRef} value={editInstructions} onChange={onEditChange} style={{ width: '100%', height: '100px', background: 'transparent', border: 'none', color: 'inherit', resize: 'none' }} placeholder="e.g. make it darker, remove the bird..."></textarea>
+              <EditPopover />
             </div>
             <button onClick={() => handleAction('edit')} disabled={!editInstructions} className="btn-primary" style={{ background: 'var(--lime)', color: 'var(--lime-ink)', height: '44px', borderRadius: 'var(--r-md)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', opacity: editInstructions ? 1 : 0.5 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -138,7 +147,8 @@ export default function ReviewPage({ shots }: { shots: any[] }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
             <span style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Rewrite prompt</span>
             <div style={{ position: 'relative', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', color: 'var(--text-1)', fontSize: 'var(--fs-14)' }}>
-              <textarea value={redoPrompt} onChange={e => setRedoPrompt(e.target.value)} style={{ width: '100%', height: '100px', background: 'transparent', border: 'none', color: 'inherit', resize: 'none' }} placeholder="Type @ to mention elements"></textarea>
+              <textarea ref={redoRef} value={redoPrompt} onChange={onRedoChange} style={{ width: '100%', height: '100px', background: 'transparent', border: 'none', color: 'inherit', resize: 'none' }} placeholder="Type @ to mention elements"></textarea>
+              <RedoPopover />
             </div>
             <button onClick={() => handleAction('redo')} disabled={!redoPrompt} className="btn-secondary" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-1)', color: 'var(--text-1)', height: '44px', borderRadius: 'var(--r-md)', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>

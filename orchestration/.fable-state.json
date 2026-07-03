@@ -1,8 +1,8 @@
 {
+  "last_sweep": "2026-07-03T20:20:16.9358541+05:30",
   "pending": [
-    "T-11 subagent running",
-    "T-08 blocked on user higgsfield auth login"
+    "T-10 awaiting Sonnet",
+    "T-08 blocked on user auth"
   ],
-  "last_seen_commit": "14c5b00918829e9ce7e58377cea7135d3ab63cbe",
-  "last_sweep": "2026-07-03T20:13:51.0767011+05:30"
+  "last_seen_commit": "092836497bdcb0cb9a315e5d23b9c52a42fe09c7"
 }

@@ -394,7 +394,7 @@ export class HiggsfieldCliProvider implements GenProvider {
     this.config = config;
     this.cliCommand = opts.cliCommand;
     this.elementCacheDir =
-      opts.elementCacheDir ?? path.join(os.tmpdir(), 'video-pipeline', 'element-media');
+      opts.elementCacheDir ?? path.join(os.tmpdir(), 'directors-flick', 'element-media');
     this.submitTimeoutMs = opts.submitTimeoutMs ?? 120_000;
     this.pollTimeoutMs = opts.pollTimeoutMs ?? 60_000;
     this.waitTimeoutMs = opts.waitTimeoutMs ?? 900_000;
@@ -510,8 +510,11 @@ export class HiggsfieldCliProvider implements GenProvider {
       args.push('--mode', spec.mode ?? this.config.models.videoMode);
       args.push('--sound', spec.soundOff ? 'off' : 'on');
       args.push('--resolution', spec.resolution ?? '720p');
-    } else if (spec.resolution) {
-      args.push('--resolution', spec.resolution);
+    } else {
+      if (spec.resolution) args.push('--resolution', spec.resolution);
+      // Edit = image-to-image: the rejected image is passed as a reference
+      // input, same --image flag used for explicit element references below.
+      if (spec.referenceImagePath) args.push('--image', spec.referenceImagePath);
     }
     args.push('--aspect_ratio', spec.aspectRatio);
     if (!this.config.elementsViaPlaceholders) {

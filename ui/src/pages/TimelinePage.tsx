@@ -1,6 +1,7 @@
 import React from 'react';
+import type { Shot } from '../../../app/src/types';
 
-export default function TimelinePage({ shots }: { shots: any[] }) {
+export default function TimelinePage({ shots }: { shots: Shot[] }) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = (seconds % 60).toFixed(1);
@@ -47,6 +48,7 @@ export default function TimelinePage({ shots }: { shots: any[] }) {
 
       <div className="timeline-area">
         <div className="tl-tools">
+          {/* TODO(T-04): Unwired redo-animation button will go live with T-04 */}
           <button className="btn btn-secondary" style={{height: '32px', fontSize: 'var(--fs-13)'}}>
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '6px'}}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
              Redo animation

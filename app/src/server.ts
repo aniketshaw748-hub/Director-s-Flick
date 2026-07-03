@@ -4,7 +4,16 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
-import { ProjectDb, openProjectDb, projectDir } from './db.js';
+import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT } from './db.js';
+import { loadConfig } from './config.js';
+import { createProvider } from './providers/index.js';
+import { createPromptEngine } from './prompts.js';
+import { ShotQueue, type ShotEvent } from './queue.js';
+
+interface OpenProject {
+  db: ProjectDb;
+  queue: ShotQueue;
+}
 
 export function startServer(port = 4000) {
   const app = express();
@@ -16,18 +25,60 @@ export function startServer(port = 4000) {
 
   // Map of projectName -> Set<WebSocket>
   const clients = new Map<string, Set<WebSocket>>();
+  // One ProjectDb + one live ShotQueue per project, for the server's lifetime
+  // (fixes the earlier per-request connection leak; also lets the review-gate
+  // actions below delegate straight to the queue instead of re-implementing
+  // its state-machine logic).
+  const openProjects = new Map<string, OpenProject>();
+
+  function broadcast(projectName: string, payload: unknown): void {
+    const wsClients = clients.get(projectName);
+    if (!wsClients || wsClients.size === 0) return;
+    const msg = JSON.stringify(payload);
+    for (const client of wsClients) {
+      if (client.readyState === WebSocket.OPEN) client.send(msg);
+    }
+  }
+
+  /**
+   * Open (or reuse) a project's db + a live ShotQueue driving its review-gate
+   * loop in the background (autoApprove: false — shots stop at IN_REVIEW for
+   * the API below to approve/edit/redo). Idempotent per project name.
+   */
+  function getOrOpenProject(name: string): OpenProject {
+    const existing = openProjects.get(name);
+    if (existing) return existing;
+
+    const db = openProjectDb(name);
+    const config = loadConfig(name);
+    const provider = createProvider(config);
+    const prompts = createPromptEngine(config);
+    const queue = new ShotQueue(db, provider, prompts, config);
+
+    queue.on('shotEvent', (evt: ShotEvent) => {
+      broadcast(name, { type: 'shotEvent', ...evt });
+    });
+    queue.run({ autoApprove: false }).catch((err) => {
+      console.error(`[server] queue.run failed for project '${name}':`, err);
+    });
+
+    const entry: OpenProject = { db, queue };
+    openProjects.set(name, entry);
+    return entry;
+  }
 
   wss.on('connection', (ws, req) => {
     // Expect URL like /?project=test_project
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const projectName = url.searchParams.get('project');
-    
+
     if (projectName) {
        if (!clients.has(projectName)) {
           clients.set(projectName, new Set());
        }
        clients.get(projectName)!.add(ws);
-       
+       getOrOpenProject(projectName); // start driving the queue as soon as anyone watches
+
        ws.on('close', () => {
           clients.get(projectName)?.delete(ws);
        });
@@ -36,11 +87,10 @@ export function startServer(port = 4000) {
 
   // API endpoints
   app.get('/api/projects', (req, res) => {
-     const projDir = path.join(process.cwd(), 'projects');
-     if (!fs.existsSync(projDir)) {
+     if (!fs.existsSync(PROJECTS_ROOT)) {
         return res.json([]);
      }
-     const dirs = fs.readdirSync(projDir, { withFileTypes: true })
+     const dirs = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })
         .filter(d => d.isDirectory())
         .map(d => d.name);
      res.json(dirs);
@@ -48,7 +98,7 @@ export function startServer(port = 4000) {
 
   app.get('/api/project/:name', (req, res) => {
      try {
-        const db = openProjectDb(req.params.name);
+        const { db } = getOrOpenProject(req.params.name);
         const project = db.getProject();
         const shots = db.listShots();
         const elements = db.listElements();
@@ -70,22 +120,37 @@ export function startServer(port = 4000) {
      }
   });
 
-  // Endpoint to approve/edit/redo from mobile
-  app.post('/api/project/:name/shots/:shotId/action', (req, res) => {
+  // Review-gate actions: approve / edit(instructions) / redo / redoAnimation,
+  // delegated to the project's live ShotQueue (owns this state-machine logic).
+  app.post('/api/project/:name/shots/:shotId/action', async (req, res) => {
      try {
-        const db = openProjectDb(req.params.name);
-        const { action, instructions, animationPrompt } = req.body;
-        if (action === 'approve') {
-           db.updateShotState(req.params.shotId, 'APPROVED');
-        } else if (action === 'edit') {
-           const shot = db.getShot(req.params.shotId);
-           db.updateShotState(req.params.shotId, 'PROMPTED', { 
-             imagePrompt: (shot?.imagePrompt || '') + '\n[Edit: ' + instructions + ']' 
-           });
-        } else if (action === 'redo') {
-           db.updateShotState(req.params.shotId, 'PROMPTED', { imagePrompt: undefined });
-        } else if (action === 'redoAnimation') {
-           db.updateShotState(req.params.shotId, 'APPROVED', { animationPrompt });
+        const { queue } = getOrOpenProject(req.params.name);
+        const { shotId } = req.params;
+        const { action, instructions, animationPrompt } = req.body ?? {};
+        switch (action) {
+           case 'approve':
+              await queue.approve(shotId);
+              break;
+           case 'edit':
+              if (typeof instructions !== 'string' || !instructions) {
+                 res.status(400).json({ error: 'edit requires a string "instructions" field' });
+                 return;
+              }
+              await queue.requestEdit(shotId, instructions);
+              break;
+           case 'redo':
+              await queue.requestRedo(shotId);
+              break;
+           case 'redoAnimation':
+              if (typeof animationPrompt !== 'string' || !animationPrompt) {
+                 res.status(400).json({ error: 'redoAnimation requires a string "animationPrompt" field' });
+                 return;
+              }
+              await queue.redoAnimation(shotId, animationPrompt);
+              break;
+           default:
+              res.status(400).json({ error: `unknown action '${action}'` });
+              return;
         }
         res.json({ success: true });
      } catch (e: any) {
@@ -93,23 +158,15 @@ export function startServer(port = 4000) {
      }
   });
 
-  // Polling loop to broadcast state changes
+  // Periodic full-state sync — a robust baseline (e.g. for a client that just
+  // connected) on top of the immediate per-transition `shotEvent` pushes above.
   setInterval(() => {
      for (const [projectName, wsClients] of clients.entries()) {
         if (wsClients.size === 0) continue;
-        try {
-           const db = openProjectDb(projectName);
-           const shots = db.listShots();
-           // Just send the whole shots array every 2s to keep it simple and robust for this prototype
-           const payload = JSON.stringify({ type: 'sync', shots });
-           for (const client of wsClients) {
-              if (client.readyState === WebSocket.OPEN) {
-                 client.send(payload);
-              }
-           }
-        } catch(e) {
-           // project might not exist yet
-        }
+        const opened = openProjects.get(projectName);
+        if (!opened) continue;
+        const shots = opened.db.listShots();
+        broadcast(projectName, { type: 'sync', shots });
      }
   }, 2000);
 

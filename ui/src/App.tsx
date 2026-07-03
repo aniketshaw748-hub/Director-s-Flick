@@ -80,11 +80,20 @@ import SetupPage from './pages/SetupPage';
 import TimelinePage from './pages/TimelinePage';
 import MobileReviewPage from './pages/MobileReviewPage';
 import ReviewPage from './pages/ReviewPage';
+import type { Shot, ElementRef } from '../../app/src/types';
 
 function App() {
-  const [shots, setShots] = useState<any[]>([]);
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [elements, setElements] = useState<ElementRef[]>([]);
   
   useEffect(() => {
+    fetch('http://localhost:4000/api/project/test_project')
+      .then(res => res.json())
+      .then(data => {
+        if (data.elements) setElements(data.elements);
+      })
+      .catch(console.error);
+
     // Basic WebSocket connection
     const ws = new WebSocket('ws://localhost:4000/?project=test_project');
     ws.onmessage = (event) => {
@@ -93,6 +102,7 @@ function App() {
         if (data.type === 'sync') {
           setShots(data.shots);
         } else if (data.type === 'shot_updated') {
+           // TODO(T-04): This handler will go live when T-04 backend is wired
            setShots(prev => prev.map(s => s.id === data.shot.id ? data.shot : s));
         }
       } catch (e) {
@@ -107,8 +117,8 @@ function App() {
       <Routes>
         <Route path="/setup" element={<Chrome><SetupPage shots={shots} /></Chrome>} />
         <Route path="/timeline" element={<Chrome><TimelinePage shots={shots} /></Chrome>} />
-        <Route path="/deck" element={<Chrome><ReviewPage shots={shots} /></Chrome>} />
-        <Route path="/mobile" element={<MobileReviewPage shots={shots} />} />
+        <Route path="/deck" element={<Chrome><ReviewPage shots={shots} elements={elements} /></Chrome>} />
+        <Route path="/mobile" element={<MobileReviewPage shots={shots} elements={elements} />} />
         {/* Default route */}
         <Route path="*" element={<Chrome><SetupPage shots={shots} /></Chrome>} />
       </Routes>
