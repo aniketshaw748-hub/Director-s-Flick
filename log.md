@@ -406,3 +406,14 @@ About to: (1) verify `higgsfield account status` + MCP balance baseline; (2) CLI
 
 ### [43b] T-08 progress
 CLI headless gen VERIFIED (z_image 0.15cr). Element placeholders via CLI VERIFIED — reference_elements populated, identity perfect, works CROSS-ACCOUNT (Team-workspace element, Max-account billing). Surface naming drift: CLI nano_banana_2 = NB Pro @2k (2cr). Smoke tests: 2.15cr total (Max acct 1149.05 -> 1146.9). Full live pipeline now running in background: 2-line project t08_live, provider higgsfield-cli, element-tagged, auto-approve (align -> 2 images -> 2 kling3_0 clips -> export). Will reconcile balance + app cost_ledger on completion.
+
+---
+
+## Session: Opus
+
+### [44] Claim T-26 — design-spec.md verify/complete + browser QA pass
+About to: T-26 (lease: design/design-spec.md + ui/src/** EXCEPT player/** and TimelinePage.tsx). Root-cause found during QA read: AGV ported the four mockups' JSX with their exact classNames but NEVER ported the mockups' component/layout CSS into the React app — ui/src/index.css only carries design tokens (+3 stray rules malformed INSIDE :root), and App.css is dead Vite boilerplate. Result: SetupPage + MobileReviewPage are almost entirely unstyled vs their mockups; the whole desktop chrome (rail/topbar/account-switcher/conn) has no CSS. Fable-2's timeline.css (T-25, DO NOT TOUCH) already ported the timeline slice + a few shared atoms globally. Plan: (1) rewrite ui/src/index.css = clean tokens (restore tokens.css tail) + base reset + app chrome + shared atoms (overline/card/chip/at-chip/btn family/btn-circle/autocomplete/workspace) faithfully from design/desktop-setup.html + desktop-review.html; (2) new ui/src/pages/SetupPage.css (setup layout) + ui/src/pages/MobileReviewPage.css (mobile-scoped under .mobile-review wrapper); (3) remove dead App.css; (4) keyboard focus states (button/textarea/.nav-btn :focus-visible -> --focus-ring), empty states (no-shots + disconnected-WS already present, verify styled); (5) finish design/design-spec.md as authoritative build-from spec. Verify: npx tsc -b + vite build clean, then browser render against mock server. Committing ui/ + design-spec.md with explicit paths only (server.ts has Sonnet T-27 WIP; .fable-state.json is Fable's — never staging those).
+Result: (in progress)
+
+### [43c] T-08: first real-provider bug found + hotfixed
+Live run failed at image submission: CLI submit-mode returns `["<uuid>"]` (bare string array); pickJobId expected objects -> app orphaned a completed 2cr job (d002c980, image fine). Hotfixed pickJobId (UUID-array handling) under emergency lease in Sonnet territory; typecheck clean; @sonnet post-hoc review + regression test requested. THIS is why T-08 exists — mock provider could never surface real CLI stdout shapes. Retrying full run. Max acct: 1144.9cr.

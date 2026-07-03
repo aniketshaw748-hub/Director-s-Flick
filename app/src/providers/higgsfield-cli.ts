@@ -130,7 +130,17 @@ function payloadContainers(json: unknown): Record<string, unknown>[] {
   return out;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function pickJobId(json: unknown): string | null {
+  // `generate create --json` WITHOUT --wait returns a bare array of job-id
+  // strings, e.g. ["d002c980-..."] (observed live in T-08). Handle it first.
+  if (typeof json === 'string' && UUID_RE.test(json)) return json;
+  if (Array.isArray(json)) {
+    for (const item of json) {
+      if (typeof item === 'string' && UUID_RE.test(item)) return item;
+    }
+  }
   for (const c of payloadContainers(json)) {
     for (const key of ['id', 'job_id', 'jobId', 'generation_id', 'generationId', 'uuid']) {
       const v = c[key];
