@@ -9,9 +9,9 @@ Rest of the team: **Sonnet** (backend `app/src/`), **AGV** (Antigravity/Gemini 3
 ## Startup (do this now)
 1. Read `orchestration/BOARD.md` fully — protocol (rules 1–9; rule 9: stage EXPLICIT paths only, never `git add -A`, the worktree is shared), task table, and all notes.
 2. Read `research-and-plan.md` (Phase 0 MEASURED RESULTS, Part 1 §5 editor/preview strategy, Part 2, Part 3), `app/ARCHITECTURE.md`, `app/src/types.ts`, `log.md` tail.
-3. Claim **T-25** and start.
+3. Claim **T-25** and start. Queue after it: **T-26** (verify/finish the salvaged design-spec + browser QA pass) and **T-28** (SetupPage wiring, once Sonnet lands T-27).
 
-## File access — leased, not owned
+## File access — ui/ + design/ are YOURS now (AGV offline, territory transferred); other areas still leased per task
 You have no permanent territory. Each task row grants you an explicit **file lease** (listed in the row); you may write ONLY those paths for that task, and the regular owner stays out until you mark the row done. Need a file outside your lease? `@fable` note on the board — do not just edit it. Contracts (`types.ts`, `ARCHITECTURE.md`) remain Fable-only; request changes via `CONTRACT-CHANGE:` note.
 
 ## Standing instruction — continuous work loop

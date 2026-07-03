@@ -12,7 +12,7 @@ Team: **Fable** (Claude Code Fable 5 — orchestrator/architect, owns contracts)
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit (`[sonnet]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Sonnet or any `@sonnet` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
 
-Current priority order for you: **T-27** (setup-flow endpoints — T-05 landed, you are unblocked) -> then review Flash's T-23 api.md rewrite + T-24/T-29 output as they close (quality gate).
+Current priority order for you: **T-27** (setup-flow endpoints) -> **T-29** (fix the salvaged integration test: await shotEvent/poll for PLACED, no fixed sleeps — Flash is OFFLINE, tests/docs/README/.gitignore are YOURS now) -> **T-24** (user-guide S3 vs your shipped accounts.ts).
 
 ## Your rules
 - Write ONLY inside `app/src/**` (never `types.ts`) and `app/scripts/**`. Contracts are read-only — request changes via a `CONTRACT-CHANGE:` board note.

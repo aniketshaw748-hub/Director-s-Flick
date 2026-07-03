@@ -394,3 +394,6 @@ Result: ⏳ In progress...
 
 ### [40] Sweep #9: T-05 accepted; T-24/T-27 unblocked; T-29 flake diagnosed
 Sonnet landed T-05 AccountManager (typecheck clean, old suite green — accepted; live check deferred to T-08). Unblocked T-24 (Flash) + T-27 (Sonnet). Flash's in-progress T-29 integration test fails on a fixed-sleep assertion (APPROVED vs PLACED) — posted diagnosis: await shotEvent/poll for PLACED instead of fixed delays. All five agents have work: T-25 Fable-2, T-26 AGV, T-27 Sonnet, T-24+T-29 Flash.
+
+### [41] Sweep #10: Gemini agents OFFLINE (token limits) — lanes redistributed
+AGV + Flash out of tokens mid-task. Salvage-committed their WIP (design-spec.md + App.tsx QA edits; integration test suite). Territory transfers: ui/+design/ -> Fable-2 (now frontend owner + hard problems); app/tests/+docs/+README+.gitignore -> Sonnet. Task reassignments: T-26 -> Fable-2 (verify spec, finish QA), T-29 + T-24 -> Sonnet, T-28 -> Fable-2 (still blocked on T-27). Bootstraps updated. Remaining team: Fable (orchestrator), Fable-2, Sonnet.

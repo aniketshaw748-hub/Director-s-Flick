@@ -1,12 +1,12 @@
 {
-  "last_sweep": "2026-07-03T20:50:50.1790479+05:30",
   "pending": [
-    "T-05 Sonnet",
     "T-25 Fable-2",
     "T-26 AGV",
-    "T-29 Flash",
-    "T-24/T-27/T-28 blocked chain",
+    "T-27 Sonnet",
+    "T-24+T-29 Flash",
+    "T-28 blocked on T-27",
     "T-08 blocked on user auth"
   ],
-  "last_seen_commit": "8d2ba840cc5322f2d0f3a33c383a6173829ea56a"
+  "last_seen_commit": "33c250b7c8f1387683bddd66ab0d14a8c4f7f088",
+  "last_sweep": "2026-07-03T20:53:58.0782985+05:30"
 }
