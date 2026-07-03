@@ -16,42 +16,66 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
   const [notReady, setNotReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
+  // T-71: route is singular `project` keyed by NAME (server.ts /
+  // docs/api.md), and GET returns `{config, accountName}` — not bare config.
+  // A fetch REJECTION means the backend is unreachable; an HTTP error status
+  // is a real error and must surface as one (rendering 404 as "backend not
+  // ready" is exactly what hid the original wrong-URL bug).
   useEffect(() => {
-    if (!project?.id) return;
+    if (!project?.name) return;
     setLoading(true);
-    fetch(`/api/projects/${encodeURIComponent(project.id)}/config`)
-      .then(res => {
-        if (!res.ok) throw new Error('Backend not ready');
-        return res.json();
-      })
-      .then(data => {
-        setConfig(data);
+    setError(null);
+    fetch(`/api/project/${encodeURIComponent(project.name)}/config`)
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+        setConfig(body.config ?? {});
         setNotReady(false);
       })
-      .catch(() => {
-        setNotReady(true);
+      .catch((e) => {
+        if (e instanceof TypeError) {
+          setNotReady(true); // network-level failure — backend down
+        } else {
+          setError(e instanceof Error ? e.message : String(e));
+        }
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [project?.id]);
+  }, [project?.name]);
 
   const handleSave = async () => {
-    if (!project?.id || notReady) return;
+    if (!project?.name || notReady) return;
     setSaving(true);
+    setError(null);
+    setSaved(false);
     try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}/config`, {
+      // PATCH accepts a whitelisted subset only (server 400s unknown keys) —
+      // send exactly the editable fields, never the whole config object.
+      const patch: Record<string, unknown> = {};
+      if (config.provider !== undefined) patch.provider = config.provider;
+      if (config.imageProvider !== undefined) patch.imageProvider = config.imageProvider;
+      if (config.videoProvider !== undefined) patch.videoProvider = config.videoProvider;
+      if (config.models !== undefined) patch.models = config.models;
+      if (config.styleBible !== undefined) patch.styleBible = config.styleBible;
+      if (config.promptBackend !== undefined) patch.promptBackend = config.promptBackend;
+      if (config.llmModel !== undefined) patch.llmModel = config.llmModel;
+      const res = await fetch(`/api/project/${encodeURIComponent(project.name)}/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        body: JSON.stringify(patch),
       });
-      if (!res.ok) throw new Error('Failed to save');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+      if (body.config) setConfig(body.config); // server-merged truth
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
       if (isMobile) navigate('/mobile'); // Go back to mobile review
-      // For desktop, it might just show a success state or just stay
     } catch (e) {
-      console.error(e);
-      alert("Failed to save. Backend might not be ready.");
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -137,8 +161,11 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
               </select>
             </div>
             <div className="settings-field">
+              {/* T-71: aspectRatio is not in the server's PATCH whitelist yet
+                  — disabled rather than silently non-persisting (@sonnet
+                  note on the board proposes whitelisting both). */}
               <label>Aspect Ratio</label>
-              <select value={config.aspectRatio || '16:9'} onChange={e => updateConfig({ aspectRatio: e.target.value })}>
+              <select value={config.aspectRatio || '16:9'} disabled title="Not editable yet — pending backend whitelist (see board note)" style={{ opacity: 0.5 }}>
                 <option value="16:9">16:9 (Landscape)</option>
                 <option value="9:16">9:16 (Portrait)</option>
                 <option value="1:1">1:1 (Square)</option>
@@ -146,8 +173,8 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
             </div>
           </div>
           <div className="settings-field" style={{ paddingTop: 'var(--sp-2)' }}>
-            <label style={{ justifyContent: 'flex-start', gap: 'var(--sp-3)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={config.soundOff !== false} onChange={e => updateConfig({ soundOff: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+            <label style={{ justifyContent: 'flex-start', gap: 'var(--sp-3)', cursor: 'not-allowed', opacity: 0.5 }} title="Not editable yet — pending backend whitelist (see board note)">
+              <input type="checkbox" checked={config.soundOff !== false} disabled style={{ width: '18px', height: '18px' }} />
               <span>Mute video generations</span>
             </label>
             <span className="hint" style={{ marginLeft: '30px' }}>Reduces cost. Audio is mixed at export.</span>
@@ -303,10 +330,15 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
           </button>
           <div className="top-title">Settings</div>
           <button className="btn-save" onClick={handleSave} disabled={saving || notReady}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save'}
           </button>
         </header>
         <main className="content">
+          {error && (
+            <div role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-12)', padding: 'var(--sp-3)' }}>
+              {error}
+            </div>
+          )}
           {renderContent()}
         </main>
       </div>
@@ -322,7 +354,15 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
             <h1>Project Settings</h1>
             <p>Configure generation models, providers, and global styles for {project.name}.</p>
           </div>
-          <div className="page-actions">
+          <div className="page-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+            {error && (
+              <span role="alert" style={{ color: 'var(--danger)', fontSize: 'var(--fs-12)', maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={error}>
+                {error}
+              </span>
+            )}
+            {saved && (
+              <span data-saved style={{ color: 'var(--lime)', fontSize: 'var(--fs-12)' }}>Saved ✓</span>
+            )}
             <button className="btn btn-secondary" onClick={() => navigate('/deck')} disabled={saving}>
               Discard
             </button>
