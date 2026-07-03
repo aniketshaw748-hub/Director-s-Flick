@@ -1,11 +1,10 @@
 {
   "pending": [
-    "T-38 Sonnet claimed",
+    "T-37 Sonnet",
     "T-40 Fable-2",
     "T-35 Opus",
-    "T-37 after T-38",
     "user: git push"
   ],
-  "last_seen_commit": "ff72715dd3e40f61b3d560c4830c87bc67a8f6b8",
-  "last_sweep": "2026-07-03T22:10:07.7963319+05:30"
+  "last_sweep": "2026-07-03T22:19:22.6432950+05:30",
+  "last_seen_commit": "e36e56a050a134fbe603b0b99f556ea3dcfbac53"
 }

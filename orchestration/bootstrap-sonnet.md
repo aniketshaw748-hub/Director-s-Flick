@@ -12,7 +12,7 @@ Team: **Fable** (Claude Code Fable 5 — orchestrator/architect, owns contracts)
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit (`[sonnet]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Sonnet or any `@sonnet` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
 
-Current priority order for you: **T-38 (URGENT — two production bugs w/ deterministic repros + ledger units)** -> then **T-37** (queue hardening).
+Current priority order for you: **T-37** (in progress — FOLD IN T-40 finding H4, the review-ahead buffer overshoot: stage-D must account for in-flight jobs, it queued 8 with bufferSize=5) -> then **T-42** (small: export partial-placement 409 guard).
 
 ## Your rules
 - Write ONLY inside `app/src/**` (never `types.ts`) and `app/scripts/**`. Contracts are read-only — request changes via a `CONTRACT-CHANGE:` board note.
