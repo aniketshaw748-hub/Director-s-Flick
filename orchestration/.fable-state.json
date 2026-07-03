@@ -1,9 +1,9 @@
 {
+  "last_sweep": "2026-07-04T02:05",
   "pending": [
     "T-69 Fable-2",
-    "T-70 Sonnet",
-    "T-72 Opus + SRT hook landing"
+    "T-72 Opus",
+    "T-73 Sonnet"
   ],
-  "last_seen_commit": "9fedf983469f948337b7bcfb10144be805842e04",
-  "last_sweep": "2026-07-04T01:45"
+  "last_seen_commit": "39582e666bb1149ab74f29182d8de905d9eac94f"
 }
