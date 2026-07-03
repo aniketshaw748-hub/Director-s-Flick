@@ -1,10 +1,11 @@
 {
-  "last_sweep": "2026-07-03T21:55:42.2830442+05:30",
-  "last_seen_commit": "1a82d7b19b7d6f0e1d8b0aebd4cf6b965d768562",
+  "last_sweep": "2026-07-03T22:00:09.6078117+05:30",
   "pending": [
-    "T-34 Opus",
-    "T-28 Fable-2",
-    "T-37 Sonnet",
+    "T-38 URGENT Sonnet",
+    "T-39 Fable-2",
+    "T-35 Opus",
+    "T-37 after T-38",
     "user: git push"
-  ]
+  ],
+  "last_seen_commit": "58f60a7d2aa4bf51ed6599fa3b0528ad8b662a9b"
 }
