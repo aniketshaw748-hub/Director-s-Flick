@@ -985,3 +985,5 @@ Team standby called after the tag push (efc7b5e). Session tally for the release:
 ### [101] LIVE DEFECT: UI create-project OOMs Chrome on real-size VO (base64-in-JSON). URGENT T-84 (sonnet, multipart server) + T-85 (fable2, FormData client). Standby lifted; pilot holds.
 
 ### [102] Owner requested codebase cleanup -> T-86 (opus): audit-first prune of unreferenced phase0 binaries (~33MB tracked) + dead-code sweep with T-84/T-85 lease exclusions
+
+### [103] Opus sibling-landmine audit: VO create path is the only base64 site. T-84 amended: JSON path capped at ~20MB decoded (413 + use-multipart), tested.
