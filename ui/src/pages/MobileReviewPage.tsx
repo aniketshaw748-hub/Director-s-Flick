@@ -4,14 +4,16 @@ import { useAutocomplete } from '../useAutocomplete';
 import { useProject } from '../project/ProjectContext';
 import { mediaUrl } from '../paths';
 import { useSwipe } from '../useSwipe';
+import OfflineBanner from '../OfflineBanner';
 
 export default function MobileReviewPage() {
-  const { projectName, shots, elements } = useProject();
+  const { projectName, shots, elements, backendDown, initialized } = useProject();
   const editRef = React.useRef<HTMLInputElement>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editInstructions, setEditInstructions] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
   const [acting, setActing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { onChange: onEditChange, AutocompletePopover: EditPopover } = useAutocomplete(elements, editInstructions, setEditInstructions, editRef);
 
@@ -46,16 +48,21 @@ export default function MobileReviewPage() {
   const handleAction = async (action: string) => {
     if (!activeShot || !projectName || acting) return;
     setActing(true);
+    setActionError(null);
     try {
-      await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${activeShot.id}/action`, {
+      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${activeShot.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, instructions: editInstructions }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
       setIsSheetOpen(false);
       setEditInstructions('');
     } catch (e) {
-      console.error(e);
+      setActionError(`${action} failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setActing(false);
     }
@@ -67,9 +74,15 @@ export default function MobileReviewPage() {
         <Link to="/timeline" style={{ width: '32px', color: 'var(--text-2)', display: 'block' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
         </Link>
-        <div className="top-title">Review · {activeShot ? `L${(activeShot.lineIndex + 1).toString().padStart(2, '0')}` : 'All caught up'}</div>
+        <div className="top-title">Review · {activeShot ? `L${(activeShot.lineIndex + 1).toString().padStart(2, '0')}` : backendDown ? 'Offline' : 'All caught up'}</div>
         {balance != null && <div className="account-chip"><span className="cr">{balance.toFixed(0)} cr</span></div>}
       </header>
+      <OfflineBanner />
+      {actionError && (
+        <div role="alert" style={{ background: 'var(--danger-a12)', border: '1px solid var(--danger-a35)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: 'var(--sp-2) var(--sp-3)', fontSize: 'var(--fs-12)', margin: 'var(--sp-2) var(--sp-3)' }}>
+          {actionError}
+        </div>
+      )}
 
       <div className="card-stack" style={{ flex: 1 }}>
         <div className="swipe-card card-bg"></div>
@@ -100,7 +113,13 @@ export default function MobileReviewPage() {
         ) : (
           <div className="swipe-card card-fg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: 'var(--text-2)', textAlign: 'center', padding: '0 24px' }}>
-              {projectName ? 'No shots to review right now.' : 'No project selected — open Setup on the desktop first.'}
+              {backendDown
+                ? 'Backend offline — start the server on the PC and this page will reconnect.'
+                : !initialized
+                  ? 'Loading…'
+                  : projectName
+                    ? 'No shots to review right now.'
+                    : 'No project selected — open Setup on the desktop first.'}
             </p>
           </div>
         )}

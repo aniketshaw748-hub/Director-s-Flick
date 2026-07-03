@@ -211,3 +211,17 @@ The "Hapie & the Lighthouse" script/character text in the mockups and demo fallb
 - **Export Panel:** No native confirm dialogs; the "Export partial" warning is rendered inline in the panel. The "Cancel" button during export is not implemented (no backend cancel endpoint exists).
 - **Redo Animation:** The Timeline page has a fully wired "Redo animation" inline popover with autocomplete, reusing the autocomplete popover styling.
 - **Elements:** Element cards are consuming `thumbUrl`, updating the previous caveat that elements had no image paths.
+
+## UI states (T-69 — authoritative patterns)
+
+Every screen must implement these five states; the patterns below are the shipped, verified implementations:
+
+| State | Pattern | Source of truth |
+|---|---|---|
+| **Loading (first data)** | Neutral "Loading…" text — never an empty-state message before `ProjectContext.initialized` is true (prevents the misleading empty flash) | `useProject().initialized` |
+| **Empty (real)** | Friendly, action-pointing copy ("No shots yet — create and align a project in Setup"); each page's empty names the next step | per-page |
+| **Backend down** | Global red banner (`<OfflineBanner/>`, rendered by Chrome and by /mobile) + per-page empties defer to it ("Backend offline — see the banner above"); context auto-probes every 5s and self-heals; topbar conn dot turns red "offline" | `useProject().backendDown` (set ONLY on network-level fetch rejection, never on HTTP 4xx/5xx) |
+| **HTTP errors** | Surface the server's `error` message inline (chip in page head, `role="alert"`), never a native `alert()`, never masked as backend-down — a 404 is a real error (T-71 lesson) | per-page state |
+| **Action failure** | Review verbs (approve/edit/redo), saves, exports: transient inline `role="alert"` near the triggering control; buttons carry an in-flight guard (`acting`/`saving`) against double-submit | per-page state |
+
+Placeholder media: a missing clip in the preview shows the "Clip missing — skipped (audio continues)" overlay (engine `placeholder` event); missing thumbnails hide via `onError`.

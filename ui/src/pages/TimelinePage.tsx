@@ -61,7 +61,7 @@ interface AccountBalance {
 }
 
 export default function TimelinePage() {
-  const { projectName, shots, elements, subscribe } = useProject();
+  const { projectName, shots, elements, subscribe, backendDown } = useProject();
   const [edl, setEdl] = useState<EDLEntry[]>([]);
   const [edlVersion, setEdlVersion] = useState(0);
   const [engine, setEngine] = useState<PreviewEngine | null>(null);
@@ -540,7 +540,11 @@ export default function TimelinePage() {
               })
             ) : (
               <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-12)', paddingTop: '30px' }}>
-                {projectName ? 'No placed clips yet — approve shots in Review to build the timeline.' : 'No project selected — pick one from the top-left switcher.'}
+                {backendDown
+                  ? 'Backend offline — see the banner above.'
+                  : projectName
+                    ? 'No placed clips yet — approve shots in Review to build the timeline.'
+                    : 'No project selected — pick one from the top-left switcher.'}
               </div>
             )}
           </div>

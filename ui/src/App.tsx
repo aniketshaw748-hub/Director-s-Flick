@@ -8,6 +8,7 @@ import ReviewPage from './pages/ReviewPage';
 import SettingsPage from './pages/SettingsPage';
 import { ProjectProvider, useProject } from './project/ProjectContext';
 import MobileLink from './MobileLink';
+import OfflineBanner from './OfflineBanner';
 
 interface AccountRow {
   name: string;
@@ -43,7 +44,7 @@ function useAccounts(): AccountRow[] {
 }
 
 function ProjectSwitcher() {
-  const { projects, projectName, selectProject, shots, refreshProjects } = useProject();
+  const { projects, projectName, selectProject, shots, refreshProjects, backendDown } = useProject();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -60,7 +61,7 @@ function ProjectSwitcher() {
       >
         <span className="proj-name">{projectName || 'No project'}</span>
         <span className="proj-meta">
-          {projectName ? `${shots.length} shots` : 'create one in Setup'} ▾
+          {projectName ? `${shots.length} shots` : backendDown ? 'backend offline' : 'create one in Setup'} ▾
         </span>
       </button>
       {open && (
@@ -170,6 +171,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
             {wsConnected ? 'LAN · live' : 'offline'}
           </div>
         </header>
+        <OfflineBanner />
         {children}
       </div>
     </div>

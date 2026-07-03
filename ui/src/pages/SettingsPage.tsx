@@ -9,7 +9,7 @@ interface SettingsPageProps {
 }
 
 export default function SettingsPage({ isMobile }: SettingsPageProps) {
-  const { project } = useProject();
+  const { project, backendDown } = useProject();
   const navigate = useNavigate();
   
   const [config, setConfig] = useState<Partial<PipelineConfig>>({});
@@ -99,7 +99,7 @@ export default function SettingsPage({ isMobile }: SettingsPageProps) {
     return (
       <div className={`settings-page ${isMobile ? 'mobile' : 'desktop'}`}>
         <div className="not-ready-state">
-          <p>No project selected.</p>
+          <p>{backendDown ? 'Backend offline — settings need a running server.' : 'No project selected.'}</p>
         </div>
       </div>
     );

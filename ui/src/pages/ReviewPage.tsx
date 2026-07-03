@@ -7,11 +7,12 @@ import { mediaUrl } from '../paths';
 const UPSTREAM_STATES = ['PENDING', 'PROMPTED', 'IMAGE_QUEUED', 'IMAGE_READY'] as const;
 
 export default function ReviewPage() {
-  const { projectName, shots, elements } = useProject();
+  const { projectName, shots, elements, backendDown, initialized } = useProject();
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
   const [editInstructions, setEditInstructions] = useState('');
   const [redoPrompt, setRedoPrompt] = useState('');
   const [acting, setActing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // T-41 (T-40 CRITICAL 2): the review-gate queue parks shots at IN_REVIEW —
   // IMAGE_READY is a ≤2s transient. Review surfaces filter IN_REVIEW.
@@ -54,15 +55,21 @@ export default function ReviewPage() {
   const handleAction = async (action: string) => {
     if (!activeShot || !projectName || acting) return;
     setActing(true);
+    setActionError(null);
     try {
-      await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${activeShot.id}/action`, {
+      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${activeShot.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, instructions: editInstructions, prompt: redoPrompt }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
       setIsEditPanelOpen(false);
     } catch (e) {
-      console.error(e);
+      // T-69: action failures must be visible, not console-only
+      setActionError(`${action} failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setActing(false);
     }
@@ -118,7 +125,11 @@ export default function ReviewPage() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 'var(--fs-16)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
-            {!projectName ? (
+            {backendDown ? (
+              <span>Backend offline — see the banner above.</span>
+            ) : !initialized ? (
+              <span>Loading…</span>
+            ) : !projectName ? (
               <span>No project selected — pick one from the top-left switcher or create one in Setup.</span>
             ) : upstreamCount > 0 ? (
               <>
@@ -133,6 +144,13 @@ export default function ReviewPage() {
           </div>
         )}
       </div>
+
+      {/* Action error (T-69: never console-only) */}
+      {actionError && (
+        <div role="alert" style={{ position: 'absolute', bottom: 'calc(var(--sp-10) + 96px)', left: '50%', transform: 'translateX(-50%)', background: 'var(--danger-a12)', border: '1px solid var(--danger-a35)', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: 'var(--sp-2) var(--sp-4)', fontSize: 'var(--fs-12)', zIndex: 15, maxWidth: '520px' }}>
+          {actionError}
+        </div>
+      )}
 
       {/* Controls */}
       <div style={{ position: 'absolute', bottom: 'var(--sp-10)', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 'var(--sp-8)', zIndex: 10 }}>

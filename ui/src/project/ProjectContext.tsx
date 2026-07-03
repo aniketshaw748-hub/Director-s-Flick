@@ -32,6 +32,12 @@ export interface ProjectContextValue {
   refreshState: () => Promise<void>;
   /** raw WS message stream for the selected project */
   subscribe: (fn: (msg: ProjectWsMessage) => void) => () => void;
+  /** true once the initial projects fetch has settled (success OR failure) —
+   *  lets pages show "loading" instead of a flash of misleading empty state */
+  initialized: boolean;
+  /** true when the backend is unreachable at the network level (T-69) —
+   *  pages must NOT render "no projects, create one" empties in this state */
+  backendDown: boolean;
 }
 
 const Ctx = createContext<ProjectContextValue | null>(null);
@@ -49,6 +55,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [elements, setElements] = useState<ElementRef[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const [backendDown, setBackendDown] = useState(false);
   const subscribers = useRef(new Set<(msg: ProjectWsMessage) => void>());
   const aliveRef = useRef(true);
 
@@ -63,11 +71,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     try {
       const list = await fetch('/api/projects').then((r) => r.json());
       if (Array.isArray(list) && aliveRef.current) {
+        setBackendDown(false);
         setProjects(list);
         return list;
       }
     } catch {
-      /* server down — keep last list */
+      // network-level failure — server down; keep last list, flag it
+      if (aliveRef.current) setBackendDown(true);
     }
     return [];
   }, []);
@@ -93,8 +103,29 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(STORAGE_KEY, pick);
         setProjectName(pick);
       }
+      if (aliveRef.current) setInitialized(true);
     })();
   }, [refreshProjects]);
+
+  // while the backend is down, probe for recovery so the app self-heals —
+  // including re-running project auto-selection if the initial pick happened
+  // while the backend was unreachable (list was empty then)
+  useEffect(() => {
+    if (!backendDown) return;
+    const interval = setInterval(() => {
+      void refreshProjects().then((list) => {
+        if (list.length === 0) return;
+        setProjectName((current) => {
+          if (current) return current;
+          const saved = localStorage.getItem(STORAGE_KEY) ?? '';
+          const pick = list.includes(saved) ? saved : list[0];
+          localStorage.setItem(STORAGE_KEY, pick);
+          return pick;
+        });
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [backendDown, refreshProjects]);
 
   const refreshState = useCallback(async (): Promise<void> => {
     if (!projectName) return;
@@ -109,11 +140,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       }
       const data = await res.json();
       if (!aliveRef.current) return;
+      setBackendDown(false);
       if (data.project) setProject(data.project);
       if (Array.isArray(data.shots)) setShots(data.shots);
       if (Array.isArray(data.elements)) setElements(data.elements);
-    } catch {
-      /* transient — WS sync will catch up */
+    } catch (e) {
+      // TypeError = network failure (backend down); other errors transient
+      if (e instanceof TypeError && aliveRef.current) setBackendDown(true);
     }
   }, [projectName, refreshProjects]);
 
@@ -170,8 +203,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       wsConnected,
       refreshState,
       subscribe,
+      initialized,
+      backendDown,
     }),
-    [projects, refreshProjects, projectName, selectProject, project, shots, elements, wsConnected, refreshState, subscribe],
+    [projects, refreshProjects, projectName, selectProject, project, shots, elements, wsConnected, refreshState, subscribe, initialized, backendDown],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

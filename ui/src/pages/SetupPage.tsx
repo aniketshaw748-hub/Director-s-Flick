@@ -37,7 +37,9 @@ export default function SetupPage() {
             ? 'New project — name it, paste the script, pick the voiceover.'
             : base.projectName
               ? `${base.projectName} — align the script to the voiceover, lock the cast, start the run.`
-              : 'No project yet — create your first one.'}
+              : base.wsConnected
+                ? 'No project yet — create your first one.'
+                : 'Backend offline — creating a project needs a running server.'}
         </p>
         <span style={{ flex: 1 }}></span>
         {base.error && (
