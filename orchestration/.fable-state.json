@@ -1,8 +1,8 @@
 {
-  "last_sweep": "2026-07-04T15:15",
-  "last_seen_commit": "6c5f1911b1b141e1472daeec00edb439e5604d92",
   "pending": [
-    "responsive mobile UI (fable2, owner-directed)",
-    "v0.1.2 cut then T-87 (opus)"
-  ]
+    "responsive mobile UI (fable2)",
+    "owner server restart"
+  ],
+  "last_seen_commit": "a5771460ef0103e093bef4a3515f27729f300001",
+  "last_sweep": "2026-07-04T16:20"
 }

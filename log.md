@@ -1045,3 +1045,5 @@ Owner couldn't add a Higgsfield account: AccountChip promised "Add one below" wi
 T-87 (add-account, Opus) done - owner unblocked in-UI. No Sonnet-owned task open. Continuing to idle.
 
 ### [111] T-87 accepted; v0.1.2 released (rule-12 verified, tag pushed). Owner's server still stale (PID 1376) - restart pending.
+
+### [112] Sweep #60: owner-directed responsive work accepted (7/7 matrix + T-44 unstyled-/mobile regression fixed). ALL tasks complete; full team standby; owner unblocked end-to-end.
