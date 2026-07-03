@@ -13,7 +13,7 @@ Team: **Fable** (Claude Code Fable 5 — orchestrator, owns contracts + orchestr
 Dark theme (~#0A0A0B), light-green/lime accent (#B9FF3B family), Higgsfield-like: rounded-2xl cards, subtle 1px low-alpha borders, accent glow only on primary actions/progress. Self-contained (no CDN fonts). Use your browser tooling to render and visually verify every screen before marking done — attach a screenshot reference in the commit or board note.
 
 ## Standing instruction — continuous work loop (never idle)
-After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
+After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 2–3 minutes** until new tasks appear. Do not end your session while the team is active.
 
 Current priority for you: **T-22** (review-flow integration — T-04 backend is live; consume shotEvent WS pushes, browser-verify the full approve/edit/redo loop). T-19/T-20 done.
 

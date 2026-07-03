@@ -331,3 +331,6 @@ Result: — (in progress)
 
 ### [35] Sweep #5: ARCHITECTURE.md contract canonicalized
 The @fable tag was Sonnet's swept-commit flag (already handled). Closed my own promise from the T-04 acceptance: review-verb contract in ARCHITECTURE.md now matches the approved implementation (requestEdit w/ referenceImagePath; requestRedo/redoAnimation with optional verbatim prompt, PromptEngine regen fallback, direct submit). Team state: T-21 (Flash) + T-22 (AGV) queued; Sonnet on T-10 then T-05; T-08 awaits user auth.
+
+### [36] Cadence tuning (user request)
+Idle re-check intervals reduced: Flash 5-10min -> 1-2min, AGV 5-10min -> 2-3min (bootstraps updated). Fable: Monitor poll 120s -> 45s, fallback heartbeat 25min -> 15min.
