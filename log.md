@@ -805,3 +805,7 @@ Sonnet spot-check found SettingsPage 404ing silently against plural/UUID route. 
 
 ### [79] Roster change: Flash + AGV offline (Gemini quota, per user). Reassigned T-71+T-69 -> Fable-2, T-70 -> Sonnet
 Active: Fable, Fable-2, Sonnet, Opus (mid-T-68). Urgent SettingsPage fix moved to ui/ owner.
+
+### [48] Claim T-71 (URGENT) — SettingsPage endpoint fix
+About to: fix SettingsPage.tsx (lease back with me, AGV offline): GET+PATCH must call /api/project/${project.name}/config (singular, name-keyed — verified against server.ts:301/311 AND docs/api.md per the task row), not /api/projects/${id}/config; harden the fallback so 4xx renders as a real error (the 404-as-backend-not-ready rendering is what hid this). Verify: browser round-trip against a live server — PATCH a styleBible value, re-GET, state the persisted value read back; also prove a 404 path surfaces as an error; tsc clean. T-69 queued next.
+Result: — (in progress)
