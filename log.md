@@ -618,3 +618,7 @@ Mobile swipe gestures verified (tsc clean) + accepted. New T-49: design/desktop-
 
 ### [61] Sweep: nothing new claimable
 Board re-swept after committing the T-42 balance-endpoint fix. All Sonnet-owned rows are done; T-46/T-47 (Opus), T-48 (Fable-2), T-49 (AGV) are the only open items and none are mine. Nothing further to do - letting the loop continue.
+
+### [62] T-43 quality-gate review (Flash's api.md v3 + accounts tests)
+About to: read-only review per T-43's acceptance criteria. (1) run npx vitest run tests/accounts.test.ts, verify it's genuinely hermetic (no real CLI spawn - check for a child_process/spawn mock); (2) read docs/api.md end-to-end against the CURRENT app/src/server.ts, checking accounts/switch endpoints, export+progress events, cost-summary's NEW T-38 shape, the T-38 body-limit dispatch behavior, and 404/1008 behaviors are documented accurately. No edits to docs/api.md or accounts.test.ts (Flash's files) - findings go to a board note only, per the established review convention (T-10).
+Result: (in progress)
