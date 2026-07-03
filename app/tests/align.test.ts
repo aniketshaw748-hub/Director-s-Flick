@@ -1,5 +1,5 @@
-import { vi, describe, test, expect, beforeEach } from 'vitest';
-import { computeTimeline, planShots, alignScript } from '../src/align.js';
+import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { computeTimeline, planShots, alignScript, normalizeScriptText, checkScriptAudioLengthMatch } from '../src/align.js';
 import type { AlignedLine } from '../src/types.js';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -7,35 +7,133 @@ import path from 'node:path';
 
 const mockSpawnCalls: { command: string; args: string[] }[] = [];
 
+// Configurable mock behavior, reset in beforeEach. The mock branches by
+// command name so align.ts's own spawn('python'/'ffmpeg', ...) calls AND
+// media.ts's probeDuration() -> spawn('ffprobe', ...) call (media.ts is NOT
+// mocked — its real code runs against this same child_process mock) are all
+// exercised hermetically, with zero real processes launched.
+let mockFfprobeExitCode = 0;
+let mockFfprobeDuration: number | string = 1.5;
+let mockFfmpegExitCode = 0;
+let mockFfmpegSpawnError = false;
+let mockFfmpegWriteOutput = true;
+let mockFfmpegStderr = '';
+let mockPythonExitCode = 0;
+let mockPythonSpawnError = false;
+let mockPythonStdoutChunk = '';
+let mockPythonStderr = '';
+// Captured at the moment python "runs", before alignScript's cleanup unlinks
+// any temp script/audio files it created.
+let capturedScriptContentAtPythonSpawn: string | null = null;
+
 vi.mock('node:child_process', () => {
   return {
-    spawn: (command: string, args: string[], options: any) => {
+    spawn: (command: string, args: string[], _options: any) => {
       mockSpawnCalls.push({ command, args });
       const child: any = new EventEmitter();
       child.stdout = new EventEmitter();
       child.stdout.setEncoding = () => {};
       child.stderr = new EventEmitter();
       child.stderr.setEncoding = () => {};
+
+      if (command === 'ffprobe') {
+        process.nextTick(() => {
+          if (mockFfprobeExitCode !== 0) {
+            child.emit('close', mockFfprobeExitCode);
+            return;
+          }
+          child.stdout.emit('data', String(mockFfprobeDuration));
+          child.emit('close', 0);
+        });
+        return child;
+      }
+
+      if (command === 'ffmpeg') {
+        process.nextTick(() => {
+          if (mockFfmpegSpawnError) {
+            child.emit('error', new Error('ENOENT: spawn ffmpeg'));
+            return;
+          }
+          if (mockFfmpegStderr) child.stderr.emit('data', mockFfmpegStderr);
+          if (mockFfmpegExitCode !== 0) {
+            child.emit('close', mockFfmpegExitCode);
+            return;
+          }
+          if (mockFfmpegWriteOutput) {
+            const outPath = args[args.length - 1]!;
+            fs.mkdirSync(path.dirname(outPath), { recursive: true });
+            fs.writeFileSync(outPath, 'FAKE-WAV-BYTES');
+          }
+          child.emit('close', 0);
+        });
+        return child;
+      }
+
+      // default: python
       process.nextTick(() => {
-        child.emit('close', 0);
+        if (mockPythonSpawnError) {
+          child.emit('error', new Error('ENOENT: spawn python'));
+          return;
+        }
+        const scriptArgIdx = args.indexOf('--script');
+        if (scriptArgIdx !== -1) {
+          try {
+            capturedScriptContentAtPythonSpawn = fs.readFileSync(args[scriptArgIdx + 1]!, 'utf-8');
+          } catch {
+            capturedScriptContentAtPythonSpawn = null;
+          }
+        }
+        if (mockPythonStdoutChunk) child.stdout.emit('data', mockPythonStdoutChunk);
+        if (mockPythonStderr) child.stderr.emit('data', mockPythonStderr);
+        child.emit('close', mockPythonExitCode);
       });
       return child;
-    }
+    },
   };
 });
+
+const TMP_DIR = path.resolve('tests/tmp_align_hardening');
+
+function writeScript(name: string, content: string): string {
+  const p = path.join(TMP_DIR, name);
+  fs.writeFileSync(p, content, 'utf-8');
+  return p;
+}
+
+function writeAudio(name: string, bytes = 'FAKE-AUDIO-BYTES'): string {
+  const p = path.join(TMP_DIR, name);
+  fs.writeFileSync(p, bytes);
+  return p;
+}
+
+function writeAlignmentFixture(outPath: string, lines: unknown[]): void {
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, JSON.stringify({ lines }));
+}
 
 describe('align', () => {
   describe('alignScript', () => {
     beforeEach(() => {
       mockSpawnCalls.length = 0;
+      mockFfprobeExitCode = 0;
+      mockFfprobeDuration = 1.5;
+      mockFfmpegExitCode = 0;
+      mockFfmpegSpawnError = false;
+      mockFfmpegWriteOutput = true;
+      mockFfmpegStderr = '';
+      mockPythonExitCode = 0;
+      mockPythonSpawnError = false;
+      mockPythonStdoutChunk = '';
+      mockPythonStderr = '';
+      capturedScriptContentAtPythonSpawn = null;
     });
 
     test('spawns Python aligner and parses written JSON output', async () => {
       const scriptPath = path.resolve('tests/fixtures/script.txt');
-      const audioPath = 'dummy.wav';
+      const audioPath = path.resolve('tests/fixtures/dummy_align_audio.wav');
       const outJsonPath = path.resolve('projects/test_align_out/alignment.json');
 
-      // Create dummy file for parseAlignmentJson to read
+      fs.writeFileSync(audioPath, 'FAKE-WAV-BYTES');
       fs.mkdirSync(path.dirname(outJsonPath), { recursive: true });
       fs.writeFileSync(outJsonPath, JSON.stringify({
         lines: [
@@ -56,14 +154,403 @@ describe('align', () => {
         const result = await alignScript(scriptPath, audioPath, outJsonPath);
         expect(result).toHaveLength(1);
         expect(result[0]!.text).toBe('Hello world.');
-        expect(mockSpawnCalls).toHaveLength(1);
-        expect(mockSpawnCalls[0]!.command).toBe('python');
-        expect(mockSpawnCalls[0]!.args).toContain(scriptPath);
+        const pythonCall = mockSpawnCalls.find((c) => c.command === 'python');
+        expect(pythonCall).toBeDefined();
+        expect(pythonCall!.args).toContain(scriptPath);
+        // plain-ASCII single-word-heavy script needs no rewrite; wav needs no transcode
+        expect(mockSpawnCalls.some((c) => c.command === 'ffmpeg')).toBe(false);
       } finally {
         fs.rmSync(path.dirname(outJsonPath), { recursive: true, force: true });
+        fs.rmSync(audioPath, { force: true });
       }
     });
+
+    describe('input hardening', () => {
+      beforeEach(() => {
+        fs.mkdirSync(TMP_DIR, { recursive: true });
+      });
+      afterEach(() => {
+        fs.rmSync(TMP_DIR, { recursive: true, force: true });
+      });
+
+      test('rejects a missing audio file before spawning anything', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = path.join(TMP_DIR, 'does-not-exist.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/audio file not found/);
+        expect(mockSpawnCalls).toHaveLength(0);
+      });
+
+      test('rejects a zero-length audio file before spawning anything', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('empty.wav', '');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/empty \(0 bytes\)/);
+        expect(mockSpawnCalls).toHaveLength(0);
+      });
+
+      test('rejects an unsupported audio extension before spawning anything', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('clip.txt', 'not audio');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/unsupported audio format/);
+        expect(mockSpawnCalls).toHaveLength(0);
+      });
+
+      test('rejects an empty (whitespace-only) script before spawning anything', async () => {
+        const scriptPath = writeScript('empty.txt', '   \n\n  \t\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/no non-empty lines/);
+        expect(mockSpawnCalls).toHaveLength(0);
+      });
+
+      test('rejects a missing script file before spawning anything', async () => {
+        const scriptPath = path.join(TMP_DIR, 'nope.txt');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/script file not found/);
+        expect(mockSpawnCalls).toHaveLength(0);
+      });
+
+      test('surfaces a corrupt/undecodable audio file via ffprobe, never reaching python', async () => {
+        mockFfprobeExitCode = 1;
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/corrupt or unsupported/);
+        expect(mockSpawnCalls.some((c) => c.command === 'python')).toBe(false);
+      });
+
+      test('transcodes a non-wav audio file to wav before invoking python, then cleans up', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('voice.mp3');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'Hello world.', start: 0, end: 1, words: [{ word: 'Hello', start: 0, end: 0.5 }, { word: 'world.', start: 0.5, end: 1 }] },
+        ]);
+
+        await alignScript(scriptPath, audioPath, outJsonPath);
+
+        const ffmpegCall = mockSpawnCalls.find((c) => c.command === 'ffmpeg');
+        expect(ffmpegCall).toBeDefined();
+        expect(ffmpegCall!.args).toContain(audioPath);
+
+        const pythonCall = mockSpawnCalls.find((c) => c.command === 'python');
+        const audioArgIdx = pythonCall!.args.indexOf('--audio');
+        const audioArgUsed = pythonCall!.args[audioArgIdx + 1]!;
+        expect(audioArgUsed).not.toBe(audioPath);
+        expect(audioArgUsed.endsWith('.wav')).toBe(true);
+        // temp transcoded file is cleaned up after alignScript resolves
+        expect(fs.existsSync(audioArgUsed)).toBe(false);
+      });
+
+      test('does not transcode a wav input', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('voice.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'Hello world.', start: 0, end: 1, words: [{ word: 'Hello', start: 0, end: 0.5 }, { word: 'world.', start: 0.5, end: 1 }] },
+        ]);
+        await alignScript(scriptPath, audioPath, outJsonPath);
+        expect(mockSpawnCalls.some((c) => c.command === 'ffmpeg')).toBe(false);
+      });
+
+      test('rejects when ffmpeg transcode exits non-zero, surfacing its stderr', async () => {
+        mockFfmpegExitCode = 1;
+        mockFfmpegStderr = 'Invalid data found when processing input\n';
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('voice.mp3');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/ffmpeg transcode failed.*Invalid data found/s);
+        expect(mockSpawnCalls.some((c) => c.command === 'python')).toBe(false);
+      });
+
+      test('rejects when ffmpeg fails to spawn at all', async () => {
+        mockFfmpegSpawnError = true;
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('voice.mp3');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/failed to spawn ffmpeg/);
+      });
+
+      test('rejects when ffmpeg exits 0 but produces no output', async () => {
+        mockFfmpegWriteOutput = false;
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('voice.mp3');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/produced no output/);
+      });
+
+      test('normalizes smart-punctuation scripts into a temp file for python, then cleans up', async () => {
+        const scriptPath = writeScript('smart.txt', '“Hello” — world…\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'x', start: 0, end: 1, words: [{ word: 'x', start: 0, end: 1 }] },
+        ]);
+
+        await alignScript(scriptPath, audioPath, outJsonPath);
+
+        const pythonCall = mockSpawnCalls.find((c) => c.command === 'python');
+        const scriptArgIdx = pythonCall!.args.indexOf('--script');
+        const scriptArgUsed = pythonCall!.args[scriptArgIdx + 1]!;
+        expect(scriptArgUsed).not.toBe(scriptPath);
+        expect(capturedScriptContentAtPythonSpawn).toBe('"Hello" - world...');
+        expect(fs.existsSync(scriptArgUsed)).toBe(false); // cleaned up after resolve
+      });
+
+      test('passes the original script path through unchanged when no normalization is needed', async () => {
+        const scriptPath = writeScript('plain.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'Hello world.', start: 0, end: 1, words: [{ word: 'Hello', start: 0, end: 0.5 }, { word: 'world.', start: 0.5, end: 1 }] },
+        ]);
+        await alignScript(scriptPath, audioPath, outJsonPath);
+        const pythonCall = mockSpawnCalls.find((c) => c.command === 'python');
+        expect(pythonCall!.args).toContain(scriptPath);
+      });
+
+      test('emits a non-fatal warning on gross script-vs-audio length mismatch, alignment still proceeds', async () => {
+        mockFfprobeDuration = 200; // way longer than a 2-word script implies
+        const scriptPath = writeScript('short.txt', 'Hi there.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'Hi there.', start: 0, end: 1, words: [{ word: 'Hi', start: 0, end: 0.5 }, { word: 'there.', start: 0.5, end: 1 }] },
+        ]);
+        const progress: string[] = [];
+        const result = await alignScript(scriptPath, audioPath, outJsonPath, { onProgress: (l) => progress.push(l) });
+        expect(result).toHaveLength(1);
+        expect(progress.some((l) => l.includes('warning') && l.includes('200.0s'))).toBe(true);
+      });
+
+      test('surfaces python spawn failure', async () => {
+        mockPythonSpawnError = true;
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/failed to spawn python/);
+      });
+
+      test('surfaces a non-zero align_cli.py exit code, including its stderr tail', async () => {
+        mockPythonExitCode = 2;
+        mockPythonStderr = 'ERROR: alignment produced no words\n';
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/exited with code 2.*alignment produced no words/s);
+      });
+
+      test('relays align_cli.py stdout progress lines via onProgress', async () => {
+        mockPythonStdoutChunk = 'progress: loading model\nprogress: aligning\n\n';
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'Hello world.', start: 0, end: 1, words: [{ word: 'Hello', start: 0, end: 0.5 }, { word: 'world.', start: 0.5, end: 1 }] },
+        ]);
+        const progress: string[] = [];
+        await alignScript(scriptPath, audioPath, outJsonPath, { onProgress: (l) => progress.push(l) });
+        expect(progress).toContain('progress: loading model');
+        expect(progress).toContain('progress: aligning');
+      });
+
+      test('falls back to console.warn for the mismatch warning when no onProgress is given', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+          mockFfprobeDuration = 200;
+          const scriptPath = writeScript('short.txt', 'Hi there.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            { index: 0, text: 'Hi there.', start: 0, end: 1, words: [{ word: 'Hi', start: 0, end: 0.5 }, { word: 'there.', start: 0.5, end: 1 }] },
+          ]);
+          await alignScript(scriptPath, audioPath, outJsonPath);
+          expect(warnSpy).toHaveBeenCalledTimes(1);
+          expect(warnSpy.mock.calls[0]![0]).toContain('200.0s');
+        } finally {
+          warnSpy.mockRestore();
+        }
+      });
+
+      test('rejects with a friendly message when the output directory cannot be created', async () => {
+        const mkdirSpy = vi.spyOn(fs, 'mkdirSync').mockImplementationOnce(() => {
+          throw new Error('EACCES: permission denied');
+        });
+        try {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'nested', 'out.json');
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/cannot create output dir/);
+        } finally {
+          mkdirSpy.mockRestore();
+        }
+      });
+
+      test('rejects when align_cli.py reports success but wrote no output file', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'never-written.json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/output file missing/);
+      });
+
+      test('rejects malformed (non-JSON) alignment output', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        fs.mkdirSync(path.dirname(outJsonPath), { recursive: true });
+        fs.writeFileSync(outJsonPath, 'not json');
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/not valid JSON/);
+      });
+
+      test('rejects alignment output with no "lines" array', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        fs.mkdirSync(path.dirname(outJsonPath), { recursive: true });
+        fs.writeFileSync(outJsonPath, JSON.stringify({}));
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/no "lines" array/);
+      });
+
+      test('rejects a malformed line entry', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [{ index: 0, text: 'x' /* missing start/end/words */ }]);
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/line 0 malformed/);
+      });
+
+      test('rejects a malformed word entry', async () => {
+        const scriptPath = writeScript('s.txt', 'Hello world.\n');
+        const audioPath = writeAudio('a.wav');
+        const outJsonPath = path.join(TMP_DIR, 'out.json');
+        writeAlignmentFixture(outJsonPath, [
+          { index: 0, text: 'x', start: 0, end: 1, words: [{ word: 'x' /* missing start/end */ }] },
+        ]);
+        await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/word 0 malformed/);
+      });
+
+      describe('alignment result sanity gate', () => {
+        test('rejects a line with zero aligned words', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [{ index: 0, text: 'Hello world.', start: 0, end: 1, words: [] }]);
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/zero aligned words/);
+        });
+
+        test('rejects a line with inverted timestamps', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            { index: 0, text: 'Hello world.', start: 5, end: 2, words: [{ word: 'Hello', start: 5, end: 2 }] },
+          ]);
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/inverted timestamps/);
+        });
+
+        test('rejects a word with inverted timestamps', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            { index: 0, text: 'Hello world.', start: 0, end: 3, words: [{ word: 'Hello', start: 2, end: 1 }] },
+          ]);
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/word 0 \("Hello"\) has inverted timestamps/);
+        });
+
+        test('rejects out-of-order words within a line', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            {
+              index: 0,
+              text: 'Hello world.',
+              start: 0,
+              end: 3,
+              words: [
+                { word: 'Hello', start: 2, end: 2.5 },
+                { word: 'world.', start: 1, end: 1.5 },
+              ],
+            },
+          ]);
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/starts before the previous word/);
+        });
+
+        test('rejects out-of-order line starts', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            { index: 0, text: 'A', start: 5, end: 6, words: [{ word: 'A', start: 5, end: 6 }] },
+            { index: 1, text: 'B', start: 2, end: 3, words: [{ word: 'B', start: 2, end: 3 }] },
+          ]);
+          await expect(alignScript(scriptPath, audioPath, outJsonPath)).rejects.toThrow(/timestamps are out of order/);
+        });
+
+        test('accepts well-formed multi-line alignment output', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\nBye now.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [
+            { index: 0, text: 'Hello world.', start: 0, end: 1, words: [{ word: 'Hello', start: 0, end: 0.5 }, { word: 'world.', start: 0.5, end: 1 }] },
+            { index: 1, text: 'Bye now.', start: 1.5, end: 2.5, words: [{ word: 'Bye', start: 1.5, end: 2 }, { word: 'now.', start: 2, end: 2.5 }] },
+          ]);
+          const result = await alignScript(scriptPath, audioPath, outJsonPath);
+          expect(result).toHaveLength(2);
+        });
+      });
+    });
   });
+
+  describe('normalizeScriptText', () => {
+    test('converts smart quotes, dashes and ellipsis to ASCII', () => {
+      expect(normalizeScriptText('‘a’ “b” – — …')).toBe("'a' \"b\" - - ...");
+    });
+
+    test('collapses unicode whitespace (nbsp etc.) to a regular space', () => {
+      expect(normalizeScriptText('a b　c')).toBe('a b c');
+    });
+
+    test('drops empty lines and trims each line', () => {
+      expect(normalizeScriptText('  line one  \n\n\n   \n  line two')).toBe('line one\nline two');
+    });
+
+    test('returns empty string for whitespace-only input', () => {
+      expect(normalizeScriptText('   \n  \n')).toBe('');
+    });
+  });
+
+  describe('checkScriptAudioLengthMatch', () => {
+    test('returns null when audio duration is within range of the word-count estimate', () => {
+      // 15 words -> ~6s expected at 2.5 words/sec; 8s is within [0.25x, 4x]
+      expect(checkScriptAudioLengthMatch(15, 8)).toBeNull();
+    });
+
+    test('warns with both numbers when audio is much longer than the script implies', () => {
+      const warning = checkScriptAudioLengthMatch(10, 200);
+      expect(warning).not.toBeNull();
+      expect(warning).toContain('10 words');
+      expect(warning).toContain('200.0s');
+    });
+
+    test('warns with both numbers when audio is much shorter than the script implies', () => {
+      const warning = checkScriptAudioLengthMatch(1000, 5);
+      expect(warning).not.toBeNull();
+      expect(warning).toContain('1000 words');
+      expect(warning).toContain('5.0s');
+    });
+
+    test('returns null for zero word count or non-finite duration (nothing meaningful to compare)', () => {
+      expect(checkScriptAudioLengthMatch(0, 10)).toBeNull();
+      expect(checkScriptAudioLengthMatch(10, NaN)).toBeNull();
+      expect(checkScriptAudioLengthMatch(10, 0)).toBeNull();
+    });
+  });
+
   describe('computeTimeline', () => {
     test('applies TIMELINE RULE correctly to multiple lines', () => {
       const mockAlignedLines: AlignedLine[] = [
@@ -176,7 +663,7 @@ describe('align', () => {
         expect(shot.state).toBe('PENDING');
         expect(shot.lineIndex).toBe(0);
       }
-      
+
       // Let's check subIndex ordering
       expect(shots[0]!.subIndex).toBe(0);
       expect(shots[1]!.subIndex).toBe(1);

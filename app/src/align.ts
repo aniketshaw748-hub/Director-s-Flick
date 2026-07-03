@@ -1,11 +1,11 @@
 /**
  * align.ts — script/voiceover alignment, timeline rule, shot planning.
  *
- * Pipeline: alignScript() spawns scripts/align_cli.py (stable-ts forced
- * alignment of the KNOWN script text) → AlignedLine[] with word timestamps →
- * computeTimeline() applies the TIMELINE RULE → planShots() turns timings
- * into PENDING Shot rows, splitting any line whose targetDuration exceeds
- * MAX_CLIP_SECONDS into sub-shots at word boundaries.
+ * Pipeline: alignScript() hardens + spawns scripts/align_cli.py (stable-ts
+ * forced alignment of the KNOWN script text) → AlignedLine[] with word
+ * timestamps → computeTimeline() applies the TIMELINE RULE → planShots()
+ * turns timings into PENDING Shot rows, splitting any line whose
+ * targetDuration exceeds MAX_CLIP_SECONDS into sub-shots at word boundaries.
  *
  * TIMELINE RULE (verbatim, binding):
  *   each script line's clip must cover [line.start, nextLine.start) — i.e.
@@ -13,6 +13,17 @@
  *   Generated video duration = clamp(ceil(target_duration), 3, 15) seconds
  *   (kling3_0 range); exact trim to target_duration happens at export.
  *   Lines longer than 15s must be split into sub-shots at word boundaries.
+ *
+ * INPUT HARDENING (T-78): this is the one surface that sees the product
+ * owner's own files, so alignScript() pre-flights both inputs BEFORE ever
+ * spawning the (slow, model-loading) python process — missing/empty/
+ * unsupported-format audio and empty scripts fail fast with a one-line
+ * message, never a python traceback. Non-wav audio is transcoded to a
+ * normalized 16kHz mono wav via ffmpeg; scripts with "smart" unicode
+ * punctuation are rewritten to a normalized temp file — align_cli.py itself
+ * is untouched. The parsed alignment result is also sanity-gated (0-word
+ * lines, inverted/out-of-order timestamps) so corrupt aligner output can't
+ * silently propagate into the timeline rule.
  */
 
 import { spawn } from 'node:child_process';
@@ -21,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AlignedLine, LineTiming, Shot, WordTiming } from './types.js';
 import { LAST_LINE_TAIL_SECONDS, MAX_CLIP_SECONDS } from './types.js';
+import { probeDuration } from './media.js';
 
 /** app/scripts/align_cli.py (this file lives in app/src/). */
 const ALIGN_CLI = path.resolve(import.meta.dirname, '..', 'scripts', 'align_cli.py');
@@ -32,28 +44,257 @@ function round3(n: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// alignScript — spawn the python aligner, parse its JSON output
+// Audio input hardening
+// ---------------------------------------------------------------------------
+
+const ALLOWED_AUDIO_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.flac', '.ogg']);
+
+/** Sync, cheap checks that reject an unusable audio file before any process spawn. */
+function checkAudioFileSane(audioPath: string): void {
+  if (!fs.existsSync(audioPath)) {
+    throw new Error(`alignScript: audio file not found: ${audioPath}`);
+  }
+  const ext = path.extname(audioPath).toLowerCase();
+  if (!ALLOWED_AUDIO_EXTENSIONS.has(ext)) {
+    throw new Error(
+      `alignScript: unsupported audio format "${ext || '(none)'}" for ${audioPath} — accepted formats: ${[...ALLOWED_AUDIO_EXTENSIONS].join(', ')}`,
+    );
+  }
+  if (fs.statSync(audioPath).size === 0) {
+    throw new Error(`alignScript: audio file is empty (0 bytes): ${audioPath}`);
+  }
+}
+
+/** ffprobe-backed duration check — catches corrupt/undecodable audio before python does. */
+async function probeAudioDurationSeconds(audioPath: string): Promise<number> {
+  try {
+    return await probeDuration(audioPath);
+  } catch (err) {
+    throw new Error(
+      `alignScript: audio file could not be read (corrupt or unsupported): ${audioPath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+/** Transcode `inputPath` to a 16kHz mono wav at `outputPath` via ffmpeg. */
+function transcodeToWav(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const args = ['-hide_banner', '-loglevel', 'error', '-y', '-i', inputPath, '-ar', '16000', '-ac', '1', outputPath];
+    const child = spawn('ffmpeg', args, { windowsHide: true });
+    let stderrBuf = '';
+    child.stderr.setEncoding('utf-8');
+    child.stderr.on('data', (chunk: string) => {
+      stderrBuf += chunk;
+    });
+    child.on('error', (err) => {
+      reject(new Error(`alignScript: failed to spawn ffmpeg for audio transcode: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const detail = stderrBuf.trim().slice(-1000);
+        reject(new Error(`alignScript: ffmpeg transcode failed for ${inputPath}${detail ? `: ${detail}` : ''}`));
+        return;
+      }
+      let size = 0;
+      try {
+        size = fs.statSync(outputPath).size;
+      } catch {
+        // size stays 0 -> handled by the check below
+      }
+      if (size === 0) {
+        reject(new Error(`alignScript: ffmpeg produced no output while transcoding ${inputPath}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Script input hardening
+// ---------------------------------------------------------------------------
+
+/** Unicode "smart" punctuation -> plain ASCII equivalents, applied before python sees the script. */
+const SMART_PUNCTUATION_MAP: Array<[RegExp, string]> = [
+  [/[‘’‚‛]/g, "'"],
+  [/[“”„‟]/g, '"'],
+  [/[–—―]/g, '-'],
+  [/…/g, '...'],
+  [/[  -   　]/g, ' '],
+];
+
+/** Non-empty, trimmed lines only — mirrors align_cli.py's own `[l.strip() for l in f if l.strip()]`. */
+function trimmedNonEmptyLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+}
+
+/** Normalize unicode punctuation/whitespace and drop empty lines. Empty in -> empty out (caller checks). */
+export function normalizeScriptText(raw: string): string {
+  let text = raw.normalize('NFKC');
+  for (const [pattern, replacement] of SMART_PUNCTUATION_MAP) {
+    text = text.replace(pattern, replacement);
+  }
+  return trimmedNonEmptyLines(text).join('\n');
+}
+
+function readScriptFileSane(scriptPath: string): string {
+  try {
+    return fs.readFileSync(scriptPath, 'utf-8');
+  } catch (err) {
+    throw new Error(`alignScript: script file not found or unreadable: ${scriptPath}: ${String(err)}`);
+  }
+}
+
+function countWords(normalizedText: string): number {
+  return normalizedText.length === 0 ? 0 : normalizedText.split(/\s+/).filter(Boolean).length;
+}
+
+const AVG_WORDS_PER_SECOND = 2.5; // ~150 wpm average narration pace
+const MISMATCH_RATIO_LOW = 0.25;
+const MISMATCH_RATIO_HIGH = 4;
+
+/**
+ * Gross script-vs-audio length sanity check (warning, never fatal — a real
+ * pilot script may legitimately read slow/fast). Returns null when within
+ * [0.25x, 4x] of the word-count-implied duration, else an actionable
+ * warning string carrying both measured numbers.
+ */
+export function checkScriptAudioLengthMatch(wordCount: number, audioDurationSeconds: number): string | null {
+  if (wordCount <= 0 || !Number.isFinite(audioDurationSeconds) || audioDurationSeconds <= 0) return null;
+  const expectedSeconds = wordCount / AVG_WORDS_PER_SECOND;
+  const ratio = audioDurationSeconds / expectedSeconds;
+  if (ratio >= MISMATCH_RATIO_LOW && ratio <= MISMATCH_RATIO_HIGH) return null;
+  return (
+    `alignScript: warning - script has ${wordCount} words (~${expectedSeconds.toFixed(1)}s expected at avg speaking pace) ` +
+    `but audio is ${audioDurationSeconds.toFixed(1)}s long — verify these files match`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Alignment result sanity gate
+// ---------------------------------------------------------------------------
+
+/** 0-word lines and inverted/out-of-order timestamps become actionable errors, not silent bad data. */
+function validateAlignedLines(lines: AlignedLine[], sourcePath: string): void {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.words.length === 0) {
+      throw new Error(`alignScript: line ${line.index} ("${line.text}") has zero aligned words: ${sourcePath}`);
+    }
+    if (line.end < line.start - EPS) {
+      throw new Error(
+        `alignScript: line ${line.index} has inverted timestamps (start ${line.start}s > end ${line.end}s): ${sourcePath}`,
+      );
+    }
+    for (let j = 0; j < line.words.length; j++) {
+      const word = line.words[j]!;
+      if (word.end < word.start - EPS) {
+        throw new Error(
+          `alignScript: line ${line.index} word ${j} ("${word.word}") has inverted timestamps (start ${word.start}s > end ${word.end}s): ${sourcePath}`,
+        );
+      }
+      if (j > 0 && word.start < line.words[j - 1]!.start - EPS) {
+        throw new Error(
+          `alignScript: line ${line.index} word ${j} ("${word.word}") starts before the previous word in the same line: ${sourcePath}`,
+        );
+      }
+    }
+    if (i > 0) {
+      const prev = lines[i - 1]!;
+      if (line.start < prev.start - EPS) {
+        throw new Error(
+          `alignScript: line ${prev.index} starts at ${prev.start}s but line ${line.index} starts at ${line.start}s — timestamps are out of order: ${sourcePath}`,
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// alignScript — harden inputs, spawn the python aligner, parse its output
 // ---------------------------------------------------------------------------
 
 /**
- * Spawn `python scripts/align_cli.py --audio <wav> --script <txt> --out <json>`
+ * Validate + normalize script and audio inputs, spawn
+ * `python scripts/align_cli.py --audio <wav> --script <txt> --out <json>`
  * (array args, PYTHONIOENCODING=utf-8), stream its ASCII progress to stdout,
- * then parse the written JSON into AlignedLine[].
+ * then parse + sanity-check the written JSON into AlignedLine[].
  */
-export function alignScript(
+export async function alignScript(
+  scriptPath: string,
+  audioPath: string,
+  outJsonPath: string,
+  opts?: { onProgress?: (line: string) => void },
+): Promise<AlignedLine[]> {
+  const rawScript = readScriptFileSane(scriptPath);
+  const normalizedScript = normalizeScriptText(rawScript);
+  if (normalizedScript.length === 0) {
+    throw new Error(`alignScript: script has no non-empty lines: ${scriptPath}`);
+  }
+  const wordCount = countWords(normalizedScript);
+
+  checkAudioFileSane(audioPath);
+  const audioDurationSeconds = await probeAudioDurationSeconds(audioPath);
+
+  const mismatchWarning = checkScriptAudioLengthMatch(wordCount, audioDurationSeconds);
+  if (mismatchWarning) {
+    if (opts?.onProgress) opts.onProgress(mismatchWarning);
+    else console.warn(mismatchWarning);
+  }
+
+  const workDir = path.dirname(path.resolve(outJsonPath));
+  try {
+    fs.mkdirSync(workDir, { recursive: true });
+  } catch (err) {
+    throw new Error(`alignScript: cannot create output dir for ${outJsonPath}: ${String(err)}`);
+  }
+
+  let scriptForPython = scriptPath;
+  let tempScriptPath: string | null = null;
+  if (trimmedNonEmptyLines(rawScript).join('\n') !== normalizedScript) {
+    tempScriptPath = path.join(workDir, `align-script.normalized.${randomUUID()}.txt`);
+    fs.writeFileSync(tempScriptPath, normalizedScript, 'utf-8');
+    scriptForPython = tempScriptPath;
+  }
+
+  let audioForPython = audioPath;
+  let tempAudioPath: string | null = null;
+  if (path.extname(audioPath).toLowerCase() !== '.wav') {
+    tempAudioPath = path.join(workDir, `align-audio.transcoded.${randomUUID()}.wav`);
+    await transcodeToWav(audioPath, tempAudioPath);
+    audioForPython = tempAudioPath;
+  }
+
+  try {
+    return await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
+  } finally {
+    if (tempScriptPath) {
+      try {
+        fs.unlinkSync(tempScriptPath);
+      } catch {
+        // best-effort cleanup only
+      }
+    }
+    if (tempAudioPath) {
+      try {
+        fs.unlinkSync(tempAudioPath);
+      } catch {
+        // best-effort cleanup only
+      }
+    }
+  }
+}
+
+function spawnAligner(
   scriptPath: string,
   audioPath: string,
   outJsonPath: string,
   opts?: { onProgress?: (line: string) => void },
 ): Promise<AlignedLine[]> {
   return new Promise((resolve, reject) => {
-    try {
-      fs.mkdirSync(path.dirname(path.resolve(outJsonPath)), { recursive: true });
-    } catch (err) {
-      reject(new Error(`alignScript: cannot create output dir for ${outJsonPath}: ${String(err)}`));
-      return;
-    }
-
     const args = [ALIGN_CLI, '--audio', audioPath, '--script', scriptPath, '--out', outJsonPath];
     const child = spawn('python', args, {
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
@@ -93,7 +334,7 @@ export function alignScript(
   });
 }
 
-/** Read + validate align_cli.py output ({ lines: AlignedLine[] }). */
+/** Read + validate align_cli.py output ({ lines: AlignedLine[] }), then sanity-gate the result. */
 function parseAlignmentJson(outJsonPath: string): AlignedLine[] {
   let raw: string;
   try {
@@ -111,7 +352,7 @@ function parseAlignmentJson(outJsonPath: string): AlignedLine[] {
   if (!Array.isArray(lines) || lines.length === 0) {
     throw new Error(`alignScript: output has no "lines" array: ${outJsonPath}`);
   }
-  return lines.map((entry, i): AlignedLine => {
+  const result = lines.map((entry, i): AlignedLine => {
     const e = entry as Partial<AlignedLine> & { words?: unknown };
     if (
       typeof e.index !== 'number' ||
@@ -131,6 +372,8 @@ function parseAlignmentJson(outJsonPath: string): AlignedLine[] {
     });
     return { index: e.index, text: e.text, start: e.start, end: e.end, words };
   });
+  validateAlignedLines(result, outJsonPath);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
