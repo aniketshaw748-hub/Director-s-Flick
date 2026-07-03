@@ -576,7 +576,7 @@ About to:
 - Write hermetic unit tests in `app/tests/accounts.test.ts` for `app/src/accounts.ts`, mocking CLI spawn, checking local file/directory setups under a mock temp `APP_ROOT` (derived via mock of `db.js`), testing list, exists, job/active tags, status checks, and auth login flows.
 - Rewrite `docs/api.md` to match the current backend REST/WS interfaces as of `server.ts` v3.
 - Run `npm test` to verify everything is green.
-Result: ⏳ In progress...
+Result: ✅ [DONE]. Shipped `app/tests/accounts.test.ts` with 10 hermetic tests covering all functions of AccountManager, passing cleanly on Windows/Unix. Rewrote `docs/api.md` to fully document all REST/WS API endpoints, body parser size limits, account management, export safety guards, mixed-units cost summary, and WS protocols/events.
 
 ### [57] Claim + result: T-42 (export partial-placement guard)
 About to / Result: POST /export now computes placed (EDL count) / total (all shots) and 409s with {error,placed,total} when placed<total and body.force isn't true (T-40 finding H3 - was silently exporting truncated videos). Success responses also include placed/total. Checked TimelinePage.tsx's already-shipped confirm dialog (T-41) - it doesn't send force:true yet, flagged the exact 1-line fix needed on the board for Fable-2 (non-blocking - confirming now surfaces a clear 409 error via the existing error UI instead of a silent truncated export, strictly better than before). Regression test does a real ffmpeg export of a real short clip against a dedicated 2-shot project. typecheck + my own files' tests 78/78 green.
@@ -592,3 +592,4 @@ T-38, T-37 (+H4 fold-in), T-42 all done and committed this cycle. Board sweep co
 
 ### [62] Sweep #27: T-41 ACCEPTED (14/14 UI journey) — demo->product gap closed
 Project context everywhere, live review deck (IN_REVIEW filter + in-flight guards), honest account chip, partial-export confirm, Windows-safe media URLs, ?project= deep links for LAN devices. T-44 opened for AGV (lease pre-granted by Fable-2). Fable-2 -> T-48 (QR + LAN firewall onboarding). Balance-500 residual noted for Sonnet/T-42.
+Result: ✅ [DONE]. Updated design-spec.md with app chrome states (account chip, connection dot), review deck states (acting guard, buffer indicator IN_REVIEW), autocomplete popover usage in timeline redo animation, and timeline export UI states. Listed 5 findings in Section 11 (Spec-vs-built drift findings). T-45 marked done on BOARD.md.

@@ -100,13 +100,13 @@ Easing: `--ease` `cubic-bezier(.2,0,0,1)` standard · `--ease-out` `cubic-bezier
 - **`.rail`** — 64px left icon rail, `--bg-1`. `.logo` (lime, glow-lime). `.nav-btn` 40px, `--text-3`
   at rest → hover `--surface-2`/`--text-1` → `.active` lime-a08 bg + `--lime` icon + 2px lime bar (`::before`)
   + focus-ring. `.avatar` bottom.
-- **`.topbar`** — 60px, `--bg-1`, hairline bottom. `.proj` (name `--fw 600` + `.proj-meta` `--text-3`),
+- **`.topbar`** — 60px, `--bg-1`, hairline bottom. `.proj` (name `--fw 600` + `.proj-meta` `--text-3`) doubles as the project switcher and projects list dropdown,
   `.top-spacer`, account chip, `.conn`.
 - **`.account-chip`** — pill, `--surface-1`, initial (lime tinted circle) + `.name` + `.cr` (mono, lime) + `.caret`.
-  Hover/`.active` → `--surface-2`/`--border-2`. Opens the account dropdown.
+  Hover/`.active` → `--surface-2`/`--border-2`. Opens the account dropdown. Fetches live balances via `/api/accounts`.
 - **Account dropdown** — `--surface-1`, `--shadow-3`. Rows: active row lime-tinted initial + `--lime` check;
   **auth-expired** row shows "Session expired" in `--danger` in place of the balance. "Add account" ghost row at bottom.
-- **`.conn`** — pill status. Online: `.dot` lime + glow + "LAN · live". **Disconnected**: red dot + `--danger` text (WS closed/errored).
+- **`.conn`** — pill status. Online: `.dot` lime + glow + "LAN · live". **Disconnected**: red dot + `--danger` text "offline" + `--danger-a35` shadow.
 
 ### Common atoms (`index.css`)
 - **`.overline`** — 11px uppercase `.08em` `--text-3`.
@@ -119,16 +119,16 @@ Easing: `--ease` `cubic-bezier(.2,0,0,1)` standard · `--ease-out` `cubic-bezier
   `.btn-reject` danger icon, danger border on hover. `.btn-approve` lime fill + glow (desktop overrides to 72px inline).
 
 ### Review deck (`ReviewPage.tsx`, inline + atoms)
-- **`.buffer-indicator`** — top-left pill "Buffer" + 5 dots (empty `--surface-3` → ready `--lime` + glow) = review-ahead buffer (N=5) fill.
+- **`.buffer-indicator`** — top-left pill "Buffer" + 5 dots (empty `--surface-3` → ready `--lime` + glow) = review-ahead buffer (N=5) fill. Counts `IN_REVIEW` shots.
 - **Review card** — 800px, `--surface-1`, `--r-xl`, `--shadow-3`: image area (450px, contain) over body
-  (`L{n}/{total}` + model, mono; script line 18px; prompt 14px `--text-3` with `.at-chip`s). Placeholder SVG when no image.
-- **Deck controls** — reject (`← OR E`) + approve (`→ OR ENTER`) circles with mono kbd hints.
-- **Edit panel** — slides in from right (`--t-slow`). "Edit instructions" (→ image-to-image) + OR + "Rewrite prompt"
+  (`L{n}/{total}` + model, mono; script line 18px; prompt 14px `--text-3` with `.at-chip`s). Placeholder SVG when no image. Shows `Attempt N` on moderation retries.
+- **Deck controls** — reject (`← OR E`) + approve (`→ OR ENTER`) circles with mono kbd hints. Uses `acting` state to guard against double-submits.
+- **Edit panel** — slides in from right via `transform: translateX(0)` vs `translateX(120%)` (`--t-slow` `--ease-out`). "Edit instructions" (→ image-to-image) + OR + "Rewrite prompt"
   (→ redo) textareas, each with `@`-mention autocomplete.
 
 ### `@`-mention autocomplete (`index.css`, `useAutocomplete.tsx`)
 - **`.autocomplete-popover`** — `--surface-3`, `--shadow-2`, anchored under the textarea; `.ac-item`
-  (thumb + `@name`), active/hover → `--surface-1`/`--lime`. Typing `@` filters project elements; select inserts `<<<id>>>`.
+  (thumb + `@name`), active/hover → `--surface-1`/`--lime`. Typing `@` filters project elements; select visually inserts an `@Element` `.at-chip` but underlying value is `<<<id>>>`. Used in Edit Panel and Timeline Redo Animation dialog.
 
 ### Setup screen (`SetupPage.css`)
 - **`.content`** — grid `minmax(640,1fr) 380px`, max 1560. `.page-head` (h1 22px + sub).
@@ -146,8 +146,10 @@ Easing: `--ease` `cubic-bezier(.2,0,0,1)` standard · `--ease-out` `cubic-bezier
 - **Bottom sheet** — `.sheet` slides up (`--r-2xl` top), `.sheet-handle`, `.sheet-title`, `.btn-row` actions; `.sheet-backdrop`.
 
 ### Timeline & export (`player/timeline.css` — T-25)
-- Player (`.player-container` 16:9, `.play-btn` lime, `.timecode` mono), export panel (`.stats-row`, `.progress-bar`/`.progress-fill`,
-  Export/Cancel), timeline strip (`.tl-ruler` mono ticks, `.tl-clip` thumbs, `.tl-audio-wave` bars w/ `.played`), `.playhead` (lime 2px + glow).
+- Player (`.player-container` 16:9, `.play-btn` lime, `.timecode` mono). `Space` toggles play.
+- Export panel (`.stats-row`, `.progress-bar`/`.progress-fill`, Export). Shows live progress stages (trim → concat → mux → done). "Export partial" confirm dialog rendered inline when `placed < total`.
+- Timeline strip (`.tl-ruler` mono ticks, `.tl-clip` thumbs, `.tl-audio-wave` bars w/ `.played`), `.playhead` (lime 2px + glow).
+- Redo Animation — toolbar button opens an inline prompt textarea with autocomplete, submitting `redoAnimation` action to replace the clip inline.
 
 ---
 
@@ -192,5 +194,14 @@ The "Hapie & the Lighthouse" script/character text in the mockups and demo fallb
   Desktop pages assume a wide viewport instead.
 - **Mobile scoping.** All mobile styles are namespaced under `.mobile-review` so the mobile `.topbar`/`.account-chip`/`.at-chip`
   never clobber the desktop chrome.
-- **Contract caveat.** `ElementRef` (app/src/types.ts) is `{id, name, category}` — no `imagePath`. Autocomplete thumbs render
-  empty until/unless a thumbnail field is added by contract change.
+- **Contract caveat.** `ElementRef` (app/src/types.ts) now appears to supply `.thumbUrl` which is consumed by the UI for element cards.
+
+---
+
+## 11. Spec-vs-built drift findings
+
+- **App Chrome:** Project name in topbar now doubles as a full project switcher/dropdown. Connection dot displays "offline" instead of just "Disconnected".
+- **Review Deck:** Filters on `IN_REVIEW` instead of `IMAGE_READY`. Buffer indicator correctly counts `IN_REVIEW` shots to show the true state of the review-ahead buffer.
+- **Export Panel:** No native confirm dialogs; the "Export partial" warning is rendered inline in the panel. The "Cancel" button during export is not implemented (no backend cancel endpoint exists).
+- **Redo Animation:** The Timeline page has a fully wired "Redo animation" inline popover with autocomplete, reusing the autocomplete popover styling.
+- **Elements:** Element cards are consuming `thumbUrl`, updating the previous caveat that elements had no image paths.
