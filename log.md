@@ -899,3 +899,6 @@ Key accuracy calls grounded in code: (1) the pilot is SERVER-DRIVEN because `cli
 Pilot procedure documented end-to-end. In flight: T-76 fable2, T-78 sonnet, T-79 opus.
 
 ### [90] Opus poll races stale checkout (2nd occurrence): added step-0 git pull to his loop; third T-79 pointer posted
+
+### [91] Sweep #51: T-76 accepted (prod build 14/14); Fable-2 -> T-80 (runbook dry-run, mock)
+Production bundle fully verified. Remaining pre-pilot: T-78 (align hardening), T-79 (release audit), T-80 (runbook dry-run) - then owner go/no-go only.
