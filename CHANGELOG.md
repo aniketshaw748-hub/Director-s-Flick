@@ -6,6 +6,28 @@ narration script + voiceover into a reviewed, auto-cut, exported video.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/); this
 project uses [Semantic Versioning](https://semver.org/). Dates are the build sprint.
 
+## [0.1.1] — 2026-07-04
+
+Patch release — fixes a live, owner-facing crash: creating a project with a
+real-size voiceover triggered "Aw, Snap! Out of Memory" because the upload
+encoded the entire file as base64 inside a JSON body.
+
+### Fixed
+- **Large voiceover uploads no longer crash the browser.** Create-project now
+  uses `multipart/form-data`: the client sends the file via `FormData` (the
+  browser streams it — the quadratic base64 encoder is gone), and the server
+  streams the file part straight to disk without ever buffering it in RAM.
+  Verified for 100MB+ voiceovers (server tested to 200MB; ~110MB confirmed
+  through a real browser tab at <1MB heap delta).
+- **Server-side OOM guardrail.** The legacy base64-in-JSON path is kept for
+  small payloads but now rejects any voiceover over ~20MB decoded with
+  `413 Payload Too Large` ("use multipart"), so that path can never load a large
+  file into server memory.
+
+### Housekeeping
+- Repo audit + cleanup: untracked the one unreferenced Phase-0 binary; verified
+  no dead code across app/ui.
+
 ## [0.1.0] — 2026-07-04
 
 First tagged release. Director's Flick is a complete, locally-run pipeline:
