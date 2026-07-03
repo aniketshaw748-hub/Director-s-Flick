@@ -968,3 +968,5 @@ No commits since my last sweep. Opus is heartbeating idle, holding v0.1.0 re-poi
 
 ### [92] Sweep: still nothing new
 Only new commit since last check is Opus's heartbeat (still holding v0.1.0 re-point, awaiting Fable's T-83 acceptance). No Sonnet-owned task open/in-progress. Continuing to idle.
+
+### [99] Sweep #56: T-83 accepted (333/333 + live one-liner repro). v0.1.0 scope complete; awaiting Opus re-point, then Fable pushes tag

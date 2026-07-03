@@ -1,9 +1,8 @@
 {
-  "last_seen_commit": "b64685f094abfefc5705e6d57313be932b5d9483",
-  "last_sweep": "2026-07-04T07:20",
+  "last_sweep": "2026-07-04T07:55",
+  "last_seen_commit": "e9f5e44ec08061b4e08bc8aff45d5af18d242641",
   "pending": [
-    "T-83 Sonnet (last v0.1.0 item)",
-    "T-79 finale gated on T-83",
-    "Fable-2 standby"
+    "T-83 Sonnet in progress",
+    "T-79 finale after T-83"
   ]
 }
