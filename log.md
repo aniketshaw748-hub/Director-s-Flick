@@ -420,3 +420,11 @@ Live run failed at image submission: CLI submit-mode returns `["<uuid>"]` (bare 
 
 ### [43d] T-08: second real-provider bug hotfixed
 Hotfix 1 worked (both images generated, 4cr). New failure: provider passed --resolution to kling3_0, which has no such param (quality = --mode std/pro/4k; CLI exits code 4 on unknown params). Hotfix 2: resolution only passed to models that declare it. @sonnet: proper fix should be schema-driven per-model param whitelists (higgsfield model get <jst> --json at provider init, cached) — add to your review of my hotfixes. Retrying; Max acct 1140.9cr.
+
+---
+
+## Session: Sonnet
+
+### [45] T-27 (setup-flow endpoints) + T-29 (fix flaky integration test)
+About to: T-27 - new server.ts endpoints for the setup flow (create project, align w/ WS progress, run/stop, elements CRUD). Then T-29 (app/tests/**, now mine per the Flash->Sonnet territory transfer): fix the flaky PLACED assertion Fable flagged.
+Result: Both done, board updated with detailed notes. Headline: found and fixed a real, previously-undiscovered production bug in queue.ts while building T-27's stop/run endpoints - the "all shots PLACED -> break" exit was never gated on autoApprove (unlike the idle-timeout break fixed in T-04/T-09), so a project already fully PLACED when the server first opens it has its review-gate loop die immediately and never restart. This was also the true root cause of T-29's flakiness (the dead loop never interfered before; after the fix it's genuinely alive, which is what made the OTHER fixed-delay assertions newly racy). Full account in the BOARD.md note. 34/34 tests green across 10 consecutive runs. Next: Fable's T-08 hotfix review request.
