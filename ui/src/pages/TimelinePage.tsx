@@ -50,8 +50,8 @@ interface ExportState {
 }
 
 interface CostSummary {
-  totalCredits: number;
-  byAccount: { accountName: string | null; totalCredits: number; entryCount: number }[];
+  totals?: Partial<Record<'credits' | 'usd', number>>;
+  byAccount?: { accountName: string | null; unit: 'credits' | 'usd'; total: number; entryCount: number }[];
 }
 
 interface AccountBalance {
@@ -69,6 +69,7 @@ export default function TimelinePage() {
   const [exportState, setExportState] = useState<ExportState>({ running: false, stage: '', pct: 0 });
   const [confirmPartial, setConfirmPartial] = useState(false);
   const [cost, setCost] = useState<CostSummary | null>(null);
+  const [costExpanded, setCostExpanded] = useState(false);
   const [accounts, setAccounts] = useState<AccountBalance[]>([]);
   const [redoOpen, setRedoOpen] = useState(false);
   const [redoPrompt, setRedoPrompt] = useState('');
@@ -93,7 +94,7 @@ export default function TimelinePage() {
     fetch(`/api/project/${encodeURIComponent(projectName)}/cost-summary`)
       .then((r) => r.json())
       .then((data) => {
-        if (typeof data?.totalCredits === 'number') setCost(data);
+        if (data?.totals) setCost(data);
       })
       .catch(() => {});
   }, [projectName]);
@@ -372,18 +373,51 @@ export default function TimelinePage() {
             <div className="overline">Project Stats</div>
             <div className="stats-row"><span>Shots placed</span><span className="v">{placedShots} / {shots.length}</span></div>
             <div className="stats-row"><span>Total duration</span><span className="v">{formatTime(totalDuration)}</span></div>
-            <div className="stats-row"><span>Credits used</span><span className="v">{cost ? `${cost.totalCredits.toFixed(1)} cr` : '—'}</span></div>
-            {cost?.byAccount.map((a) => {
-              const bal = accounts.find((x) => x.name === a.accountName);
-              return (
-                <div className="stats-row" key={a.accountName ?? '(none)'} style={{ fontSize: 'var(--fs-12)', color: 'var(--text-3)' }}>
-                  <span>· {a.accountName ?? 'no account'} ({a.entryCount} jobs)</span>
-                  <span className="v" style={{ color: 'var(--text-2)' }}>
-                    {a.totalCredits.toFixed(1)} cr{bal?.balance != null ? ` / bal ${bal.balance.toFixed(1)}` : ''}
+            {(!cost || (cost.totals?.credits || 0) === 0 && (cost.totals?.usd || 0) === 0) ? (
+              <div className="stats-row"><span>Total cost</span><span className="v">—</span></div>
+            ) : (
+              <>
+                {(cost.totals?.credits || 0) > 0 && (
+                  <div className="stats-row">
+                    <span>Total credits</span>
+                    <span className="v">{(cost.totals?.credits || 0).toFixed(2)} cr</span>
+                  </div>
+                )}
+                {(cost.totals?.usd || 0) > 0 && (
+                  <div className="stats-row">
+                    <span>Total USD</span>
+                    <span className="v">${(cost.totals?.usd || 0).toFixed(2)}</span>
+                  </div>
+                )}
+                <div 
+                  className="stats-row" 
+                  style={{ fontSize: 'var(--fs-12)', cursor: 'pointer', color: 'var(--text-2)' }}
+                  onClick={() => setCostExpanded(!costExpanded)}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ transform: costExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    Account breakdown
                   </span>
                 </div>
-              );
-            })}
+                {costExpanded && cost.byAccount?.map((a) => {
+                  const bal = accounts.find((x) => x.name === a.accountName);
+                  const isCr = a.unit === 'credits';
+                  const amount = isCr ? `${a.total.toFixed(2)} cr` : `$${a.total.toFixed(2)}`;
+                  const balStr = isCr && bal?.balance != null ? ` / bal ${bal.balance.toFixed(2)}` : '';
+                  return (
+                    <div className="stats-row" key={`${a.accountName ?? '(none)'}-${a.unit}`} style={{ fontSize: 'var(--fs-12)', color: 'var(--text-3)', paddingLeft: '16px', background: 'var(--surface-2)', marginTop: '-1px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {a.accountName ?? 'no account'} ({a.entryCount} jobs)
+                        <span style={{ display: 'inline-flex', alignItems: 'center', height: '16px', padding: '0 4px', borderRadius: '4px', fontSize: '9px', fontWeight: 600, background: 'var(--bg-1)', color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{a.unit}</span>
+                      </span>
+                      <span className="v" style={{ color: isCr ? 'var(--text-2)' : 'var(--lime)' }}>
+                        {amount}{balStr}
+                      </span>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
           <div className="progress-container">
             {exportState.running ? (

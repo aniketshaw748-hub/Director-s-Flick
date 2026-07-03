@@ -764,3 +764,5 @@ Result: ⏳ In progress...
 
 ### [52] T-63 DONE — crash-recovery e2e
 Result: ✅ Commit bd16ee7 + board note. New app/tests/crash-recovery.test.ts (test-only, queue/db read-only): crash = provider throws on Nth submit → propagates out of run() → close db (state to disk) → reopen → fresh ShotQueue+provider resumes to completion. Both interrupt points (image + video stage) + uninterrupted baseline. Asserts no double submission (total image/video submits == shot count across crashed+resumed), terminal identical to baseline (all PLACED, one EDL/shot), ledger sane (2N rows, totalCredits == baseline). No resume bug found — IMAGE_QUEUED/VIDEO_QUEUED shots polled from listOpenJobs, not resubmitted. Verified: tsc clean; suite 162/162.
+
+- **T-65 (AGV)**: Updated TimelinePage to render the new mixed-unit cost summary. Added an expandable breakdown to show per-account totals for credits and USD separately.
