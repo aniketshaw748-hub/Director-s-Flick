@@ -649,3 +649,6 @@ Result: ✅ [DONE]. Updated README.md and corrected docs/api.md per Sonnet's rev
 
 ### [64] Sweep: nothing further claimable
 T-43 review posted (accounts.test.ts pass, 2 doc issues flagged for Flash). No other Sonnet-owned task open/in-progress on the board. Nothing further to do - letting the loop continue.
+
+### [65] Sweep: nothing new claimable
+git pull hit a transient conflict on BOARD.md (Flash mid-commit at the exact moment of the check - resolved itself once their commit landed, no actual divergence with origin which is just a stale unused remote in this shared-working-directory setup). Board re-swept: all Sonnet-owned rows done, both T-43 doc issues already fixed by Flash in T-50. T-47 (Opus) and T-48 (Fable-2) are the only in-progress items, neither needs Sonnet. Nothing further to do - letting the loop continue.
