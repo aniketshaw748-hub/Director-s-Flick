@@ -840,3 +840,7 @@ T-70 done and committed (media.ts coverage 76.72%->100%). T-71 (my flagged Setti
 
 ### [82] Sweep #44: T-70 + T-68 server hook accepted (217/217, tsc clean); Sonnet -> T-73 (server.ts coverage)
 media.ts at 100% all metrics. Suite 195->217. In flight: T-69 fable2, T-72 opus, T-73 sonnet.
+
+### [81] Claim T-73 (server.ts coverage lift, was ~56%)
+About to: measure current coverage first (vitest --coverage), map every uncovered line to source, then write hermetic integration tests for the gaps - same measured before/after discipline as T-70. Scope per the task: static-serve/SPA-fallback (T-67), lan-info (T-48), SRT sidecar hook incl. best-effort failure path (T-68), error branches of accounts/balance/config routes, WS edge paths. No source changes unless truly unavoidable for testability (will note explicitly if so). typecheck + full suite before marking done.
+Result: (in progress)
