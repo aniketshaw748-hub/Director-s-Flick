@@ -25,7 +25,7 @@ import { openProjectDb, projectDir, projectDbPath, ProjectDb } from './db.js';
 import { loadConfig } from './config.js';
 import type { ConfigOverrides } from './config.js';
 import { alignScript, computeTimeline, planShots } from './align.js';
-import { createProvider } from './providers/index.js';
+import { createStageProviders } from './providers/index.js';
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue } from './queue.js';
 import { exportTimeline, probeDuration } from './media.js';
@@ -84,8 +84,8 @@ function isElementCategory(v: string): v is ElementCategory {
 }
 
 function parseProvider(v: string): ProviderName {
-  if (v === 'mock' || v === 'higgsfield-cli') return v;
-  return fail(`invalid provider '${v}' (expected mock | higgsfield-cli)`);
+  if (v === 'mock' || v === 'higgsfield-cli' || v === 'fal') return v;
+  return fail(`invalid provider '${v}' (expected mock | higgsfield-cli | fal)`);
 }
 
 /** Parse an --add spec: `id:name:category[:thumbUrl]` (element ids are UUIDs,
@@ -219,21 +219,26 @@ async function stepRunQueue(
   autoApproveFlag: boolean,
   accountName?: string,
 ): Promise<void> {
-  // Phase 1 has no review UI: mock-provider runs always auto-approve.
-  const autoApprove = autoApproveFlag || config.provider === 'mock';
-  if (config.provider === 'higgsfield-cli') {
-    console.log('provider: higgsfield-cli (REAL credits will be spent)');
+  const imageProv = config.imageProvider ?? config.provider;
+  const videoProv = config.videoProvider ?? config.provider;
+  // Phase 1 has no review UI: all-mock runs always auto-approve. When a real
+  // provider is in the mix, require an explicit --auto-approve so unreviewed
+  // shots never spend credits/$ by default.
+  const autoApprove = autoApproveFlag || (imageProv === 'mock' && videoProv === 'mock');
+  const realStages = [...new Set([imageProv, videoProv])].filter((p) => p !== 'mock');
+  if (realStages.length > 0) {
+    console.log(`provider(s): ${realStages.join(', ')} (REAL credits/$ will be spent)`);
     if (accountName) console.log(`account: ${accountName}`);
   }
   console.log(
-    `running queue (provider=${config.provider}, auto-approve=${autoApprove ? 'on' : 'off'})`,
+    `running queue (image=${imageProv}, video=${videoProv}, auto-approve=${autoApprove ? 'on' : 'off'})`,
   );
-  const provider = createProvider(
+  const providers = createStageProviders(
     config,
     accountName ? { credentialsPath: accountCredentialsPath(accountName), accountName } : undefined,
   );
   const prompts = createPromptEngine(config);
-  const queue = new ShotQueue(db, provider, prompts, config, accountName);
+  const queue = new ShotQueue(db, providers, prompts, config, accountName);
   await queue.run({ autoApprove });
 }
 
@@ -391,7 +396,9 @@ program
   .option('--auto-approve', 'approve images without review (Phase 1 CLI mode)')
   .option('--script <path>', 'narration script .txt (full-pipeline mode)')
   .option('--vo <path>', 'voiceover .wav (full-pipeline mode)')
-  .option('--provider <provider>', 'mock | higgsfield-cli')
+  .option('--provider <provider>', 'mock | higgsfield-cli | fal (default for both stages)')
+  .option('--image-provider <provider>', 'image-stage provider (overrides --provider for images)')
+  .option('--video-provider <provider>', 'video-stage provider (overrides --provider for video, e.g. fal)')
   .option('--project <name>', 'project name (full-pipeline mode)')
   .option('--elements <json>', 'JSON array of {id,name,category} to register')
   .option('--account <name>', 'use a specific account\'s credentials (see: cli accounts)')
@@ -403,6 +410,8 @@ program
         script?: string;
         vo?: string;
         provider?: string;
+        imageProvider?: string;
+        videoProvider?: string;
         project?: string;
         elements?: string;
         account?: string;
@@ -410,6 +419,8 @@ program
     ) => {
       const overrides: ConfigOverrides = {};
       if (opts.provider !== undefined) overrides.provider = parseProvider(opts.provider);
+      if (opts.imageProvider !== undefined) overrides.imageProvider = parseProvider(opts.imageProvider);
+      if (opts.videoProvider !== undefined) overrides.videoProvider = parseProvider(opts.videoProvider);
 
       const fullPipeline = opts.script !== undefined || opts.vo !== undefined;
       if (fullPipeline && (opts.script === undefined || opts.vo === undefined)) {

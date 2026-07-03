@@ -25,6 +25,31 @@ export interface ProviderAccountOpts {
   accountName?: string;
 }
 
+/** Per-stage provider pair (image-stage vs video-stage) — see createStageProviders. */
+export interface StageProviders {
+  image: GenProvider;
+  video: GenProvider;
+}
+
+/**
+ * Build per-stage providers from `config.imageProvider` / `config.videoProvider`,
+ * each falling back to `config.provider` (T-34). When both stages resolve to the
+ * same provider name a single shared instance is returned for both, so the
+ * pre-split single-provider behavior is preserved exactly. Enables e.g. images
+ * on Higgsfield + video on the fal fallback (fal is video-only).
+ */
+export function createStageProviders(
+  config: PipelineConfig,
+  account?: ProviderAccountOpts,
+): StageProviders {
+  const imageName = config.imageProvider ?? config.provider;
+  const videoName = config.videoProvider ?? config.provider;
+  const image = createProvider({ ...config, provider: imageName }, account);
+  const video =
+    imageName === videoName ? image : createProvider({ ...config, provider: videoName }, account);
+  return { image, video };
+}
+
 /** Instantiate the GenProvider selected by config.provider. */
 export function createProvider(config: PipelineConfig, account?: ProviderAccountOpts): GenProvider {
   switch (config.provider) {

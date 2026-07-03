@@ -26,7 +26,11 @@ export interface ShotEvent {
 
 export class ShotQueue extends EventEmitter {
   private db: ProjectDb;
-  private provider: GenProvider;
+  /** Per-stage providers (T-34). Image jobs submit/poll/download via
+   * imageProvider, video jobs via videoProvider. Equal when a single provider
+   * was passed (back-compat) or both stages resolve to the same provider. */
+  private imageProvider: GenProvider;
+  private videoProvider: GenProvider;
   private prompts: PromptEngine;
   private config: PipelineConfig;
   private project: Project;
@@ -37,14 +41,22 @@ export class ShotQueue extends EventEmitter {
 
   constructor(
     db: ProjectDb,
-    provider: GenProvider,
+    provider: GenProvider | { image: GenProvider; video: GenProvider },
     prompts: PromptEngine,
     config: PipelineConfig,
     accountName?: string,
   ) {
     super();
     this.db = db;
-    this.provider = provider;
+    // Accept a single provider (used for both stages — back-compat) or a
+    // per-stage { image, video } pair (T-34).
+    if ('submitImage' in provider) {
+      this.imageProvider = provider;
+      this.videoProvider = provider;
+    } else {
+      this.imageProvider = provider.image;
+      this.videoProvider = provider.video;
+    }
     this.prompts = prompts;
     this.config = config;
     this.project = db.getProject()!;
@@ -82,8 +94,10 @@ export class ShotQueue extends EventEmitter {
 
       // 1. Poll in-flight jobs
       for (const job of openJobs) {
+        // Route poll/download to the provider that owns this job's stage (T-34).
+        const stageProvider = job.kind === 'image' ? this.imageProvider : this.videoProvider;
         try {
-           const result = await this.provider.poll(job.id);
+           const result = await stageProvider.poll(job.id);
            if (['completed', 'failed', 'nsfw', 'canceled'].includes(result.status)) {
               workDone = true;
               this.db.updateJobResult(result);
@@ -97,7 +111,7 @@ export class ShotQueue extends EventEmitter {
                     fs.mkdirSync(destDir, { recursive: true });
                     const ext = job.kind === 'image' ? 'png' : 'mp4';
                     const destPath = path.join(destDir, `${shot.id}.${ext}`);
-                    const finalPath = await this.provider.download(result, destPath);
+                    const finalPath = await stageProvider.download(result, destPath);
                     if (job.kind === 'image') {
                        this.db.updateShotState(shot.id, 'IMAGE_READY', { imagePath: finalPath, attempts: 0, lastError: undefined });
                        this.emit('shotEvent', { shotId: shot.id, state: 'IMAGE_READY' } satisfies ShotEvent);
@@ -256,8 +270,8 @@ export class ShotQueue extends EventEmitter {
          soundOff: this.config.soundOff,
          aspectRatio: this.config.aspectRatio
       };
-      const cost = await this.provider.preflightCost(spec);
-      const jobId = await this.provider.submitVideo(spec);
+      const cost = await this.videoProvider.preflightCost(spec);
+      const jobId = await this.videoProvider.submitVideo(spec);
       const jobRow: JobRow = {
          id: jobId,
          projectId: this.project.id,
@@ -309,8 +323,8 @@ export class ShotQueue extends EventEmitter {
          aspectRatio: this.config.aspectRatio,
          ...(opts?.referenceImagePath ? { referenceImagePath: opts.referenceImagePath } : {}),
       };
-      const cost = await this.provider.preflightCost(spec);
-      const jobId = await this.provider.submitImage(spec);
+      const cost = await this.imageProvider.preflightCost(spec);
+      const jobId = await this.imageProvider.submitImage(spec);
       const jobRow: JobRow = {
          id: jobId,
          projectId: this.project.id,
