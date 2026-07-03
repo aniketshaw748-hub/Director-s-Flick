@@ -41,6 +41,12 @@ const CONFIG_PATCH_KEYS = new Set([
    'llmModel',
 ]);
 const MODEL_PATCH_KEYS = new Set(['image', 'video', 'videoMode']);
+// T-84 amendment (Opus audit + Fable ruling): the JSON+base64 create-project
+// path still fully decodes the VO into a server-RAM Buffer - fine only for
+// small payloads. Cap it by CONTRACT, not by hope, so a future large caller
+// can't reintroduce the exact server-side OOM risk multipart was added to
+// avoid; anything bigger must use the streaming multipart path instead.
+const MAX_JSON_VO_BYTES = 20 * 1024 * 1024; // 20MB decoded
 
 const ELEMENT_CATEGORIES: readonly ElementCategory[] = ['character', 'location', 'prop'];
 
@@ -52,23 +58,36 @@ interface OpenProject {
 export function startServer(port = 4000) {
   const app = express();
   app.use(cors());
-  // T-38 BUG 1: T-27's original fix (`express.json({limit:'150mb'})` applied
-  // to EVERY request) fixed the 413 but exposed every small JSON endpoint to
-  // oversized bodies just to accommodate the one route that legitimately
-  // needs it. POST /api/projects carries a base64-encoded voiceover and can
-  // legitimately be very large (a long real VO can exceed even 150MB once
-  // base64-inflated); every other endpoint here is small hand-typed JSON.
-  // this body-parser version has no "already parsed" guard, so two
-  // express.json() calls can't safely stack on one request (the second would
-  // try to re-read an already-drained stream) - dispatch to exactly one.
+  // T-38 BUG 1 (dispatch) + T-84 amendment (limit): POST /api/projects gets
+  // its own JSON parser separate from every other (small hand-typed JSON)
+  // endpoint - this body-parser version has no "already parsed" guard, so
+  // two express.json() calls can't safely stack on one request (the second
+  // would try to re-read an already-drained stream), hence dispatch to
+  // exactly one parser per request. The limit here used to be 500mb (large
+  // real VOs arrived as base64-in-JSON) - now that multipart (T-84) is the
+  // real path for big voiceovers, the JSON path is CONTRACTUALLY small-
+  // payload-only (MAX_JSON_VO_BYTES below enforces the exact 20MB-decoded
+  // boundary with a helpful message); this raw limit is just defense in
+  // depth so an oversized request body never gets fully buffered at all.
   const smallJsonParser = express.json({ limit: '2mb' });
-  const projectCreateJsonParser = express.json({ limit: '500mb' });
+  const projectCreateJsonParser = express.json({ limit: '30mb' });
   app.use((req, res, next) => {
      if (req.method === 'POST' && req.path === '/api/projects') {
         projectCreateJsonParser(req, res, next);
      } else {
         smallJsonParser(req, res, next);
      }
+  });
+  // body-parser rejects an over-limit raw body BEFORE any route handler runs
+  // (entity.too.large) - without this, that surfaces as Express's default
+  // HTML error page instead of the same clean JSON shape every other 413/400
+  // on this route uses.
+  app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+     if (err?.type === 'entity.too.large' || err?.status === 413) {
+        res.status(413).json({ error: 'request body too large - use multipart/form-data (vo file field) for large voiceovers' });
+        return;
+     }
+     next(err);
   });
 
   // T-84: multipart/form-data upload for POST /api/projects (live OOM fix -
@@ -534,6 +553,18 @@ export function startServer(port = 4000) {
      if (!req.file && (typeof voiceoverBase64 !== 'string' || !voiceoverBase64)) {
         res.status(400).json({ error: 'voiceoverBase64 (base64-encoded audio) or a multipart vo file is required' });
         return;
+     }
+     if (!req.file && typeof voiceoverBase64 === 'string') {
+        // Buffer.byteLength with 'base64' computes the decoded size from the
+        // string's own length/padding - no decoding/allocation needed just
+        // to check it.
+        const decodedBytes = Buffer.byteLength(voiceoverBase64, 'base64');
+        if (decodedBytes > MAX_JSON_VO_BYTES) {
+           res.status(413).json({
+              error: `voiceoverBase64 decodes to ${(decodedBytes / (1024 * 1024)).toFixed(1)}MB, over the ${MAX_JSON_VO_BYTES / (1024 * 1024)}MB JSON-path limit - use multipart/form-data (vo file field) for larger voiceovers`,
+           });
+           return;
+        }
      }
      let db: ProjectDb | undefined;
      try {

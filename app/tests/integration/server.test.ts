@@ -1183,6 +1183,52 @@ describe('server integration', () => {
       }
     });
 
+    test('POST /api/projects JSON path rejects a base64 VO decoding to over 20MB (413, T-84 amendment)', async () => {
+      // 21MB decoded -> ~28MB base64, comfortably under the 30mb raw JSON
+      // limit so this exercises the APPLICATION-level 20MB check specifically,
+      // not the upstream body-parser limit.
+      const oversized = Buffer.alloc(21 * 1024 * 1024, 9).toString('base64');
+      const res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${setupProjectName}_jsontoobigcheck`,
+          script: 'A line.',
+          voiceoverBase64: oversized,
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(res.status).toBe(413);
+      const data = (await res.json()) as any;
+      expect(data.error).toMatch(/20MB/);
+      expect(data.error).toMatch(/multipart/);
+      // No project directory was created for the rejected request.
+      expect(fs.existsSync(path.join(PROJECTS_ROOT, `${setupProjectName}_jsontoobigcheck`))).toBe(false);
+    });
+
+    test('POST /api/projects JSON path still accepts a base64 VO just under the 20MB decoded cap', async () => {
+      const okName = `${setupProjectName}_jsonunder20mb`;
+      const okDir = path.join(PROJECTS_ROOT, okName);
+      try {
+        const underCap = Buffer.alloc(19 * 1024 * 1024, 3).toString('base64');
+        const res = await fetch(`http://localhost:${port}/api/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: okName,
+            script: 'A line just under the JSON-path VO cap.',
+            voiceoverBase64: underCap,
+            voiceoverExt: 'wav',
+          }),
+        });
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.project.name).toBe(okName);
+      } finally {
+        if (fs.existsSync(okDir)) fs.rmSync(okDir, { recursive: true, force: true });
+      }
+    });
+
     test('POST /api/projects (multipart) rejects an invalid name, cleaning up the streamed temp upload (T-84)', async () => {
       const srcFile = path.join(os.tmpdir(), `t84_badname_${randomUUID()}.wav`);
       fs.writeFileSync(srcFile, Buffer.from('irrelevant'));
