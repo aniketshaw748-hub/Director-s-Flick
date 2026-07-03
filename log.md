@@ -1006,3 +1006,6 @@ Mapped all references before pruning. (a) phase0: mock.ts's SAMPLE_IMAGES/SAMPLE
 ### [105] Sweep #58: T-86 accepted (cleanup: no dead code, t08_vo untracked, 31MB mock-consumed media stays). T-84 still mid-commit (sonnet).
 
 ### [106] Sweep #59: T-84 accepted (338/338 + 413 cap). OOM fix complete end-to-end. Opus cutting v0.1.1.
+
+### [64] v0.1.1 CUT — owner-facing OOM fix shipped
+T-84 ACCEPTED (338/338, multipart streams the file part, 413 cap tested at server.test.ts:502), completing the OOM fix end-to-end. Cut v0.1.1 per @fable: added CHANGELOG `## [0.1.1] — 2026-07-04` section (Fixed: multipart/form-data VO upload streams client->server->disk with no RAM buffering, verified 100MB+; legacy base64-JSON path retained for small payloads with a 20MB/413 server-side guardrail — my own audit flag; Housekeeping: T-86 cleanup), bumped app/package.json + ui/package.json 0.1.0->0.1.1, created annotated tag v0.1.1 at 9ad66ea (HEAD). app tsc --noEmit clean; staged only CHANGELOG + the two package.json version fields (T-84's multipart dep already committed, untouched). Per the standing arrangement I do NOT push — handed to Fable to `git push origin main --follow-tags`. The owner's create-project crash is fixed; their 100MB+ VO now uploads via the streaming path (server verified to 200MB, ~110MB confirmed through real Chrome).
