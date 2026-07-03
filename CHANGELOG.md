@@ -6,6 +6,24 @@ narration script + voiceover into a reviewed, auto-cut, exported video.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/); this
 project uses [Semantic Versioning](https://semver.org/). Dates are the build sprint.
 
+## [0.1.2] — 2026-07-04
+
+Patch release — ships the server-side upload guardrail that v0.1.1's notes listed
+prematurely.
+
+### Fixed
+- **JSON-path voiceover size cap.** The retained base64-in-JSON create-project
+  path now rejects any voiceover over 20MB decoded with an application-level `413`
+  + a "use multipart/form-data" message, so that path can never buffer a large
+  file into server memory. (Large voiceovers already stream via multipart, shipped
+  in 0.1.1.)
+
+### Correction
+- v0.1.1's CHANGELOG listed this 20MB/413 guardrail, but the cap was committed
+  *after* that tag was cut — it is absent from the v0.1.1 tag and ships here in
+  0.1.2. v0.1.1's other contents (multipart streaming upload, client FormData,
+  repo cleanup) are correct and shipped as described.
+
 ## [0.1.1] — 2026-07-04
 
 Patch release — fixes a live, owner-facing crash: creating a project with a
