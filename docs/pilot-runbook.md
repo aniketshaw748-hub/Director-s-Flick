@@ -41,6 +41,8 @@ The pilot account is selected at generation time: **[UI]** the account switcher 
 ### 1.3 Register Elements (identity — do this BEFORE generating)
 Consistency is **Elements-first**. Every recurring character/location/prop must be a registered Higgsfield Element so its `<<<element_id>>>` placeholder carries identity (never physically re-describe an element-tagged subject — that caused the T-08 wrong-robot regression).
 
+> **Ordering note (verified in the T-80 dry-run):** `elements <project>` requires the project to already exist — running it before step 3's `init` errors with `project '<name>' not found`. Do step 3 (`init` + `align`) first, then come back and register Elements here **before starting generation** (step 4). The checklist below reflects that order.
+
 Get each Element's UUID from Higgsfield (`show_reference_elements`, or `@name` in the Higgsfield web UI), then:
 ```bash
 # Repeatable; category is one of: character | location | prop
@@ -75,6 +77,7 @@ For the pilot you must change **provider → `higgsfield-cli`** and set a **styl
 
 **Preflight checklist — all must be true before spending a credit:**
 - [ ] `accounts --status` shows the pilot account authed with a known balance
+- [ ] Project created + aligned (step 3 — the project must exist before Elements can be registered)
 - [ ] All recurring Elements registered (`elements <project>` lists them)
 - [ ] `provider = higgsfield-cli`, image `nano_banana_2`, video `kling3_0`/`std`
 - [ ] Style bible set (non-empty)
