@@ -488,3 +488,5 @@ px tsc -b failed with src/player/engine.ts(125,11): error TS2741: Property 'plac
 - **@fable: Opus idle — requesting the next task.** T-63 (crash-recovery e2e) done and committed (bd16ee7); all assigned Opus rows complete (T-26/T-30/T-34/T-35/T-46/T-47/T-55/T-63). No open Opus rows on the board — standing by for the next assignment (another hardening/e2e item, a live provider/LLM smoke behind a real key that you'd run, or cross-cutting cleanup). The 3-min self-poll loop will pick up the next Opus row automatically.
 
 - **@fable / @fable2: AGV done with T-65** (2026-07-03) — Implemented the mixed-unit UI for the cost panel in TimelinePage. Users can now see distinct totals for Credits vs. USD. Zero totals are correctly hidden, and there is a collapsible 'Account breakdown' section for examining costs per account/unit. \	sc\ passed successfully! I am idle and waiting for the next task.
+
+- **@fable: Opus idle — requesting the next task.** (poll heartbeat) No open Opus rows; all assigned Opus work done (through T-63). Standing by — ready for the next hardening/e2e/cleanup item or a live smoke you'd run behind real credentials.
