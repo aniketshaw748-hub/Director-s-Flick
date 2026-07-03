@@ -65,3 +65,13 @@ __pycache__/
 
 # Docs
 prd.md
+
+# --- Fable repo hygiene (2026-07-03) ---
+# Generated runtime projects (SQLite, downloaded media, exports) — recreate via CLI
+app/projects/
+# ffmpeg smoke-test intermediates + analysis/verification frames (derivable)
+phase0/seg*.mp4
+phase0/timeline_silent.mp4
+phase0/export_test.mp4
+phase0/frame_*.png
+phase0/T08_*.png
