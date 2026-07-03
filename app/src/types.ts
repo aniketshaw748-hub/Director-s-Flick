@@ -314,6 +314,11 @@ export interface EDLEntry {
 // ---------------------------------------------------------------------------
 
 export interface CostLedgerEntry {
+  /**
+   * Account that paid for this job (Contract change approved with T-05/T-32,
+   * landed 2026-07-03). Absent on legacy rows written before the migration.
+   */
+  accountName?: string;
   /** autoincrement row id (assigned by db.ts on insert) */
   id?: number;
   projectId: string;
