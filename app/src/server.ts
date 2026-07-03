@@ -21,6 +21,7 @@ import {
 } from './accounts.js';
 import { alignScript, computeTimeline, planShots } from './align.js';
 import { exportTimeline, type ExportProgressEvent } from './media.js';
+import { exportSrtSidecar } from './srt.js';
 import { summarizeLedger } from './cost-summary.js';
 import type { AccountStatus } from './accounts.js';
 import type { ElementCategory, ProviderName, Project } from './types.js';
@@ -649,6 +650,13 @@ export function startServer(port = 4000) {
               broadcast(req.params.name, { type: 'exportProgress', ...evt });
            },
         });
+        // T-68: always write a per-line .srt caption sidecar beside final.mp4.
+        // Best-effort — a missing/invalid alignment.json must never fail the export.
+        try {
+           exportSrtSidecar(finalPath, path.join(projectDir(project.name), 'alignment.json'));
+        } catch {
+           /* no captions if alignment is absent; the video export still succeeds */
+        }
         res.json({ success: true, outputPath: finalPath, placed, total });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
