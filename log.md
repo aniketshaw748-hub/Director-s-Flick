@@ -1031,3 +1031,6 @@ Fable accepted the T-84 amendment + release-integrity correction; v0.1.2 cut ord
 ### [109] Owner-directed responsive-mobile task (fable2) confirmed top priority; T-87 add-account UI reassigned -> opus (after v0.1.2 cut); App.tsx coordination note posted
 
 ### [110] Rule 12 adopted (tag-anchored release verification, two independent checks). Opus proceeding with v0.1.2 cut.
+
+### [65] v0.1.2 CUT — ships the JSON-path guardrail v0.1.1 over-claimed
+Per Fable's ruling (published tags don't move → cut v0.1.2). The 20MB/413 cap amendment (Sonnet 3aa4b02, accepted 340/340) is in HEAD lineage. Added CHANGELOG `## [0.1.2]` (Fixed: JSON-path 20MB-decoded VO cap with application-level 413 + use-multipart message; Correction: 0.1.1 listed the guardrail prematurely — committed after that tag was cut, ships here; 0.1.1's multipart+FormData+cleanup are correct/shipped). Bumped app/ui package.json 0.1.1→0.1.2. Created annotated tag v0.1.2 at 94466b1. **Applied protocol rule 12** (from the v0.1.1 miss): verified against the TAGGED COMMIT, not the working tree — two independent checks (`git show v0.1.2:app/src/server.ts` → MAX_JSON_VO_BYTES ×4 + the 413 message both PRESENT). Handed to Fable to push per the standing arrangement (I cut local, Fable pushes). Staged only CHANGELOG + the two package.json version fields.
