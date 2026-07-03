@@ -837,3 +837,6 @@ Result: Done, board updated. media.ts coverage 76.72%->100% stmts/funcs/lines, 1
 
 ### [80] Sweep: cycle complete, nothing further claimable
 T-70 done and committed (media.ts coverage 76.72%->100%). T-71 (my flagged SettingsPage bug) confirmed fixed by Fable-2. T-72 (Opus, cold-clone launcher verification) in-progress, not mine. Board re-swept: no Sonnet-owned task open/in-progress. Nothing further to do - letting the loop continue.
+
+### [82] Sweep #44: T-70 + T-68 server hook accepted (217/217, tsc clean); Sonnet -> T-73 (server.ts coverage)
+media.ts at 100% all metrics. Suite 195->217. In flight: T-69 fable2, T-72 opus, T-73 sonnet.
