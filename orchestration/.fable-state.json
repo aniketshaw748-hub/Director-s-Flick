@@ -1,10 +1,10 @@
 {
   "pending": [
-    "T-33 live run in background",
-    "T-34 Opus",
+    "T-34/T-35 Opus",
     "T-28 Fable-2",
-    "T-24 Sonnet"
+    "T-24 Sonnet",
+    "user: git push to GitHub"
   ],
-  "last_sweep": "2026-07-03T21:40:42.0517988+05:30",
-  "last_seen_commit": "bd691699cb21f1d456018c4747473f61a6a23cb7"
+  "last_seen_commit": "c74bcf5751fd0dc022c73c956330942d006e3ad6",
+  "last_sweep": "2026-07-03T21:44:38.3783531+05:30"
 }
