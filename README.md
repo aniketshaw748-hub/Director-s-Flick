@@ -54,9 +54,13 @@ Run backend commands using `npm run cli -- <command>` within the `app/` director
 ```
                ┌──────────────────────────────────────────────────┐
                │              Director's Flick App                │
-               └────────────────────────┬─────────────────────────┘
-                                        │
-             ┌──────────────────────────┼──────────────────────────┐
+               └────────┬───────────────────────────────┬─────────┘
+                        │                               │
+                        ▼                               ▼
+                 [CLI Interface]                 [server Module]
+                   cli.ts / npm                Express + WebSocket
+                        │                               │
+             ┌──────────┴───────────────┬───────────────┴──────────┐
              ▼                          ▼                          ▼
        [align Module]            [queue Module]             [media Module]
     Stable-ts Aligner           Shot State Machine          FFmpeg & NVENC
@@ -71,6 +75,7 @@ Run backend commands using `npm run cli -- <command>` within the `app/` director
 ```
 
 ### Module Structure
+- **server** (`src/server.ts`): Starts the Express REST API and WebSocket subscription server. Manages live `ShotQueue` and `ProjectDb` instances per active project, and broadcasts real-time `shotEvent` pushes alongside 2-second state sync loops.
 - **align** (`src/align.ts`, `scripts/align_cli.py`): Spawns the python aligner, computes line/sub-shot timings based on the timeline rules, and plans pending shots in the database.
 - **providers** (`src/providers/`): Abstracts the generation provider interface. Includes `MockProvider` (zero-cost offline simulation) and `HiggsfieldCliProvider` (interacts with the real `higgsfield` CLI).
 - **prompts** (`src/prompts.ts`): Orchestrates prompt generation. Employs `ClaudePromptEngine` for generating rich visual prompts in batches with element tags, and `TemplatePromptEngine` for offline mock runs.

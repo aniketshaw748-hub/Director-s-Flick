@@ -46,53 +46,65 @@ This document describes the HTTP REST endpoints and WebSocket message shapes as 
   - `:file`: Filename including extension (e.g. `<shotId>.png` or `<shotId>.mp4`).
 * **Response**: Binary file stream. Status 404 if file does not exist.
 
-### Submit Shot Action
+### Submit Shot Action (Review-Gate Actions)
 * **Route**: `POST /api/project/:name/shots/:shotId/action`
-* **Description**: Processes user reviews (swiping right to approve, swiping left to edit/redo, or requesting a timeline re-animation).
+* **Description**: Processes user reviews (swiping right to approve, swiping left to edit/redo, or requesting a timeline re-animation). Delegates execution directly to the project's background `ShotQueue` instance.
 * **Request Body**:
   ```json
   {
     "action": "approve" | "edit" | "redo" | "redoAnimation",
-    "instructions": "string (optional, for edit)",
-    "animationPrompt": "string (optional, for redoAnimation)"
+    "instructions": "string (required only for edit)",
+    "prompt": "string (optional; verbatim override prompt for redo or redoAnimation)"
   }
   ```
 * **Actions Behavior**:
-  1. `approve`: Sets state of shot to `APPROVED`.
-     > [!NOTE]
-     > **TODO(T-04)**: Replace inline SQL mutation with a call to the project queue instance: `queue.approve(shotId)`.
-  2. `edit`: Appends instructions to current image prompt and sets state back to `PROMPTED`.
-     > [!IMPORTANT]
-     > **TODO(T-04)**: Must delegate to `queue.requestEdit(shotId, instructions)`. This should transition to `IMAGE_QUEUED` with `referenceImagePath` set for an image-to-image generation job, rather than just text-to-image with appended text.
-  3. `redo`: Clears current image prompt and resets shot to `PROMPTED`.
-     > [!NOTE]
-     > **TODO(T-04)**: Delegate to `queue.requestRedo(shotId)` on the project's queue instance.
-  4. `redoAnimation`: Triggers a new video generation using the approved start image with a new motion prompt.
-     > [!CAUTION]
-     > **TODO(T-04)**: Direct call to `db.updateShotState(shotId, 'APPROVED')` throws an illegal transition error when coming from `VIDEO_READY` or `PLACED`. This must be replaced by a delegation to `queue.redoAnimation(shotId, animationPrompt)` which legally transitions the shot to `VIDEO_QUEUED`.
+  1. `approve`: Invokes `await queue.approve(shotId)`. Sets state of shot to `APPROVED`.
+  2. `edit`: Invokes `await queue.requestEdit(shotId, instructions)`. Submits a new image generation job using the rejected image as a reference (image-to-image), setting state to `IMAGE_QUEUED`.
+     - *Validation*: If `instructions` is missing or not a string, the endpoint returns a `400 Bad Request` with `{ "error": "edit requires a string \"instructions\" field" }`.
+  3. `redo`: Invokes `await queue.requestRedo(shotId, prompt)`. Submits a fresh image generation job directly, transitioning the shot to `IMAGE_QUEUED`.
+     - *Verbatim Prompt override*: If `prompt` is provided in the body, it is used verbatim for the fresh image job.
+     - *Regeneration fallback*: If `prompt` is omitted, the `PromptEngine` is queried to regenerate a deterministic image prompt.
+  4. `redoAnimation`: Invokes `await queue.redoAnimation(shotId, prompt)`. Submits a new video generation job using the approved start image (`shot.imagePath`), transitioning the shot to `VIDEO_QUEUED`.
+     - *Verbatim Prompt override*: If `prompt` is provided in the body, it is used verbatim for the animation motion prompt.
+     - *Regeneration fallback*: If `prompt` is omitted, the `PromptEngine` is queried to regenerate a motion prompt.
 * **Response**:
   * **Success (200 OK)**:
     ```json
     { "success": true }
     ```
+  * **Bad Request (400 Bad Request)**:
+    ```json
+    { "error": "unknown action 'invalid_action'" }
+    ```
   * **Error (500 Internal Server Error)**:
     ```json
-    { "error": "Illegal transition PENDING -> APPROVED..." }
+    { "error": "Error message from queue execution..." }
     ```
 
 ---
 
 ## 2. WebSocket Protocol
 
-Clients connect to the WebSocket server to receive live state updates from the database.
+Clients connect to the WebSocket server to receive live state and progress updates.
 
 * **Connection URL**: `ws://<server-ip>:<port>/?project=<project_name>`
-  - The query parameter `project` specifies the active project the client wants to sync.
+  - The query parameter `project` specifies the active project the client wants to sync. Connecting to a project automatically spins up or retrieves the cached `ShotQueue` driving the background loop.
 
 ### Server-to-Client Messages
 
-#### Project State Sync
-* **Trigger**: Broadcasted by the server every 2 seconds (`setInterval` loop) for all connected clients.
+#### Immediate Shot State Transition Push
+* **Trigger**: Fired instantly when any shot changes state in the project's `ShotQueue` (e.g. transitioning `IMAGE_READY`, `VIDEO_READY`, or `PLACED`).
+* **Payload**:
+  ```json
+  {
+    "type": "shotEvent",
+    "shotId": "shot-uuid",
+    "state": "IMAGE_QUEUED" | "IMAGE_READY" | "IN_REVIEW" | "APPROVED" | "VIDEO_QUEUED" | "VIDEO_READY" | "PLACED" | "FAILED"
+  }
+  ```
+
+#### Full State Sync Broadcast
+* **Trigger**: Broadcasted by the server every 2 seconds (`setInterval` loop) for all connected clients to keep layouts robust and in-sync.
 * **Payload**:
   ```json
   {
@@ -111,5 +123,3 @@ Clients connect to the WebSocket server to receive live state updates from the d
     ]
   }
   ```
-  > [!NOTE]
-  > **TODO(T-04)**: The server currently queries SQLite and broadcasts the entire `shots` array every 2 seconds. In the final version, the active `ShotQueue` instances should emit granular state change events (e.g. `IMAGE_READY`, `VIDEO_READY`, `PLACED`) which are broadcasted immediately over WebSocket, removing the 2s database polling overhead.

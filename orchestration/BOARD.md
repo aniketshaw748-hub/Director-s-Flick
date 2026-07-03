@@ -10,6 +10,7 @@ Single source of truth for the 4-model team. Every agent reads this before worki
 | **Sonnet** | Claude Code (Sonnet 5) | Senior backend engineer + reviewer | `app/src/**` (except `types.ts`), `app/scripts/**` |
 | **AGV** | Antigravity (Gemini 3.1 Pro) | Frontend implementation + visual verification | `ui/**`, `design/**` |
 | **Flash** | Gemini CLI (Gemini 3.5 Flash) | Bulk/mechanical: tests, fixtures, docs | `app/tests/**`, `docs/**`, `README.md`, `.gitignore` |
+| **Fable-2** | Claude Code (Fable 5, terminal #2) | Hard-problems engineer — accuracy-critical tasks, per-task file leases | leased per task row (no permanent territory) |
 
 Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/AGV/Flash. Need a contract change? Add a `CONTRACT-CHANGE:` note under your task row; Fable arbitrates.
 
@@ -51,8 +52,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 | T-20 | AGV | done | **Export panel + cost meter UI** on TimelinePage per `design/desktop-timeline.html`: export button w/ progress bar + ETA, session cost meter (per-account chip). Wire to endpoints that exist; anything missing gets `// TODO(T-04/T-05)` and a mocked state. | `ui/src/pages/TimelinePage.tsx` + components | Matches mockup; degrades gracefully w/o backend endpoints; tsc clean |
 | T-21 | Flash | done | **Fix queue.test.ts regression (30/31)** exactly per Sonnet's T-04 note: (a) mock providers must return unique job ids per call (counter or randomUUID), not a shared literal; (b) update the stale `requestRedo` assertions to the new contract — redo submits directly, ends at `IMAGE_QUEUED` with a real prompt (regenerated or verbatim), never `PROMPTED`/undefined; (c) prefer a fresh ProjectDb per test. | `app/tests/**` | `npm test` 31/31 green |
 | T-22 | AGV | done | **Review-flow integration (T-04 landed)**: consume the new `shotEvent` WS pushes in `App.tsx` for instant shot updates (replace the dead `shot_updated` handler — read server.ts for the exact payload); wire redo/redoAnimation payloads to the final contract (prompt optional); remove `TODO(T-04)` markers that are now live; run server in non-auto-approve mode and browser-verify the full approve/edit/redo flow end-to-end on the mock provider (screenshot/note). | `ui/src/**` | Full review flow works live in browser; shot cards update instantly on shotEvent (not just the 2s sync); tsc clean |
-| T-23 | Flash | open | **Docs refresh post-T-04**: rewrite `docs/api.md` against the CURRENT `app/src/server.ts` (real request bodies: `prompt` on redo/redoAnimation — verbatim-or-regenerate contract; new `shotEvent` WS message alongside the 2s `sync`; remove the four fixed TODO(T-04) callouts); add `server.ts` to README.md module structure + architecture diagram. | `docs/api.md`, `README.md` | Matches server.ts exactly (read it); Sonnet re-review |
+| T-23 | Flash | done | **Docs refresh post-T-04**: rewrite `docs/api.md` against the CURRENT `app/src/server.ts` (real request bodies: `prompt` on redo/redoAnimation — verbatim-or-regenerate contract; new `shotEvent` WS message alongside the 2s `sync`; remove the four fixed TODO(T-04) callouts); add `server.ts` to README.md module structure + architecture diagram. | `docs/api.md`, `README.md` | Matches server.ts exactly (read it); Sonnet re-review |
 | T-24 | Flash | blocked (T-05) | **user-guide §3 correction**: after Sonnet lands T-05 AccountManager, rewrite Section 3 to describe what ACTUALLY shipped (real field/endpoint names, real flow) — currently it presents the plan as shipped behavior. | `docs/user-guide.md` | Verified against app/src/accounts.ts as merged; Sonnet re-review |
+| T-25 | Fable-2 | open | **Timeline preview playback engine** (hardest remaining problem — frame accuracy over everything): implement real EDL playback on TimelinePage per research-and-plan.md Part 1 §5 — voiceover `<audio>` as master clock, A/B alternating `<video>` elements with preload-next + swap at clip boundaries, EDL in/out trims honored frame-accurately, play/pause/seek (scrub) anywhere on the timeline, no visible gap or stutter across boundaries at 1080p. Extend the media-serving endpoint for byte-range requests if needed. Verify against `app/projects/test_project` (6 clips + VO) and MEASURE: boundary gap (ms), A/V drift over full playback (target ≤ 1 frame / 33ms), report numbers in your result note. FILE LEASE: `ui/src/player/**` (new), `ui/src/pages/TimelinePage.tsx`, `app/src/server.ts` (media/byte-range routes only — Sonnet is concurrently in accounts.ts/provider files, coordinate via note if you must touch shared server sections). | lease: ui/src/player/**, TimelinePage.tsx, server.ts (media routes) | Gapless scrub+play across all 6 test clips; measured A/V drift ≤ 33ms; tsc clean both packages; verification numbers posted |
 
 ### Notes / findings
 
@@ -86,6 +88,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   - Configured fresh SQLite DB and directory contexts (`ProjectDb` setup/cleanup) per test in `beforeEach`/`afterEach` hooks.
   - Updated stale `requestRedo` and `requestEdit` assertions to align with the new direct-submission contract (`IMAGE_QUEUED` target state).
   - All 31 tests are fully passing again.
+- **T-23 (Flash)**: Completed T-04 documentation refresh:
+  - Rewrote `docs/api.md` to detail the new review-gate API contracts (including the correct `instructions` / `prompt` payload formats for edit/redo/redoAnimation) and the new state-transition-driven `shotEvent` WS message type.
+  - Added `server.ts` to the architecture diagram and the Module Structure summary in `README.md`.
 
 - **T-01 findings (Sonnet)** — read-only pass over `queue.ts`, `server.ts`, `cli.ts`, `db.ts`, `types.ts` (for context) + rename-fallout grep across `app/`, `ui/`, `design/`. `npm run typecheck` in `app/` is currently clean (0 errors). No fixes applied — posting for triage, per protocol.
 
@@ -155,3 +160,6 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   - Everything else (Stages 1/2/4/5 of the user-guide, the Elements-consistency section) checked out accurate against the real CLI/queue/prompts behavior.
 
 - **T-21 ACCEPTED (Fable — ran `npm test` independently: 31/31). T-10 ACCEPTED.** Doc follow-ups from T-10 become T-23 (now) and T-24 (after T-05 lands). @flash: note the T-10 lesson — never document planned behavior as shipped; docs describe the code as it exists.
+
+- **T-22 ACCEPTED (Fable — verified: shotEvent consumed in App.tsx, dead shot_updated handler removed, tsc clean).** Phase-2 review flow is now end-to-end functional on the mock provider.
+- **Team change (Fable):** second Fable 5 terminal joins as **Fable-2** — hard-problems engineer, per-task file leases (see roster). First task: T-25 (timeline preview playback engine). Sonnet/AGV: T-25 carries a lease on `ui/src/player/**` + `TimelinePage.tsx` + server.ts media routes — stay clear of those until T-25 closes.

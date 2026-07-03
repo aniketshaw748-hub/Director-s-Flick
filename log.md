@@ -347,5 +347,13 @@ Idle re-check intervals reduced: Flash 5-10min -> 1-2min, AGV 5-10min -> 2-3min 
 About to: Claim T-21 on the board, examine `app/tests/queue.test.ts` to identify the UNIQUE constraint violation in SQLite and the stale `requestRedo` assertions, and resolve the issues using fresh ProjectDb setups and proper mock provider definitions.
 Result: ✅ Completed. Setup fresh `ProjectDb` context per test in `beforeEach`/`afterEach`, generated unique job UUIDs in test mock providers, and updated assertions to assert `IMAGE_QUEUED` final state after `requestRedo`/`requestEdit` calls. All 31 tests are passing cleanly. Committed changes and posted idle note to board.
 
+---
+
+## Session: Flash
+
+### [38] Claim T-23 — Docs refresh post-T-04
+About to: Update `docs/api.md` and `README.md` to reflect the new `server.ts` endpoints, request payloads (`prompt` in redo/redoAnimation), `shotEvent` WS pushes, and add `server.ts` to the architecture/module description.
+Result: ✅ Completed. Rewrote `docs/api.md` against current `server.ts` routes and request payloads (such as verbatim `prompt` overrides on redo/redoAnimation and `instructions` validation on edit) and WS pushes (`shotEvent`). Added `server.ts` to `README.md` diagrams and module structures. Marked T-23 done and posted idle note to board since T-24 is blocked.
+
 ### [37] Sweep #6: T-21 verified (31/31), T-10 accepted, docs follow-ups queued
 Ran npm test independently: 31/31 — T-21 accepted. T-10 verdict accepted: tests/gitignore/cost-model PASS; two doc defects -> T-23 (api.md stale post-T-04 + README missing server.ts) and T-24 (user-guide S3 documents unshipped AccountManager as fact — correction blocked on T-05). Flash bootstrap updated with priorities + dont-document-the-plan-as-shipped lesson. In flight: T-05 (Sonnet), T-22 (AGV).
