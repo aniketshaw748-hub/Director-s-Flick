@@ -333,11 +333,19 @@ export interface CostLedgerEntry {
 // Pipeline configuration
 // ---------------------------------------------------------------------------
 
-export type ProviderName = 'mock' | 'higgsfield-cli';
+export type ProviderName = 'mock' | 'higgsfield-cli' | 'fal';
 
 export interface PipelineConfig {
   /** which GenProvider to instantiate */
   provider: ProviderName;
+  /**
+   * Optional per-stage overrides (Contract change approved by Fable with
+   * T-30, 2026-07-03): fal is a VIDEO-ONLY fallback (its submitImage throws),
+   * so mixed pipelines set e.g. imageProvider:'higgsfield-cli' +
+   * videoProvider:'fal'. Absent -> both stages use provider.
+   */
+  imageProvider?: ProviderName;
+  videoProvider?: ProviderName;
   models: {
     /** default 'nano_banana_2' */
     image: string;
