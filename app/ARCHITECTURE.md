@@ -138,9 +138,9 @@ export class ShotQueue {
   run(opts: { autoApprove: boolean }): Promise<void>;
   /** Review verbs (Phase 2 UI calls these; CLI exposes them for testing). */
   approve(shotId: string): Promise<void>;                       // IN_REVIEW -> APPROVED (queues animation prompt + video)
-  requestEdit(shotId: string, instructions: string): Promise<void>; // IN_REVIEW -> IMAGE_QUEUED (image-to-image w/ reference)
-  requestRedo(shotId: string): Promise<void>;                   // IN_REVIEW -> PROMPTED (fresh prompt, no reference)
-  redoAnimation(shotId: string, newPrompt: string): Promise<void>;  // VIDEO_READY|PLACED -> VIDEO_QUEUED (same startImage)
+  requestEdit(shotId: string, instructions: string): Promise<void>; // IN_REVIEW -> IMAGE_QUEUED (image-to-image: referenceImagePath = rejected image)
+  requestRedo(shotId: string, prompt?: string): Promise<void>;  // IN_REVIEW -> IMAGE_QUEUED (prompt verbatim if supplied, else PromptEngine regen; direct submit, never PROMPTED limbo)
+  redoAnimation(shotId: string, prompt?: string): Promise<void>; // VIDEO_READY|PLACED -> VIDEO_QUEUED (same startImage; prompt verbatim if supplied, else regen)
 }
 ```
 
