@@ -431,3 +431,15 @@ Result: Both done, board updated with detailed notes. Headline: found and fixed 
 
 ### [44] T-08 COMPLETE — first real video through the full pipeline
 final.mp4: 1920x1080@30, 9.90s, VO muxed, 2/2 shots PLACED. Live spend ~21.9cr on Max acct (1149.05 -> 1127.15; app ledger 16.75 for the clean run). Three findings: (1) submit-mode uuid-array stdout [hotfixed], (2) kling3_0 rejects --resolution / CLI exit-4 on unknown params [hotfixed; schema-whitelist to Sonnet], (3) QUALITY GAP: prompt engine physically described the element-tagged character ("silver-and-copper robot") and the text won over the element reference -> wrong robot in output. Infra verdict: PASS end-to-end. Identity verdict: FAIL -> T-32 (prompt-engine rule: never describe element-tagged characters) + T-33 (re-verify live). Cross-account note: elements resolve cross-account (Team-workspace element billed on Max acct). T-28 unblocked (T-27 landed).
+
+---
+
+## Session: Sonnet
+
+### [46] Claim T-32 (identity fix + ledger column + hotfix review)
+About to: (a) fix prompts.ts (both ClaudePromptEngine and TemplatePromptEngine) so element-tagged subjects are never physically described - per T-08 finding 3, the live run's prompt embedded the Hapie-ai-bot element tag but ALSO described the character physically ("silver-and-copper robot"), and the text description won out over the element identity, generating the wrong character; (b) migrate db.ts's cost_ledger table to a real account_name column now that Fable landed CostLedgerEntry.accountName in types.ts - leased to me for this specific change; (c) review Fable's two T-08 emergency hotfixes to higgsfield-cli.ts (pickJobId UUID-array handling, kling3_0 --resolution guard) and add regression tests for both. Will typecheck + run tests before marking done.
+Result: (in progress)
+
+### [40] Claim T-28 — SetupPage full wiring
+About to: claim T-28 (SetupPage full wiring against the T-27 setup-flow endpoints). First read the AS-BUILT T-27 surface in committed server.ts (create-project multipart, align trigger + WS progress events, queue start/stop, element CRUD), then the desktop-setup mockup + Opus's in-flight SetupPage state. COORDINATION: SetupPage.tsx currently carries Opus's uncommitted T-26 QA edits — building all T-28 machinery in NEW files under ui/src/setup/** (typed api client + upload/align/run hooks + element-registry + create-project subcomponents); SetupPage.tsx integration happens ONLY after Opus commits (board note posted @opus). Verify: browser-drive a fresh project create->align->elements->run e2e on the mock provider via the playwright-core system-Chrome harness (extension browser can't reach local ports on this box), tsc clean.
+Result: — (in progress)
