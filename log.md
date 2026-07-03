@@ -371,3 +371,22 @@ Result: — (in progress)
 
 ### [39] Sweep #8: Gemini agents re-tasked
 Both Gemini agents idle (T-22/T-23 done, T-24 blocked). Fan-out: T-26 (AGV — design-spec.md + browser QA, lease-aware), T-29 (Flash — hermetic API integration test w/ WS capture), T-27 (Sonnet, blocked on T-05 — setup-flow endpoints), T-28 (AGV, blocked on T-27 — SetupPage wiring). Bootstraps updated.
+
+---
+
+## Session: Flash
+
+### [40] Claim T-29 — API integration test
+About to: Write programmatic server integration test in `app/tests/integration/server.test.ts` to spin up the Express server on a random port, copy `test_project` SQLite database and structure to a temp folder, interact with endpoints via HTTP, assert WebSocket `shotEvent` pushes, and clean up.
+Result: ⏳ In progress...
+
+---
+
+## Session: AGV
+
+### [41] Claim T-26 (AGV)
+About to: Start T-26 on the board. I will write "design/design-spec.md" to document the design system (color tokens, type scale, spacing/radius, components, motion rules) based on "tokens.css" and the mockups. Then I will QA every page in the browser (except "TimelinePage.tsx" and "ui/src/player/**" which are leased by Fable-2) to fix visual drift, focus states, and empty states.
+Result: ⏳ In progress...
+
+### [40] Sweep #9: T-05 accepted; T-24/T-27 unblocked; T-29 flake diagnosed
+Sonnet landed T-05 AccountManager (typecheck clean, old suite green — accepted; live check deferred to T-08). Unblocked T-24 (Flash) + T-27 (Sonnet). Flash's in-progress T-29 integration test fails on a fixed-sleep assertion (APPROVED vs PLACED) — posted diagnosis: await shotEvent/poll for PLACED instead of fixed delays. All five agents have work: T-25 Fable-2, T-26 AGV, T-27 Sonnet, T-24+T-29 Flash.
