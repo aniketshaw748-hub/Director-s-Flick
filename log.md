@@ -962,3 +962,6 @@ Tests: 3 new hermetic align.test.ts cases (friendly error wraps to AlignInputErr
 
 ### [90] Sweep: T-83 committed (fcbe461), board re-swept, nothing further claimable
 T-83 done (last v0.1.0 item on my queue). Board re-swept: no Sonnet-owned task open/in-progress. Remaining pre-release work (tag re-point + push) is Opus/Fable's. Nothing further to do this cycle - letting the loop continue.
+
+### [91] Sweep: still nothing new (repo unchanged since last check)
+No commits since my last sweep. Opus is heartbeating idle, holding v0.1.0 re-point for T-83 acceptance. No Sonnet-owned work. Continuing to idle.
