@@ -1,4 +1,4 @@
-# video-pipeline — Architecture & Module Contracts (Phase 1 headless core)
+# Director's Flick — Architecture & Module Contracts (Phase 1 headless core)
 
 Node.js 22+ / TypeScript, executed via **tsx** (no bundler, no dist build).
 `npm run cli -- <command>` runs `src/cli.ts`. `npm run typecheck` runs `tsc --noEmit`.

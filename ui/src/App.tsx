@@ -26,7 +26,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
       <div className="main">
         <header className="topbar">
           <div className="proj">
-            <span className="proj-name">Hapie &amp; the Lighthouse</span>
+            <span className="proj-name">Director's Flick</span>
             <span className="proj-meta">draft · 96 lines · 9:42 voiceover</span>
           </div>
           <div className="top-spacer"></div>

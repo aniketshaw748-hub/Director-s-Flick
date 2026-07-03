@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
-import { ProjectDb, projectDir } from './db.js';
+import { ProjectDb, openProjectDb, projectDir } from './db.js';
 
 export function startServer(port = 4000) {
   const app = express();
@@ -48,7 +48,7 @@ export function startServer(port = 4000) {
 
   app.get('/api/project/:name', (req, res) => {
      try {
-        const db = new ProjectDb(req.params.name);
+        const db = openProjectDb(req.params.name);
         const project = db.getProject();
         const shots = db.listShots();
         const elements = db.listElements();
@@ -73,7 +73,7 @@ export function startServer(port = 4000) {
   // Endpoint to approve/edit/redo from mobile
   app.post('/api/project/:name/shots/:shotId/action', (req, res) => {
      try {
-        const db = new ProjectDb(req.params.name);
+        const db = openProjectDb(req.params.name);
         const { action, instructions, animationPrompt } = req.body;
         if (action === 'approve') {
            db.updateShotState(req.params.shotId, 'APPROVED');
@@ -98,7 +98,7 @@ export function startServer(port = 4000) {
      for (const [projectName, wsClients] of clients.entries()) {
         if (wsClients.size === 0) continue;
         try {
-           const db = new ProjectDb(projectName);
+           const db = openProjectDb(projectName);
            const shots = db.listShots();
            // Just send the whole shots array every 2s to keep it simple and robust for this prototype
            const payload = JSON.stringify({ type: 'sync', shots });

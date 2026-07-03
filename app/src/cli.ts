@@ -259,7 +259,7 @@ async function printSummary(db: ProjectDb, finalPath?: string): Promise<void> {
 
 const program = new Command();
 program
-  .name('video-pipeline')
+  .name('directors-flick')
   .description('Local AI-video pipeline: script + VO -> aligned shots -> images -> videos -> export');
 
 program

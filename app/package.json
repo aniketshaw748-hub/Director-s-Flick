@@ -1,5 +1,5 @@
 {
-  "name": "video-pipeline",
+  "name": "directors-flick",
   "version": "0.1.0",
   "private": true,
   "description": "Local AI-video pipeline: script+VO -> aligned lines -> images -> videos -> EDL -> FFmpeg export. Executed via tsx, no build step.",
