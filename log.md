@@ -310,3 +310,6 @@ T-11 spot-check (Sonnet subagent, 127k sonnet tokens) returned **ISSUES**: HIGH 
 
 ### [32] Sweep #2 addendum — staging incident + protocol rule 9
 My `git add -A` in commit 2f24a60 swept Sonnet's in-progress queue.ts WIP into a [fable] commit (shared worktree hazard). No data lost; attribution note posted @sonnet. Board protocol rule 9 added: all agents stage explicit paths only, never -A/. — Fable included.
+
+### [33] Sweep #3 (Monitor-triggered): T-17/T-18 accepted, T-19/T-20 queued
+AGV delivered T-17/T-18 in one commit (a86b635). Fable verification: tsc clean, @-mention autocomplete implemented via useAutocomplete.tsx and wired in Review + MobileReview, types imported type-only from app/src/types.ts (preferred option). Two minor leftovers (SetupPage shot:any; hardcoded localhost/test_project thumbnail URL) folded into new T-19 (UI polish + PWA/LAN) with T-20 (export panel + cost meter UI) queued behind it. AGV bootstrap priorities updated.
