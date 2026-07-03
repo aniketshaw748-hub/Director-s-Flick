@@ -793,3 +793,6 @@ Result: Done, board updated. (a) promptBackend/llmModel added to PATCH /config's
 
 ### [75] Bug flag: SettingsPage.tsx calls the wrong endpoint (found while spot-checking T-64 against T-62)
 Found while double-checking AGV's SettingsPage against my just-landed whitelist: it fetches /api/projects/${project.id}/config (plural, UUID) instead of /api/project/${projectName}/config (singular, name string) - the exact distinction my T-51/T-62 board notes already flagged. Every request 404s, silently swallowed into the page's own "backend not ready" fallback, so the settings screen has never actually worked despite looking handled. Posted exact fix (2 call sites, reference TimelinePage.tsx's established correct pattern) to the board - not touching ui/** myself.
+
+### [76] Sweep: cycle complete, nothing further claimable
+T-62 done and committed (config whitelist catch-up + real teardown-race fix, found and fixed a second instance of the same bug in the account-switch endpoint). Also caught and flagged a live SettingsPage.tsx bug while verifying T-64 against my work. Board re-swept: no Sonnet-owned task open/in-progress. Nothing further to do - letting the loop continue.
