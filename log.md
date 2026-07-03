@@ -563,3 +563,6 @@ Result: ✅ Commit 62391bc + board note. HiggsfieldCliProvider gates --mode/--so
 
 ### [60] Sweep #25: Gemini agents reintegrated
 Both back online. Roster: Flash = tests/docs (shared w/ Sonnet, Sonnet-reviewed) -> T-43 (api.md v3 + accounts tests); AGV = design/** + ui-by-lease (Fable-2 keeps ui/ while mid-T-41) -> T-45 immediate (design-spec v2 vs live app), T-44 (mobile swipe) blocked on T-41. Six-agent formation: Fable orch, Fable-2 T-41, Sonnet T-42, Opus T-35, Flash T-43, AGV T-45.
+
+### [61] Sweep #26: T-35 accepted + live schema samples delivered; Opus -> T-46/T-47
+T-35 (schema whitelists, 84/84, over-collection bias) accepted; captured real model-get payloads (kling3_0/turbo/nano) into orchestration/samples/ — turbo declares resolution-not-mode exactly as Opus's hermetic test predicted. Opus queue: T-46 (unit-aware cli cost) -> T-47 (Replicate adapter, 'replicate' ProviderName pre-approved). Gemini assignments confirmed: Flash T-43, AGV T-45 (+T-44 blocked on T-41). Six agents fully tasked.
