@@ -479,3 +479,7 @@ Opus T-30 FalProvider accepted (19 hermetic fal tests, suite 59/59, dollar-denom
 
 ### [50] T-33 IDENTITY VERIFIED + Opus re-tasked
 T-33 done: post-T-32 live run produced the CORRECT character (Hapie-ai-bot, all identity attributes) in both shots — element-identity loop proven live. 16.75cr. Opus queue updated: T-34 (claim now) -> T-35 (new: schema-driven param whitelists). GitHub push attempt was denied by the permission classifier — user must push manually or grant permission.
+
+### [48] T-24: user-guide.md Section 3 correction + T-32(b) completed live
+About to: rewrite docs/user-guide.md Section 3 (Multi-Account Profile Switching) to describe the ACTUAL shipped accounts.ts/server.ts/cli.ts behavior instead of the pre-T-05 aspirational description.
+Result: Done. Replaced with real CLI commands (accounts --add/--status, run --account), real HTTP endpoints + response shapes, and the real per-project (not global) active-account model; folded in T-32's cost_ledger.account_name column. Also, mid-cycle, CostLedgerEntry.accountName landed in types.ts (Fable) - finished T-32 part (b)'s full wiring immediately (queue.ts ShotQueue now takes an optional accountName and tags every ledger insert; server.ts/cli.ts thread their already-known active account through; cli cost prefers the real column over the old JSON fallback). Verified end-to-end via a fake test account. typecheck + full suite green throughout (59/59 at last run).
