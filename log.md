@@ -257,4 +257,20 @@ Result: ✅ Renamed the comments to "Director's Flick" and updated `BOARD.md` to
 
 ### [31] Claim T-12, T-13, T-14, T-15 and start T-12
 About to: Add `"test": "vitest run"` to `app/package.json`, remove `log.md` and `research-and-plan.md` from `.gitignore`, and commit changes.
+Result: ✅ Completed. Git ignore cleaned up, `test` script added to `app/package.json`, and all changes successfully committed (co-committed/recorded in `3aef6b6` and `dc7f361`).
+
+---
+
+## Session: Flash
+
+### [32] Claim T-13 — docs/api.md
+About to: Read `app/src/server.ts` to document the server's REST endpoints and WebSocket message shapes as built, adding `TODO(T-04)` markers where the upcoming review-gate work will modify endpoints. Write to `docs/api.md`.
+Result: ✅ Completed. Created `docs/api.md` detailing the REST endpoints, WebSocket connections, request/response models, and TODO markers for T-04 integrations.
+
+---
+
+## Session: Flash
+
+### [33] Claim T-14 — docs/cost-model.md
+About to: Extract Phase-0 measured credit costs from `research-and-plan.md` and `log.md` and document them in `docs/cost-model.md` as a single point of reference.
 Result: ⏳ In progress...
