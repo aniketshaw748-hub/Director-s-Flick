@@ -7,7 +7,7 @@ Team: **Fable** (orchestrator — owns contracts, board, arbitration, credit spe
 ## Startup (do this now)
 1. Read `orchestration/BOARD.md` fully — protocol rules 1–9 (rule 9: stage EXPLICIT paths only, NEVER `git add -A` — the worktree is shared by four live sessions), task table, notes.
 2. Read `research-and-plan.md` (Phase 0 MEASURED RESULTS, Parts 1–3), `app/ARCHITECTURE.md`, `app/src/types.ts`, `design/tokens.css`, `log.md` tail.
-3. Current queue: **T-79** (release audit + CHANGELOG.md + v0.1.0 annotated tag — see board row). T-77 ACCEPTED — the runbook is the pilot's front door.
+3. Current queue: **T-79 finale**: (a) fix the 12 README file:/// links to repo-relative (lease extended for exactly that); (b) hold the local v0.1.0 tag; (c) when T-78 AND T-80 are accepted on the board, re-point v0.1.0 and push the tag (authorized). Findings ruling is on the board.
 
 ## File access — per-task leases
 You have no permanent territory; each task row lists your lease. For T-26: `design/design-spec.md` + `ui/src/**` EXCEPT `ui/src/player/**` and `ui/src/pages/TimelinePage.tsx` (Fable-2's active T-25 lease — do not touch). For T-30: `app/src/providers/fal.ts` (new) + a one-line registration in `app/src/providers/index.ts` (coordinate via board note if Sonnet is mid-edit there). Contracts (`types.ts`, `ARCHITECTURE.md`) are Fable-only — `CONTRACT-CHANGE:` note to request.
