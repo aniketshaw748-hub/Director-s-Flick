@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { EDLEntry, Shot } from '../../../app/src/types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { EDLEntry, ElementRef, Shot } from '../../../app/src/types';
 import PreviewPlayer from '../player/PreviewPlayer';
 import type { PreviewEngine } from '../player/engine';
 import type { PlayerSegment } from '../player/engine';
+import { useProjectSocket } from '../useProjectSocket';
+import { useAutocomplete } from '../useAutocomplete';
 import '../player/timeline.css';
 
 const PROJECT = 'test_project';
@@ -40,19 +42,84 @@ function waveHeights(count: number): number[] {
   return out;
 }
 
-export default function TimelinePage({ shots }: { shots: Shot[] }) {
+interface ExportState {
+  running: boolean;
+  stage: string;
+  pct: number;
+  outputPath?: string;
+  durationSeconds?: number;
+  error?: string;
+}
+
+interface CostSummary {
+  totalCredits: number;
+  byAccount: { accountName: string | null; totalCredits: number; entryCount: number }[];
+}
+
+interface AccountBalance {
+  name: string;
+  balance: number | null;
+  authenticated: boolean;
+}
+
+export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; elements?: ElementRef[] }) {
   const [edl, setEdl] = useState<EDLEntry[]>([]);
+  const [edlVersion, setEdlVersion] = useState(0);
   const [engine, setEngine] = useState<PreviewEngine | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
+  const [exportState, setExportState] = useState<ExportState>({ running: false, stage: '', pct: 0 });
+  const [cost, setCost] = useState<CostSummary | null>(null);
+  const [accounts, setAccounts] = useState<AccountBalance[]>([]);
+  const [redoOpen, setRedoOpen] = useState(false);
+  const [redoPrompt, setRedoPrompt] = useState('');
+  const [redoBusy, setRedoBusy] = useState(false);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
+  const redoTextRef = useRef<HTMLTextAreaElement>(null);
   const lastPlayedBars = useRef(0);
   const scrubbing = useRef(false);
 
+  const autocomplete = useAutocomplete(elements, redoPrompt, setRedoPrompt, redoTextRef);
   const placedShots = shots.filter((s) => s.state === 'PLACED').length;
+
+  const refreshCost = useCallback(() => {
+    fetch(`/api/project/${PROJECT}/cost-summary`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data?.totalCredits === 'number') setCost(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  // exportProgress + redo swap-in (PLACED) arrive on the project WS
+  useProjectSocket(PROJECT, (msg) => {
+    if (msg.type === 'exportProgress') {
+      const stage = msg.stage as string;
+      if (stage === 'trim') {
+        const current = Number(msg.current ?? 0);
+        const total = Math.max(Number(msg.total ?? 1), 1);
+        setExportState({ running: true, stage: `Trimming clip ${current}/${total}`, pct: 5 + (current / total) * 75 });
+      } else if (stage === 'concat') {
+        setExportState({ running: true, stage: 'Concatenating clips', pct: 85 });
+      } else if (stage === 'mux') {
+        setExportState({ running: true, stage: 'Muxing voiceover', pct: 93 });
+      } else if (stage === 'done') {
+        setExportState({
+          running: false,
+          stage: 'done',
+          pct: 100,
+          outputPath: typeof msg.outputPath === 'string' ? msg.outputPath : undefined,
+          durationSeconds: typeof msg.durationSeconds === 'number' ? msg.durationSeconds : undefined,
+        });
+      }
+    } else if (msg.type === 'shotEvent' && msg.state === 'PLACED') {
+      // redo-animation swap-in (or first placement): EDL + spend changed
+      setEdlVersion((v) => v + 1);
+      refreshCost();
+    }
+  });
 
   // EDL is the playback source of truth; refetch when clips land/replace.
   useEffect(() => {
@@ -66,7 +133,29 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
     return () => {
       alive = false;
     };
-  }, [placedShots]);
+  }, [placedShots, edlVersion]);
+
+  // real spend + account balances (cached server-side, status-only CLI)
+  useEffect(() => {
+    refreshCost();
+    const interval = setInterval(refreshCost, 20000);
+    fetch('/api/accounts')
+      .then((r) => r.json())
+      .then(async (list: { name: string }[]) => {
+        if (!Array.isArray(list)) return;
+        const balances = await Promise.all(
+          list.map((a) =>
+            fetch(`/api/accounts/${encodeURIComponent(a.name)}/balance`)
+              .then((r) => r.json())
+              .then((b) => ({ name: a.name, balance: b?.balance ?? null, authenticated: !!b?.authenticated }))
+              .catch(() => ({ name: a.name, balance: null, authenticated: false })),
+          ),
+        );
+        setAccounts(balances);
+      })
+      .catch(() => {});
+    return () => clearInterval(interval);
+  }, [refreshCost]);
 
   const segments = useMemo<PlayerSegment[]>(
     () =>
@@ -165,31 +254,45 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  // TODO(T-05): Wire actual credits used endpoint when AccountManager is ready
-  const creditsUsed = 842.5;
-
-  const handleExport = () => {
-    // TODO(T-04): Wire export endpoint
-    setIsExporting(true);
-  };
-
-  const handleCancelExport = () => {
-    // TODO(T-04): Wire cancel export endpoint
-    setIsExporting(false);
-  };
-
-  const handleRedoAnimation = async () => {
-    if (!selectedShotId) return;
+  const handleExport = async () => {
+    setExportState({ running: true, stage: 'Starting export…', pct: 2 });
     try {
-      await fetch(`/api/project/${PROJECT}/shots/${selectedShotId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'redoAnimation' }),
-      });
+      const res = await fetch(`/api/project/${PROJECT}/export`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? `${res.status}`);
+      // WS 'done' normally lands first; this is the fallback confirmation.
+      setExportState((s) =>
+        s.stage === 'done'
+          ? s
+          : { running: false, stage: 'done', pct: 100, outputPath: body.outputPath, durationSeconds: s.durationSeconds },
+      );
     } catch (e) {
-      console.error(e);
+      setExportState({ running: false, stage: '', pct: 0, error: e instanceof Error ? e.message : String(e) });
     }
   };
+
+  const submitRedoAnimation = async () => {
+    if (!selectedShotId) return;
+    setRedoBusy(true);
+    try {
+      const prompt = redoPrompt.trim();
+      const res = await fetch(`/api/project/${PROJECT}/shots/${selectedShotId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prompt ? { action: 'redoAnimation', prompt } : { action: 'redoAnimation' }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? `${res.status}`);
+      setRedoOpen(false);
+      setRedoPrompt('');
+    } catch (e) {
+      console.error('redoAnimation failed:', e);
+    } finally {
+      setRedoBusy(false);
+    }
+  };
+
+  const selectedEntry = edl.find((e) => e.shotId === selectedShotId);
 
   return (
     <div className="workspace">
@@ -201,19 +304,46 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
             <div className="overline">Project Stats</div>
             <div className="stats-row"><span>Shots placed</span><span className="v">{placedShots} / {shots.length}</span></div>
             <div className="stats-row"><span>Total duration</span><span className="v">{formatTime(totalDuration)}</span></div>
-            <div className="stats-row"><span>Credits used</span><span className="v">{creditsUsed} cr</span></div>
+            <div className="stats-row"><span>Credits used</span><span className="v">{cost ? `${cost.totalCredits.toFixed(1)} cr` : '—'}</span></div>
+            {cost?.byAccount.map((a) => {
+              const bal = accounts.find((x) => x.name === a.accountName);
+              return (
+                <div className="stats-row" key={a.accountName ?? '(none)'} style={{ fontSize: 'var(--fs-12)', color: 'var(--text-3)' }}>
+                  <span>· {a.accountName ?? 'no account'} ({a.entryCount} jobs)</span>
+                  <span className="v" style={{ color: 'var(--text-2)' }}>
+                    {a.totalCredits.toFixed(1)} cr{bal?.balance != null ? ` / bal ${bal.balance.toFixed(1)}` : ''}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <div className="progress-container">
-            {isExporting ? (
+            {exportState.running ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-12)', color: 'var(--text-2)', marginBottom: '8px' }}>
-                  <span>Exporting... ETA 2m</span><span className="mono" style={{ color: 'var(--lime)' }}>45%</span>
+                  <span>{exportState.stage}</span>
+                  <span className="mono" style={{ color: 'var(--lime)' }}>{Math.round(exportState.pct)}%</span>
                 </div>
-                <div className="progress-bar"><div className="progress-fill"></div></div>
-                <button className="btn btn-secondary" style={{ width: '100%', color: 'var(--danger)' }} onClick={handleCancelExport}>Cancel export</button>
+                <div className="progress-bar"><div className="progress-fill" style={{ width: `${exportState.pct}%` }}></div></div>
+                <p className="hint" style={{ textAlign: 'center' }}>NVENC trim → concat → VO mux (runs locally, no credits)</p>
               </>
             ) : (
-              <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleExport} disabled={placedShots === 0}>Export timeline</button>
+              <>
+                {exportState.stage === 'done' && (
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }} title={exportState.outputPath}>
+                    <span style={{ color: 'var(--lime)' }}>✓ Exported{exportState.durationSeconds ? ` · ${formatTime(exportState.durationSeconds)}` : ''}</span>
+                    <span className="mono">{exportState.outputPath ? clipBasename(exportState.outputPath) : ''}</span>
+                  </div>
+                )}
+                {exportState.error && (
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--danger)', marginBottom: '8px' }} role="alert">
+                    Export failed: {exportState.error}
+                  </div>
+                )}
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => void handleExport()} disabled={placedShots === 0 || edl.length === 0}>
+                  {exportState.stage === 'done' ? 'Export again' : 'Export timeline'}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -221,10 +351,35 @@ export default function TimelinePage({ shots }: { shots: Shot[] }) {
 
       <div className="timeline-area">
         <div className="tl-tools">
-          <button className="btn btn-secondary" style={{ height: '32px', fontSize: 'var(--fs-13)' }} onClick={handleRedoAnimation} disabled={!selectedShotId}>
+          <button
+            className="btn btn-secondary"
+            style={{ height: '32px', fontSize: 'var(--fs-13)' }}
+            onClick={() => setRedoOpen((o) => !o)}
+            disabled={!selectedShotId || !selectedEntry}
+            title={selectedEntry ? `Regenerate the clip for L${(selectedEntry.lineIndex + 1).toString().padStart(2, '0')} (same start image)` : 'Select a placed clip first'}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '6px' }}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
             Redo animation
           </button>
+          {redoOpen && selectedEntry && (
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flex: 1, maxWidth: '720px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <textarea
+                  ref={redoTextRef}
+                  className="script-box"
+                  style={{ height: '32px', padding: '5px 10px', resize: 'none', fontSize: 'var(--fs-13)' }}
+                  placeholder={`New animation prompt for L${(selectedEntry.lineIndex + 1).toString().padStart(2, '0')} — @ mentions elements; leave empty to regenerate automatically`}
+                  value={redoPrompt}
+                  onChange={autocomplete.onChange}
+                />
+                <autocomplete.AutocompletePopover />
+              </div>
+              <button className="btn btn-primary" style={{ height: '32px', fontSize: 'var(--fs-13)' }} onClick={() => void submitRedoAnimation()} disabled={redoBusy}>
+                {redoBusy ? 'Queuing…' : 'Regenerate clip'}
+              </button>
+              <button className="btn btn-secondary" style={{ height: '32px', fontSize: 'var(--fs-13)' }} onClick={() => setRedoOpen(false)}>✕</button>
+            </div>
+          )}
         </div>
         <div
           className="tl-track"
