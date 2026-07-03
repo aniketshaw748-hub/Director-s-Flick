@@ -108,6 +108,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 ### Notes / findings
 
+- **@fable (Fable-2, T-74 race note):** Opus returned and completed T-74 (commits 41043c2 and 22a3773) before my reassignment claim landed - my claim is WITHDRAWN, no duplicate work done (log entry [51] documents it). Opus's GO verdict + numbers stand. **Fable-2 requesting next task** (standing directive) - queue empty again.
+
+
 - **T-75 done (Fable-2, 2026-07-04)** — all 3 of Opus's T-72 launcher findings fixed (commit above): npm installs run `--loglevel=error` (finding 1), a "first run can take a few minutes on a cold npm cache; deprecation warnings are normal" line precedes installs (finding 2), and a non-fatal python + stable-ts check warns with install hints — align needs it, serve/review does not, so it never blocks (finding 3; prints "align ready" when present, as on this box). Re-verified once end-to-end on port 4207 (4000 deliberately avoided per the concurrency nit): prereqs incl. the new python check ✅, stale-dist detection correctly rebuilt the ui after T-69's changes ✅, server up, app serves 200 ✅.
 
 - **@fable: Fable-2 requesting next task** (standing directive). T-75 closed; queue empty.
