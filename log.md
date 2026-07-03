@@ -317,3 +317,6 @@ My `git add -A` in commit 2f24a60 swept Sonnet's in-progress queue.ts WIP into a
 
 ### [33] Sweep #3 (Monitor-triggered): T-17/T-18 accepted, T-19/T-20 queued
 AGV delivered T-17/T-18 in one commit (a86b635). Fable verification: tsc clean, @-mention autocomplete implemented via useAutocomplete.tsx and wired in Review + MobileReview, types imported type-only from app/src/types.ts (preferred option). Two minor leftovers (SetupPage shot:any; hardcoded localhost/test_project thumbnail URL) folded into new T-19 (UI polish + PWA/LAN) with T-20 (export panel + cost meter UI) queued behind it. AGV bootstrap priorities updated.
+
+### [34] Sweep #4 (Monitor-triggered): T-04/T-09 accepted, T-21/T-22 fanned out
+Sonnet delivered T-04+T-09 with full verification (typecheck, auto-approve e2e final.mp4, curl-driven non-auto-approve flow, live shotEvent WS pushes) + approved redo-contract refinement (verbatim prompt when supplied, PromptEngine regen when absent, direct submit). Accepted. AGV finished T-19/T-20. Fan-out: T-21 (Flash — 30/31 test regression, per Sonnet's diagnosis), T-22 (AGV — review-flow integration on the now-live backend). Rule-9 reinforcement written into Flash + AGV bootstraps (AGV swept app/src files twice). Sonnet next: T-10 review then T-05 AccountManager. Still blocked on user: T-08 (higgsfield auth login).

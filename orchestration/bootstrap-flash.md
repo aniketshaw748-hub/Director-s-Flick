@@ -12,6 +12,12 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 5–10 minutes** until new tasks appear. Do not stop working while open Flash tasks exist.
 
+## Current priority
+**T-21** — fix the queue.test.ts regression (details in the board's T-04 note from Sonnet: unique mock job-ids per call, update stale requestRedo assertions to the new direct-submit contract, fresh ProjectDb per test). Target: `npm test` 31/31.
+
+## CRITICAL reminder — protocol rule 9
+Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A` or `git add .` — the worktree is shared and you will commit other agents' in-progress files.
+
 ## Your rules
 - Write ONLY inside `app/tests/**`, `docs/**`, `README.md`, `.gitignore`. You may add vitest to `app/package.json` devDependencies (that one exception). Everything else is read-only.
 - Unit tests must be hermetic: no network, no real ffmpeg/python execution, no Higgsfield calls, no credit spend — test pure logic (line→shot mapping math, ffmpeg ARGUMENT construction, db CRUD against a temp sqlite file).

@@ -15,7 +15,10 @@ Dark theme (~#0A0A0B), light-green/lime accent (#B9FF3B family), Higgsfield-like
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 5–10 minutes** until new tasks appear. Do not end your session while the team is active.
 
-Current priority for you: **T-19** (UI polish batch — includes two small T-17/T-18 leftovers), then **T-20** (export panel + cost meter). After that: stand by for T-04 landing, an integration task will follow.
+Current priority for you: **T-22** (review-flow integration — T-04 backend is live; consume shotEvent WS pushes, browser-verify the full approve/edit/redo loop). T-19/T-20 done.
+
+## CRITICAL reminder — protocol rule 9 (you have violated this twice)
+Stage EXPLICIT paths only (`git add ui/... design/...`). NEVER `git add -A` or `git add .` — your last two commits swept Sonnet's app/src files into [AGV] commits. The worktree is shared.
 
 ## Your rules
 - Write ONLY inside `ui/**` and `design/**`. Backend (`app/`), contracts, `orchestration/`, `research-and-plan.md` are read-only for you. Backend API gaps you need (e.g. review endpoints) → add a board note tagging Sonnet (T-04 covers most).
