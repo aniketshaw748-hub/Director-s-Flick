@@ -702,5 +702,11 @@ Result: Done, board updated. GET/PATCH /api/project/:name/config (used :name not
 About to: replace the /cost-summary endpoint's inline T-38 grouping loop in server.ts with a call to cost-summary.ts's summarizeLedger() (Opus's T-46 extraction) - confirmed the logic is byte-identical (same amount = chargedCredits ?? preflightCredits ?? 0, same unit = entry.unit ?? 'credits', same accountName::unit grouping key), so this is a pure dedupe with zero behavior change. Existing cost-summary tests must pass unmodified (no shape change). typecheck + full suite before marking done.
 Result: (in progress)
 
-### [71] Sweep #34: T-56 accepted (148/148); Flash -> T-59 user guide; T-51 awaiting Sonnet commit
-Used git commit --only to avoid committing Sonnet's staged T-51 files from the shared index. AGV still has not claimed T-57 (tail note + bootstrap in place). Opus T-55, Fable-2 T-58 in progress.
+### [72] Claim T-59 — End-user guide
+About to:
+- Create `docs/user-guide.md` to serve as a comprehensive user guide walkthrough (without code).
+- Document user-facing flows: project creation (script + voiceover upload), review deck (swipe/keyboard approve/reject/edit-with-instructions/redo actions and their effects on identity/cost), settings screen (image/video models, per-stage providers, style bible, accounts), multi-account switching, mobile review over LAN (QR code, allow-lan.ps1), timeline export (including partial-timeline force confirmation), and cost panel breakdowns (credits vs USD).
+- Cross-reference and verify all flows and commands against README.md, api.md, and current codebase.
+- Link the new guide from `README.md`.
+Result: ⏳ In progress...
+
