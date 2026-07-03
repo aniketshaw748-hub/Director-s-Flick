@@ -30,6 +30,7 @@ import { summarizeLedger, formatCostAmount, ledgerUnit, type CostUnit } from './
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue } from './queue.js';
 import { exportTimeline, probeDuration } from './media.js';
+import { exportSrtSidecar, buildBurnFilterArgs } from './srt.js';
 import { startServer } from './server.js';
 import {
   listAccounts,
@@ -526,7 +527,9 @@ program
   .description('export the timeline (EDL -> trim -> concat -> VO mux -> final MP4)')
   .argument('<name>', 'project name')
   .option('--out <path>', 'output MP4 path (default: <project>/export/final.mp4)')
-  .action(async (name: string, opts: { out?: string }) => {
+  .option('--srt', 'also write a per-line .srt caption sidecar next to the MP4')
+  .option('--burn', 'construct the ffmpeg subtitles-filter args (implies --srt); does not re-encode')
+  .action(async (name: string, opts: { out?: string; srt?: boolean; burn?: boolean }) => {
     const { db, project } = openExistingProject(name);
     try {
       const outPath = path.resolve(opts.out ?? path.join(projectDir(name), 'export', 'final.mp4'));
@@ -534,6 +537,15 @@ program
       console.log(`output: ${finalPath}`);
       const dur = await probeDuration(finalPath);
       console.log(`final duration: ${fmtSec(dur)}s (ffprobe)`);
+      if (opts.srt || opts.burn) {
+        const alignmentPath = path.join(projectDir(name), 'alignment.json');
+        const srtPath = exportSrtSidecar(finalPath, alignmentPath);
+        console.log(`captions: ${srtPath}`);
+        if (opts.burn) {
+          // Construct only; execution stays with the export pipeline (see srt.ts).
+          console.log(`burn args: ${buildBurnFilterArgs(srtPath).join(' ')}`);
+        }
+      }
     } finally {
       db.close();
     }
