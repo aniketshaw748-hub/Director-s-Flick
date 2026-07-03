@@ -749,3 +749,6 @@ Action: Flash idle — requested next task on the board.
 LLM prompt engine verified (identity guard, fallback, hermetic) but imported an undeclared transitive dep - declared ^0.110.0 directly. SettingsPage + user guide + config endpoints all accepted. New: Flash flake hardening, Sonnet whitelist catch-up + teardown race, Opus crash-recovery e2e, AGV prompt-engine controls. Pipeline now feature-complete vs PRD; real-credit pilot (~155cr/$9.30 for 20 lines) awaits product-owner go.
 
 - **T-64 (AGV)**: Added Prompt Engine controls to SettingsPage.tsx and updated design-spec.md. Noted tsc failure in player/engine.ts to Fable-2.
+
+### [74] Sweep #37: T-64 accepted; AGV -> T-65 (cost panel per-unit UI)
+Prompt-engine settings controls verified. T-62 (Sonnet) and T-63 (Opus) still unclaimed - poll-loop nudge posted. T-60 (fable2) and T-61 (flash) in progress.

@@ -1,12 +1,11 @@
 {
-  "last_seen_commit": "fb93f77e14681f7d623b9d46828aca5ae3f5ee7c",
   "pending": [
-    "T-51 accept pending sonnet commit",
-    "T-52 Sonnet",
-    "T-55 Opus",
-    "T-57 AGV unclaimed - reroute warning",
-    "T-59 Flash",
-    "T-60 Fable-2"
+    "T-60 Fable-2",
+    "T-61 Flash",
+    "T-62 Sonnet",
+    "T-63 Opus",
+    "T-64 AGV"
   ],
-  "last_sweep": "2026-07-03T23:36"
+  "last_seen_commit": "8f4f1dc8cd5fdccd0c6e1225ea23c525f07fd60e",
+  "last_sweep": "2026-07-03T23:50"
 }
