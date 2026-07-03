@@ -25,6 +25,9 @@
  * and no network / API key is required.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ElementRef, LineTiming, PipelineConfig, PromptEngine, Shot } from './types.js';
 import { elementPlaceholder } from './types.js';
@@ -53,6 +56,85 @@ const SYSTEM_PROMPT =
   'For an element-tagged subject, describe ONLY action, pose, framing, environment, and lighting.';
 
 // ---------------------------------------------------------------------------
+// Documentary Image Prompt Writer (owner-authored spec) + rule post-checks (T-89)
+// ---------------------------------------------------------------------------
+
+/** app/prompts/documentary-image-writer.md, resolved relative to this module. */
+const DOC_SPEC_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'prompts',
+  'documentary-image-writer.md',
+);
+
+/** Load the owner's verbatim documentary spec; null if unreadable (fallback path). */
+function loadDocumentarySpec(): string | null {
+  try {
+    const text = fs.readFileSync(DOC_SPEC_PATH, 'utf-8').trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Appended after the documentary spec so its Rule 14 (real people =
+ * reference-only, never described) is realized through THIS pipeline's
+ * `<<<element_id>>>` placeholder mechanism, and so the structured-JSON envelope
+ * is reconciled with Rule 23 ("output only the finished prompt").
+ */
+const IMAGE_IDENTITY_BRIDGE =
+  '\n\n---\n\n# Placeholder & identity mechanism (realizes Rule 14 here)\n' +
+  'Registered subjects are supplied as `<<<element_id>>>` placeholder tokens. For each relevant ' +
+  'element, embed its placeholder verbatim (never alter or invent one) and NEVER physically ' +
+  'describe an element-tagged subject — no colors, materials, species, build, features, or ' +
+  'clothing. The placeholder already carries identity via a reference image; describe only ' +
+  'action, pose, framing, environment, and lighting for that subject. The style bible in the ' +
+  'user message applies to every prompt.\n' +
+  'OUTPUT: return the required JSON exactly; put ONLY the finished cinematic scene description in ' +
+  'each `imagePrompt` field (no reasoning or commentary, per Rule 23). One entry per requested lineIndex.';
+
+/** Built-in fallback if the spec file is unreadable (keeps the engine working). */
+const IMAGE_SYSTEM_FALLBACK = SYSTEM_PROMPT + IMAGE_IDENTITY_BRIDGE;
+
+function buildImageSystem(spec: string | null): string {
+  return spec ? spec + IMAGE_IDENTITY_BRIDGE : IMAGE_SYSTEM_FALLBACK;
+}
+
+/**
+ * Animation keeps its own motion-only engine but inherits the documentary framing
+ * (single decisive moment, visible action, one continuous scene, no split screens,
+ * no on-screen text) and the identity rule.
+ */
+const ANIMATION_SYSTEM =
+  'You are a documentary cinematographer writing image-to-video MOTION prompts (kling3_0) for a ' +
+  'single already-generated still. Describe ONLY motion: one camera move (slow push-in, pan, ' +
+  'handheld drift) plus subject and ambient/secondary motion. Documentary realism (inherited from ' +
+  'the image spec): one continuous real scene, a single decisive moment with visible action, NO ' +
+  'split screens / collages / before-after / picture-in-picture, and no readable on-screen text. ' +
+  '`<<<element_id>>>` placeholders are copied verbatim and their subjects are NEVER physically ' +
+  'described (identity lives in the reference image). Follow the JSON schema EXACTLY.';
+
+// Rule 3 (no split screens) and Rule 12 (no readable text) — conservative,
+// high-precision post-checks. A trip rejects the LLM prompt and substitutes the
+// identity-safe template, exactly like the identity guard: a false positive costs
+// a still-correct template prompt, never a rule violation shipped.
+const RULE3_SPLIT_SCREEN =
+  /\b(split[- ]?screens?|before\s*(?:vs\.?|versus|and|\/)\s*after|side[- ]by[- ]side|picture[- ]in[- ]picture|collages?|diptychs?|triptychs?|left\s*(?:vs\.?|versus)\s*right|past\s*(?:vs\.?|versus)\s*present|multiple (?:panels|frames)|split into (?:two|three|multiple) (?:frames|panels))\b/i;
+
+const RULE12_READABLE_TEXT =
+  /\b(captions?|subtitles?|newspapers?|news articles?|headlines?|signboards?|billboards?|infographics?|power\s?points?|teleprompters?)\b|\b(?:sign|text|banner|label|poster|screen|words?)\s+(?:that\s+)?read(?:s|ing)\b|\b(?:reads?|reading)\s*["“']|\breadable text\b/i;
+
+/** Rule 3: the prompt describes a split-screen / multi-frame / comparison composition. */
+function violatesRule3(prompt: string): boolean {
+  return RULE3_SPLIT_SCREEN.test(prompt);
+}
+/** Rule 12: the prompt relies on readable in-image text (captions, signs, headlines, …). */
+function violatesRule12(prompt: string): boolean {
+  return RULE12_READABLE_TEXT.test(prompt);
+}
+
+// ---------------------------------------------------------------------------
 // Injectable client surface (the real @anthropic-ai/sdk client satisfies it)
 // ---------------------------------------------------------------------------
 
@@ -72,6 +154,12 @@ export interface LlmPromptEngineOptions {
   client?: LlmClient;
   /** Warning sink for fallbacks (default console.warn; tests capture it). */
   warn?: (message: string) => void;
+  /**
+   * Override the loaded documentary image system spec (T-89). Absent → load
+   * app/prompts/documentary-image-writer.md; a string → use it; null → force the
+   * built-in fallback (exercised by tests). Present-key detection, not `??`.
+   */
+  imageSystemPrompt?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +284,10 @@ export class LlmPromptEngine implements PromptEngine {
   private readonly client: LlmClient | null;
   private readonly template = new TemplatePromptEngine();
   private readonly warn: (message: string) => void;
+  /** Documentary image system prompt (owner spec + identity bridge), loaded once (T-89). */
+  private readonly imageSystem: string;
+  /** Motion system prompt inheriting documentary framing (T-89). */
+  private readonly animationSystem: string = ANIMATION_SYSTEM;
 
   constructor(config: PipelineConfig, opts: LlmPromptEngineOptions = {}) {
     this.model = opts.model ?? config.llmModel ?? DEFAULT_LLM_MODEL;
@@ -207,6 +299,12 @@ export class LlmPromptEngine implements PromptEngine {
     } else {
       this.client = null;
     }
+    // T-89: load the owner's documentary spec at construction (or an override/fallback).
+    const spec = 'imageSystemPrompt' in opts ? (opts.imageSystemPrompt ?? null) : loadDocumentarySpec();
+    if (!('imageSystemPrompt' in opts) && spec === null) {
+      this.warn('[prompts-llm] documentary-image-writer.md unreadable; using built-in fallback system prompt');
+    }
+    this.imageSystem = buildImageSystem(spec);
   }
 
   private fellBack(reason: string): void {
@@ -221,12 +319,12 @@ export class LlmPromptEngine implements PromptEngine {
   }
 
   /** One structured-JSON Messages call. Throws on any failure (callers fall back). */
-  private async callJson(user: string, schema: unknown): Promise<unknown> {
+  private async callJson(user: string, schema: unknown, system: string): Promise<unknown> {
     if (this.client === null) throw new Error('no Anthropic client (ANTHROPIC_API_KEY unset)');
     const res = await this.client.messages.create({
       model: this.model,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      system,
       messages: [{ role: 'user', content: user }],
       output_config: { format: { type: 'json_schema', schema } },
     });
@@ -321,7 +419,10 @@ export class LlmPromptEngine implements PromptEngine {
       const wanted = new Set(batch.map((l) => l.index));
       let map: Map<number, string> = new Map();
       try {
-        map = this.parseImageJson(await this.callJson(this.buildImageUser(batch, elements, styleBible), IMAGE_SCHEMA), wanted);
+        map = this.parseImageJson(
+          await this.callJson(this.buildImageUser(batch, elements, styleBible), IMAGE_SCHEMA, this.imageSystem),
+          wanted,
+        );
       } catch (err) {
         this.fellBack(`image batch call failed: ${errMessage(err)}`);
         map = new Map();
@@ -330,20 +431,23 @@ export class LlmPromptEngine implements PromptEngine {
       for (const line of batch) {
         const rel = relevantElements(line.text, elements);
         const llmPrompt = map.get(line.index);
-        if (llmPrompt === undefined) {
-          // model skipped the line (or call failed) -> identity-safe template
-          const [t] = await this.template.imagePromptBatch([line], elements, styleBible);
-          results.push({ lineIndex: line.index, imagePrompt: t!.imagePrompt });
-        } else if (leaksElementAppearance(llmPrompt, rel, styleBible)) {
-          this.fellBack(
-            `identity guard rejected image prompt for line ${line.index} (physical description of an element-tagged subject)`,
-          );
+        // Guard chain — a trip substitutes the identity-safe template for that line.
+        // (undefined = model skipped the line: template, no warning.)
+        let reject: string | null = null;
+        if (llmPrompt === undefined) reject = 'skipped';
+        else if (leaksElementAppearance(llmPrompt, rel, styleBible))
+          reject = 'identity guard rejected — physical description of an element-tagged subject';
+        else if (violatesRule3(llmPrompt)) reject = 'Rule 3 rejected — split-screen / multi-frame composition';
+        else if (violatesRule12(llmPrompt)) reject = 'Rule 12 rejected — readable in-image text';
+
+        if (reject !== null) {
+          if (llmPrompt !== undefined) this.fellBack(`image prompt for line ${line.index}: ${reject}`);
           const [t] = await this.template.imagePromptBatch([line], elements, styleBible);
           results.push({ lineIndex: line.index, imagePrompt: t!.imagePrompt });
         } else {
           results.push({
             lineIndex: line.index,
-            imagePrompt: ensurePlaceholders(llmPrompt, rel.map((el) => el.id)),
+            imagePrompt: ensurePlaceholders(llmPrompt!, rel.map((el) => el.id)),
           });
         }
       }
@@ -365,7 +469,7 @@ export class LlmPromptEngine implements PromptEngine {
 
     let text: string | null = null;
     try {
-      const json = await this.callJson(this.buildAnimationUser(shot, shotElements), ANIMATION_SCHEMA);
+      const json = await this.callJson(this.buildAnimationUser(shot, shotElements), ANIMATION_SCHEMA, this.animationSystem);
       const raw =
         json !== null && typeof json === 'object'
           ? (json as Record<string, unknown>)['animationPrompt']

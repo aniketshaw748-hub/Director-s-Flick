@@ -262,3 +262,70 @@ describe('LlmPromptEngine branch coverage (T-82)', () => {
     expect(out.lineIndex).toBe(0); // no crash; blank-named element is simply never name-matched
   });
 });
+
+// ---------------------------------------------------------------------------
+// T-89 — owner's documentary Master System Prompt wired in + Rule 3/12 guards.
+// ---------------------------------------------------------------------------
+
+describe('LlmPromptEngine documentary system prompt + rule guards (T-89)', () => {
+  test('the owner spec (documentary-image-writer.md) is loaded and sent as the image system', async () => {
+    const { client, create } = mockClient({ prompts: [{ lineIndex: 0, imagePrompt: `A figure climbs the stairs ${TAG}` }] });
+    await new LlmPromptEngine(config(), { client }).imagePromptBatch([line()], [HAPIE], '');
+    const system = String(create.mock.calls[0][0].system);
+    expect(system).toContain('documentary visual storyteller'); // verbatim from the spec file
+    expect(system).toContain('No split screens'); // Rule 3 heading text from the spec
+    expect(system).toContain('<<<element_id>>>'); // the appended identity/placeholder bridge
+  });
+
+  test('imageSystemPrompt override replaces the loaded spec (bridge still appended)', async () => {
+    const { client, create } = mockClient({ prompts: [{ lineIndex: 0, imagePrompt: `x ${TAG}` }] });
+    await new LlmPromptEngine(config(), { client, imageSystemPrompt: 'CUSTOM_SPEC_MARKER_XYZ' }).imagePromptBatch(
+      [line()],
+      [HAPIE],
+      '',
+    );
+    const system = String(create.mock.calls[0][0].system);
+    expect(system).toContain('CUSTOM_SPEC_MARKER_XYZ');
+    expect(system).toContain('<<<element_id>>>');
+  });
+
+  test('RULE 3 guard: a split-screen / before-after prompt is rejected -> template', async () => {
+    const { client } = mockClient({
+      prompts: [{ lineIndex: 0, imagePrompt: `A before vs after split-screen of the factory ${TAG}` }],
+    });
+    const warn = vi.fn();
+    const [out] = await new LlmPromptEngine(config(), { client, warn }).imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toContain('Featuring Hapie'); // identity-safe template substituted
+    expect(out.imagePrompt).not.toMatch(/split-screen/i);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('Rule 3'))).toBe(true);
+  });
+
+  test('RULE 12 guard: a readable-in-image-text prompt is rejected -> template', async () => {
+    const { client } = mockClient({
+      prompts: [{ lineIndex: 0, imagePrompt: `A newspaper headline reading "SUCCESS" on a desk ${TAG}` }],
+    });
+    const warn = vi.fn();
+    const [out] = await new LlmPromptEngine(config(), { client, warn }).imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toContain('Featuring Hapie');
+    expect(out.imagePrompt).not.toMatch(/newspaper|headline/i);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('Rule 12'))).toBe(true);
+  });
+
+  test('a clean documentary prompt (no split screen / text / appearance leak) passes through', async () => {
+    const { client } = mockClient({
+      prompts: [{ lineIndex: 0, imagePrompt: `Workers load finished products into a delivery truck ${TAG}` }],
+    });
+    const warn = vi.fn();
+    const [out] = await new LlmPromptEngine(config(), { client, warn }).imagePromptBatch([line()], [HAPIE], '');
+    expect(out.imagePrompt).toBe(`Workers load finished products into a delivery truck ${TAG}`);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test('animation prompts use the documentary-framed motion system (single moment, no split screens)', async () => {
+    const { client, create } = mockClient({ animationPrompt: `Slow push-in as the figure climbs ${TAG}` });
+    await new LlmPromptEngine(config(), { client }).animationPrompt(shot(), [HAPIE]);
+    const system = String(create.mock.calls[0][0].system);
+    expect(system).toMatch(/documentary/i);
+    expect(system).toMatch(/split screens/i);
+  });
+});
