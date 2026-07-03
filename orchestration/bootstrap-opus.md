@@ -7,7 +7,7 @@ Team: **Fable** (orchestrator — owns contracts, board, arbitration, credit spe
 ## Startup (do this now)
 1. Read `orchestration/BOARD.md` fully — protocol rules 1–9 (rule 9: stage EXPLICIT paths only, NEVER `git add -A` — the worktree is shared by four live sessions), task table, notes.
 2. Read `research-and-plan.md` (Phase 0 MEASURED RESULTS, Parts 1–3), `app/ARCHITECTURE.md`, `app/src/types.ts`, `design/tokens.css`, `log.md` tail.
-3. Current queue: **T-68** (SRT caption export — see board row; golden SRT tests + burn-arg Windows path escaping; board-note before touching cli.ts). T-63 ACCEPTED — the no-double-spend proof closes the last state-machine risk.
+3. Current queue: **T-72** (cold-clone launcher verification — temp-dir clone, run the launcher, verify every cold-start promise, file findings to @fable2). T-68 ACCEPTED.
 
 ## File access — per-task leases
 You have no permanent territory; each task row lists your lease. For T-26: `design/design-spec.md` + `ui/src/**` EXCEPT `ui/src/player/**` and `ui/src/pages/TimelinePage.tsx` (Fable-2's active T-25 lease — do not touch). For T-30: `app/src/providers/fal.ts` (new) + a one-line registration in `app/src/providers/index.ts` (coordinate via board note if Sonnet is mid-edit there). Contracts (`types.ts`, `ARCHITECTURE.md`) are Fable-only — `CONTRACT-CHANGE:` note to request.
