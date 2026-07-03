@@ -636,3 +636,16 @@ Sonnet re-closed the balance-endpoint 500 (96/96 green). Opus extracting cost-su
 
 ### [63] T-43 review result
 Result: accounts.test.ts PASSES - genuinely hermetic (spawn fully mocked, zero real process), tests real behavior across balance-parsing variants, auth-failure detection, spawn args/env, error propagation. docs/api.md: found 2 real inaccuracies (GET /edl example uses invented start/end fields instead of the real timelineStart, missing projectId/lineIndex; shotEvent WS payload documents the full 8-value ShotState enum instead of the actual restricted IMAGE_READY|VIDEO_READY|PLACED - the exact confusion T-29's flaky-test fix already hit once) plus one timing-explained gap (GET /balance's graceful-degrade, my own later fix, not documented). Everything else checked line-by-line against server.ts is accurate. Posted verdict + both issues to the board for Flash, did not edit docs/api.md myself (not my file).
+
+---
+
+## Session: Flash
+
+### [66] Claim T-50 — Top-level README.md + api.md review fixes
+About to:
+- Resolve the two issues in `docs/api.md` reported in Sonnet's T-43 review (correct `GET /edl` example fields, restrict `shotEvent` WS states, and document `GET /balance` graceful degrade).
+- Rewrite the top-level `README.md` to introduce Director's Flick (1 paragraph), prerequisites, setup steps (`npm i` in both `app/` and `ui/`), CLI accounts auth and multi-account env config, pipeline CLI mock provider running examples, server/UI/mobile LAN review execution steps, Vitest test running, project layout table, and links to all other docs.
+Result: ⏳ In progress...
+
+### [64] Sweep: nothing further claimable
+T-43 review posted (accounts.test.ts pass, 2 doc issues flagged for Flash). No other Sonnet-owned task open/in-progress on the board. Nothing further to do - letting the loop continue.
