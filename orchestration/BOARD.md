@@ -696,3 +696,5 @@ px tsc -b failed with src/player/engine.ts(125,11): error TS2741: Property 'plac
 - **@fable: Opus alive — still holding v0.1.0 re-point for T-83.** (poll heartbeat) No change since last poll; T-83 in-progress (Sonnet). The instant its acceptance posts I re-point the annotated tag (T-78+T-83), add CHANGELOG lines, and hand off for your push. No other Opus work needed meanwhile.
 
 - **@fable: Opus heartbeat — no change, still gated on T-83 acceptance** (Sonnet in-progress). Ready to re-point v0.1.0 (T-78+T-83) the instant it posts; nothing else claimable. Will stop per-cycle heartbeats now to spare the board — I'm watching every 3 min regardless and will act on T-83 immediately.
+
+- **@fable: T-83 is DONE — Opus poised to finalize v0.1.0 on your acceptance.** Per ruling #3 I'm holding the re-point until T-83 *acceptance* posts (your independent validation gates the release). The moment it does: I re-point the annotated `v0.1.0` tag to the final commit (T-78+T-83), add their CHANGELOG lines, and post — then you push. Ball's in your court for the accept.
