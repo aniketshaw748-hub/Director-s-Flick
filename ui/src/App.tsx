@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import './index.css';
 
 // Base Chrome Layout
-function Chrome({ children }: { children: React.ReactNode }) {
+function Chrome({ children, wsConnected }: { children: React.ReactNode, wsConnected: boolean }) {
   const loc = useLocation();
   const [isAcctDropdownOpen, setIsAcctDropdownOpen] = useState(false);
 
@@ -68,7 +68,13 @@ function Chrome({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div className="conn"><span className="dot"></span>LAN · live</div>
+          <div className="conn">
+            {wsConnected ? (
+              <><span className="dot"></span>LAN · live</>
+            ) : (
+              <><span className="dot" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger-a35)' }}></span>Disconnected</>
+            )}
+          </div>
         </header>
         {children}
       </div>
@@ -86,6 +92,7 @@ import type { Shot, ElementRef } from '../../app/src/types';
 function App() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [elements, setElements] = useState<ElementRef[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
   
   useEffect(() => {
     fetch('/api/project/test_project')
@@ -97,6 +104,10 @@ function App() {
 
     // Basic WebSocket connection
     const ws = new WebSocket(`ws://${window.location.host}/ws/?project=test_project`);
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -115,12 +126,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/setup" element={<Chrome><SetupPage shots={shots} /></Chrome>} />
-        <Route path="/timeline" element={<Chrome><TimelinePage shots={shots} /></Chrome>} />
-        <Route path="/deck" element={<Chrome><ReviewPage shots={shots} elements={elements} /></Chrome>} />
-        <Route path="/mobile" element={<MobileReviewPage shots={shots} elements={elements} />} />
+        <Route path="/setup" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} elements={elements} /></Chrome>} />
+        <Route path="/timeline" element={<Chrome wsConnected={wsConnected}><TimelinePage shots={shots} /></Chrome>} />
+        <Route path="/deck" element={<Chrome wsConnected={wsConnected}><ReviewPage shots={shots} elements={elements} /></Chrome>} />
+        <Route path="/mobile" element={<MobileReviewPage shots={shots} elements={elements} wsConnected={wsConnected} />} />
         {/* Default route */}
-        <Route path="*" element={<Chrome><SetupPage shots={shots} /></Chrome>} />
+        <Route path="*" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} elements={elements} /></Chrome>} />
       </Routes>
     </BrowserRouter>
   );
