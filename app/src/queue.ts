@@ -13,6 +13,7 @@ import type {
   ElementRef,
   Project,
   ProviderName,
+  LineTiming,
 } from './types.js';
 import { clampVideoSeconds } from './types.js';
 import { projectDir, type ProjectDb, type JobRow } from './db.js';
@@ -21,6 +22,20 @@ import { projectDir, type ProjectDb, type JobRow } from './db.js';
 function unitForProvider(providerName: string): 'credits' | 'usd' {
   return providerName === 'fal' ? 'usd' : 'credits';
 }
+
+/** Marks a shot as having already had its one nsfw-sanitized retry (T-37) -
+ * stored in the existing `lastError` column so a second nsfw hit on the new
+ * job can tell "first strike" from "sanitized retry also failed" without a
+ * new persisted field. Cleared automatically on the next success/failure
+ * patch that sets a different lastError (or none). */
+const NSFW_RETRY_MARKER = 'nsfw:sanitized-retry-pending';
+
+/** A safety instruction appended to the line text handed to the PromptEngine
+ * for an nsfw-triggered sanitize retry - reuses imagePromptBatch/
+ * animationPrompt as-is (no PromptEngine interface change) by cloning the
+ * shot's LineTiming with modified text. */
+const NSFW_SAFE_SUFFIX =
+  '(keep the depiction strictly modest and tasteful; no nudity, gore, or explicit content)';
 
 /** Emitted by ShotQueue whenever a shot reaches a state a UI should react to
  * immediately (IMAGE_READY, VIDEO_READY, PLACED), in addition to whatever
@@ -45,12 +60,34 @@ export class ShotQueue extends EventEmitter {
    * queue inserts. Undefined for mock runs / no account selected. */
   private accountName: string | undefined;
 
+  /** T-37 adaptive concurrency: consecutive 'failed' poll results per stage.
+   * Reset to 0 on any 'completed' for that stage. */
+  private consecutiveImageErrors = 0;
+  private consecutiveVideoErrors = 0;
+  private static readonly ERROR_BACKOFF_THRESHOLD = 3;
+  /** Concurrent-job cap a backed-off stage is throttled down to (on top of
+   * the existing shared config.concurrency pool - never raises the total
+   * ceiling, only lets a struggling stage claim less of it). */
+  private static readonly BACKOFF_CAP = 1;
+
+  /** T-37 per-stage provider fallback hook. Optional and backward-compatible:
+   * absent (all current callers) -> zero behavior change. When supplied, a
+   * run of repeated video-stage failures switches this.videoProvider over to
+   * it once, permanently, for the rest of this queue's lifetime. Wiring a
+   * REAL fallback instance from config at construction time (server.ts/
+   * cli.ts + a PipelineConfig field) is a follow-up contract change - out of
+   * this task's lease (queue.ts + tests only). */
+  private videoProviderFallback: GenProvider | undefined;
+  private failedOverToVideoFallback = false;
+  private static readonly FAILOVER_THRESHOLD = 5;
+
   constructor(
     db: ProjectDb,
     provider: GenProvider | { image: GenProvider; video: GenProvider },
     prompts: PromptEngine,
     config: PipelineConfig,
     accountName?: string,
+    videoProviderFallback?: GenProvider,
   ) {
     super();
     this.db = db;
@@ -79,6 +116,7 @@ export class ShotQueue extends EventEmitter {
     }
     this.project = project;
     this.accountName = accountName;
+    this.videoProviderFallback = videoProviderFallback;
   }
 
   /** Signal run() to exit at the top of its next iteration (T-27: explicit
@@ -122,6 +160,9 @@ export class ShotQueue extends EventEmitter {
               if (result.creditsCharged !== undefined && result.creditsCharged !== null) {
                  this.db.updateLedgerCharge(job.id, result.creditsCharged);
               }
+              // T-37 adaptive concurrency + fallback hook: track this stage's
+              // reliability independent of any particular shot.
+              this.recordStageResult(job.kind, result.status);
               const shot = job.shotId ? this.db.getShot(job.shotId) : undefined;
               if (shot) {
                  if (result.status === 'completed') {
@@ -137,6 +178,8 @@ export class ShotQueue extends EventEmitter {
                        this.db.updateShotState(shot.id, 'VIDEO_READY', { videoPath: finalPath, attempts: 0, lastError: undefined });
                        this.emit('shotEvent', { shotId: shot.id, state: 'VIDEO_READY' } satisfies ShotEvent);
                     }
+                 } else if (result.status === 'nsfw') {
+                    await this.handleNsfw(shot, job);
                  } else {
                     this.db.updateShotState(shot.id, 'FAILED', { lastError: result.error || result.status });
                  }
@@ -149,10 +192,25 @@ export class ShotQueue extends EventEmitter {
       }
       
       const currentShots = this.db.listShots();
-      const activeJobsCount = this.db.listOpenJobs().length;
+      const openJobsNow = this.db.listOpenJobs();
+      const activeJobsCount = openJobsNow.length;
       let availableConcurrency = this.config.concurrency - activeJobsCount;
       const imageReadyCount = currentShots.filter((s: Shot) => s.state === 'IMAGE_READY' || s.state === 'IN_REVIEW').length;
-      
+
+      // T-37 adaptive concurrency: on top of the existing shared
+      // config.concurrency pool above (unchanged ceiling), a stage with 3+
+      // consecutive provider errors is additionally throttled to at most
+      // BACKOFF_CAP concurrent jobs of its own, restored (Infinity, i.e. no
+      // extra restriction) the moment that stage next succeeds.
+      const activeImageJobs = openJobsNow.filter((j) => j.kind === 'image').length;
+      const activeVideoJobs = openJobsNow.filter((j) => j.kind === 'video').length;
+      const imageBackoffCap =
+         this.consecutiveImageErrors >= ShotQueue.ERROR_BACKOFF_THRESHOLD ? ShotQueue.BACKOFF_CAP : Infinity;
+      const videoBackoffCap =
+         this.consecutiveVideoErrors >= ShotQueue.ERROR_BACKOFF_THRESHOLD ? ShotQueue.BACKOFF_CAP : Infinity;
+      let imageSlotsLeft = imageBackoffCap - activeImageJobs;
+      let videoSlotsLeft = videoBackoffCap - activeVideoJobs;
+
       // 2. Process shots state machine
       
       // A. VIDEO_READY -> PLACED
@@ -176,7 +234,7 @@ export class ShotQueue extends EventEmitter {
 
       // B. APPROVED -> VIDEO_QUEUED
       for (const shot of currentShots.filter((s: Shot) => s.state === 'APPROVED')) {
-         if (availableConcurrency <= 0) break;
+         if (availableConcurrency <= 0 || videoSlotsLeft <= 0) break;
          let animPrompt = shot.animationPrompt;
          if (!animPrompt) {
             animPrompt = await this.prompts.animationPrompt(shot, elements);
@@ -184,6 +242,7 @@ export class ShotQueue extends EventEmitter {
          }
          await this.submitVideoForShot(shot, animPrompt);
          availableConcurrency--;
+         videoSlotsLeft--;
          workDone = true;
       }
 
@@ -199,9 +258,10 @@ export class ShotQueue extends EventEmitter {
       // D. PROMPTED -> IMAGE_QUEUED
       for (const shot of currentShots.filter((s: Shot) => s.state === 'PROMPTED')) {
          if (imageReadyCount >= this.config.bufferSize) break;
-         if (availableConcurrency <= 0) break;
+         if (availableConcurrency <= 0 || imageSlotsLeft <= 0) break;
          await this.submitImageForShot(shot);
          availableConcurrency--;
+         imageSlotsLeft--;
          workDone = true;
       }
       
@@ -238,11 +298,18 @@ export class ShotQueue extends EventEmitter {
          const attempts = shot.attempts + 1;
          if (shot.videoJobId && shot.imagePath && shot.animationPrompt) {
             // Video stage failed; the approved image + anim prompt are still
-            // good - resubmit video only.
+            // good - resubmit video only. T-37: this is the path a backed-off
+            // video stage most needs throttled (it's exactly the resubmission
+            // traffic from recent failures) - skip for now, retried again
+            // once a slot frees up.
+            if (videoSlotsLeft <= 0) continue;
             await this.submitVideoForShot(shot, shot.animationPrompt, { attempts });
+            videoSlotsLeft--;
          } else if (shot.imageJobId && shot.imagePrompt) {
             // Image stage failed; the prompt is still good - resubmit image only.
+            if (imageSlotsLeft <= 0) continue;
             await this.submitImageForShot(shot, { attempts });
+            imageSlotsLeft--;
          } else {
             // Prompt-stage (or unknown) failure - full restart.
             this.db.updateShotState(shot.id, 'PENDING', { attempts });
@@ -271,10 +338,72 @@ export class ShotQueue extends EventEmitter {
     }
   }
 
+  /** T-37: update per-stage consecutive-error tracking from a poll result,
+   * and one-time-failover the video stage to the configured fallback
+   * provider (if any) once it's failed FAILOVER_THRESHOLD times running. */
+  private recordStageResult(kind: 'image' | 'video', status: string): void {
+     if (kind === 'image') {
+        if (status === 'completed') this.consecutiveImageErrors = 0;
+        else if (status === 'failed') this.consecutiveImageErrors++;
+        return;
+     }
+     if (status === 'completed') {
+        this.consecutiveVideoErrors = 0;
+        return;
+     }
+     if (status !== 'failed') return;
+     this.consecutiveVideoErrors++;
+     if (
+        !this.failedOverToVideoFallback &&
+        this.videoProviderFallback &&
+        this.consecutiveVideoErrors >= ShotQueue.FAILOVER_THRESHOLD
+     ) {
+        console.warn(
+           `[queue] video provider '${this.videoProvider.name}' failed ${this.consecutiveVideoErrors} times in a row - ` +
+              `failing over to configured fallback provider '${this.videoProviderFallback.name}'`,
+        );
+        this.videoProvider = this.videoProviderFallback;
+        this.failedOverToVideoFallback = true;
+        this.consecutiveVideoErrors = 0;
+     }
+  }
+
+  /**
+   * NSFW handling (T-37): one sanitized retry, then a permanent FAILED. The
+   * retry regenerates the prompt via the existing PromptEngine (no interface
+   * change) against a cloned LineTiming with an appended safety instruction -
+   * the shot's own persisted `line` is never mutated, only what's handed to
+   * the prompt engine for this one call. A second nsfw hit on the shot
+   * (detected via the NSFW_RETRY_MARKER left in lastError by the first) sets
+   * attempts:3 so the generic FAILED-retry loop below never resurrects it
+   * with the original, still-flaggable prompt.
+   */
+  private async handleNsfw(shot: Shot, job: JobRow): Promise<void> {
+     if (shot.lastError === NSFW_RETRY_MARKER) {
+        this.db.updateShotState(shot.id, 'FAILED', {
+           lastError: `nsfw content flagged again after a sanitized retry (${job.kind} job ${job.id}) - manual review required`,
+           attempts: 3,
+        });
+        return;
+     }
+     const elements = this.db.listElements();
+     const sfwLine: LineTiming = { ...shot.line, text: `${shot.line.text.trim()} ${NSFW_SAFE_SUFFIX}` };
+     if (job.kind === 'image') {
+        const [regenerated] = await this.prompts.imagePromptBatch([sfwLine], elements, this.config.styleBible);
+        await this.submitImageForShot(shot, {
+           prompt: regenerated?.imagePrompt ?? sfwLine.text,
+           lastError: NSFW_RETRY_MARKER,
+        });
+     } else {
+        const sanitized = await this.prompts.animationPrompt({ ...shot, line: sfwLine }, elements);
+        await this.submitVideoForShot(shot, sanitized, { lastError: NSFW_RETRY_MARKER });
+     }
+  }
+
   private async submitVideoForShot(
      shot: Shot,
      animPrompt: string,
-     opts?: { attempts?: number },
+     opts?: { attempts?: number; lastError?: string },
   ): Promise<void> {
       const videoSeconds = clampVideoSeconds(shot.line.targetDuration);
       const spec: VideoJobSpec = {
@@ -320,6 +449,7 @@ export class ShotQueue extends EventEmitter {
          videoSeconds,
          animationPrompt: animPrompt,
          ...(opts?.attempts !== undefined ? { attempts: opts.attempts } : {}),
+         ...(opts?.lastError !== undefined ? { lastError: opts.lastError } : {}),
       });
   }
 
@@ -331,7 +461,7 @@ export class ShotQueue extends EventEmitter {
    */
   private async submitImageForShot(
      shot: Shot,
-     opts?: { prompt?: string; referenceImagePath?: string; attempts?: number },
+     opts?: { prompt?: string; referenceImagePath?: string; attempts?: number; lastError?: string },
   ): Promise<void> {
       const prompt = opts?.prompt ?? shot.imagePrompt;
       if (!prompt) throw new Error(`submitImageForShot: shot ${shot.id} has no imagePrompt`);
@@ -374,6 +504,7 @@ export class ShotQueue extends EventEmitter {
          imageJobId: jobId,
          imagePrompt: prompt,
          ...(opts?.attempts !== undefined ? { attempts: opts.attempts } : {}),
+         ...(opts?.lastError !== undefined ? { lastError: opts.lastError } : {}),
       });
   }
 
