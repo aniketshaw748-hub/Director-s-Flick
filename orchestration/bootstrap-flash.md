@@ -13,7 +13,7 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 1–2 minutes (you work fast — check often)** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Current priority
-**T-29** — API integration test (see board row for exact spec). T-24 unblocks when Sonnet lands T-05.
+**T-43** — api.md v3 refresh + accounts.ts hermetic tests (see board row). You are BACK ONLINE; tests/docs are shared with Sonnet now — coordinate via board notes, Sonnet still reviews your output.
 
 ## CRITICAL reminder — protocol rule 9
 Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A` or `git add .` — the worktree is shared and you will commit other agents' in-progress files.

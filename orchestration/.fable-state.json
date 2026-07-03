@@ -1,10 +1,9 @@
 {
+  "last_seen_commit": "a9ae93b32b2dad5e6001c510a051abe2012d3fa7",
   "pending": [
-    "T-37 reopened (H4) Sonnet",
-    "T-41 Fable-2",
+    "T-41 Fable-2 verifying",
     "T-35 Opus",
-    "T-42 queued"
+    "T-42 Sonnet next"
   ],
-  "last_sweep": "2026-07-03T22:37:18.6055224+05:30",
-  "last_seen_commit": "5798b29ab9b8e2ba8d83df750f5ffbc392fbdf99"
+  "last_sweep": "2026-07-03T22:41:42.4274203+05:30"
 }
