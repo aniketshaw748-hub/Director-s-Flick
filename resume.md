@@ -118,9 +118,9 @@ something burned us:
 1. **Real-credit pilot** — the next milestone, owner's go pending
    (docs/pilot-runbook.md; validate concurrency 4 vs 6 under real latency
    during it — T-74 finding).
-2. T-88 phrase segmentation — if not accepted at shutdown, finish + accept
-   first (owner's L01/L03 worked example in log [113] is the fixture), then
-   owner re-runs alignment on their `sugar_cosmetics`-era project.
+2. T-88 phrase segmentation — DONE + ACCEPTED at shutdown (353/353; the
+   owner's L01/L03 fixture reproduces exactly). The owner just re-runs
+   alignment on their project to re-segment old coarse shots.
 3. Tinder-style swipe physics (rotation-while-drag, velocity fling,
    spring-back, stamps) — offered to owner, not yet ordered.
 4. phase0 tracked media (~31MB) — mock-consumed, stays; revisit git-lfs or a
