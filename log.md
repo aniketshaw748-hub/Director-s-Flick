@@ -400,3 +400,9 @@ AGV + Flash out of tokens mid-task. Salvage-committed their WIP (design-spec.md 
 
 ### [42] Sweep #11: Opus joins the team
 User added an Opus 4.8 terminal. Integrated as **Opus** (senior generalist, per-task leases, [opus] commits; bootstrap-opus.md). Load rebalance: T-26 (design-spec verify + browser QA) moved Fable-2 -> Opus with a lease on ui/src/** excluding Fable-2s active T-25 files; new T-30 queued for Opus (fal.ai fallback GenProvider, hermetic tests, verified $0.35/5s pricing — Phase 4 work pulled forward). Team: Fable (orch), Fable-2 (T-25 -> T-28), Sonnet (T-27 -> T-29 -> T-24), Opus (T-26 -> T-30).
+
+### [43] T-08 START (Fable): live integration run — user authenticated the CLI
+About to: (1) verify `higgsfield account status` + MCP balance baseline; (2) CLI smoke test: nano_banana_2 image WITH `<<<element_id>>>` placeholder via `higgsfield generate create --json --wait` — THE open question: does the platform-API/CLI path honor element placeholders like the MCP does? (3) if yes: mini 2-line project through the FULL real pipeline (align -> images -> review auto-approve -> kling3_0 videos -> export final.mp4) with provider higgsfield-cli; (4) reconcile every charge against MCP `transactions` + the app cost_ledger. Budget: ~15-20 credits (~$1).
+
+### [43b] T-08 progress
+CLI headless gen VERIFIED (z_image 0.15cr). Element placeholders via CLI VERIFIED — reference_elements populated, identity perfect, works CROSS-ACCOUNT (Team-workspace element, Max-account billing). Surface naming drift: CLI nano_banana_2 = NB Pro @2k (2cr). Smoke tests: 2.15cr total (Max acct 1149.05 -> 1146.9). Full live pipeline now running in background: 2-line project t08_live, provider higgsfield-cli, element-tagged, auto-approve (align -> 2 images -> 2 kling3_0 clips -> export). Will reconcile balance + app cost_ledger on completion.
