@@ -417,3 +417,6 @@ Result: (in progress)
 
 ### [43c] T-08: first real-provider bug found + hotfixed
 Live run failed at image submission: CLI submit-mode returns `["<uuid>"]` (bare string array); pickJobId expected objects -> app orphaned a completed 2cr job (d002c980, image fine). Hotfixed pickJobId (UUID-array handling) under emergency lease in Sonnet territory; typecheck clean; @sonnet post-hoc review + regression test requested. THIS is why T-08 exists — mock provider could never surface real CLI stdout shapes. Retrying full run. Max acct: 1144.9cr.
+
+### [43d] T-08: second real-provider bug hotfixed
+Hotfix 1 worked (both images generated, 4cr). New failure: provider passed --resolution to kling3_0, which has no such param (quality = --mode std/pro/4k; CLI exits code 4 on unknown params). Hotfix 2: resolution only passed to models that declare it. @sonnet: proper fix should be schema-driven per-model param whitelists (higgsfield model get <jst> --json at provider init, cached) — add to your review of my hotfixes. Retrying; Max acct 1140.9cr.

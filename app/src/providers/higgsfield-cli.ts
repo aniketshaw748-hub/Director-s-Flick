@@ -467,7 +467,12 @@ export class HiggsfieldCliProvider implements GenProvider {
       args.push('--duration', String(spec.duration));
       args.push('--mode', spec.mode ?? this.config.models.videoMode);
       args.push('--sound', spec.soundOff ? 'off' : 'on');
-      args.push('--resolution', spec.resolution ?? '720p');
+      // kling3_0 has no `resolution` param (quality is selected via --mode:
+      // std/pro/4k) — the CLI hard-errors on unknown params (observed live,
+      // T-08). Only pass --resolution to models that declare it.
+      if (spec.resolution && spec.model !== 'kling3_0') {
+        args.push('--resolution', spec.resolution);
+      }
     } else {
       if (spec.resolution) args.push('--resolution', spec.resolution);
       // Edit = image-to-image: the rejected image is passed as a reference
