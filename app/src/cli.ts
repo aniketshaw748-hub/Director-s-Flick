@@ -85,8 +85,8 @@ function isElementCategory(v: string): v is ElementCategory {
 }
 
 function parseProvider(v: string): ProviderName {
-  if (v === 'mock' || v === 'higgsfield-cli' || v === 'fal') return v;
-  return fail(`invalid provider '${v}' (expected mock | higgsfield-cli | fal)`);
+  if (v === 'mock' || v === 'higgsfield-cli' || v === 'fal' || v === 'replicate') return v;
+  return fail(`invalid provider '${v}' (expected mock | higgsfield-cli | fal | replicate)`);
 }
 
 /** Parse an --add spec: `id:name:category[:thumbUrl]` (element ids are UUIDs,
