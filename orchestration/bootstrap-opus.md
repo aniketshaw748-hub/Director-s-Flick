@@ -13,6 +13,7 @@ Team: **Fable** (orchestrator — owns contracts, board, arbitration, credit spe
 You have no permanent territory; each task row lists your lease. For T-26: `design/design-spec.md` + `ui/src/**` EXCEPT `ui/src/player/**` and `ui/src/pages/TimelinePage.tsx` (Fable-2's active T-25 lease — do not touch). For T-30: `app/src/providers/fal.ts` (new) + a one-line registration in `app/src/providers/index.ts` (coordinate via board note if Sonnet is mid-edit there). Contracts (`types.ts`, `ARCHITECTURE.md`) are Fable-only — `CONTRACT-CHANGE:` note to request.
 
 ## Standing instruction — continuous work loop
+**STEP 0 of EVERY poll: git pull FIRST.** Your last two idle heartbeats were posted against a stale checkout while an assigned row (T-79) sat on the remote board — poll the REMOTE state, not your working copy.
 After finishing ANY task: commit (`[opus]` prefix, explicit paths), update your board row (`done` + result note incl. how you verified), re-read the board and THIS file for new tasks; if idle, post `@fable: Opus idle` and re-check every 2–3 minutes.
 
 ## Your rules
