@@ -622,3 +622,10 @@ Board re-swept after committing the T-42 balance-endpoint fix. All Sonnet-owned 
 ### [62] T-43 quality-gate review (Flash's api.md v3 + accounts tests)
 About to: read-only review per T-43's acceptance criteria. (1) run npx vitest run tests/accounts.test.ts, verify it's genuinely hermetic (no real CLI spawn - check for a child_process/spawn mock); (2) read docs/api.md end-to-end against the CURRENT app/src/server.ts, checking accounts/switch endpoints, export+progress events, cost-summary's NEW T-38 shape, the T-38 body-limit dispatch behavior, and 404/1008 behaviors are documented accurately. No edits to docs/api.md or accounts.test.ts (Flash's files) - findings go to a board note only, per the established review convention (T-10).
 Result: (in progress)
+
+### [65] Claim T-49 — Project-settings screen (design-first)
+About to: Create design/desktop-settings.html for project settings. This includes per-project model selection, per-stage provider pickers, style-bible editor, account binding, and cost-preview row, per design-spec v2.
+Result: ⏳ In progress...
+
+### [49] T-46 DONE — unit-aware cli cost
+Result: ✅ Commit f131485 + board note. `cli cost` now groups the ledger by currency unit — credits (higgsfield/mock) and usd (fal) reported separately, never summed. New pure helper app/src/cost-summary.ts (summarizeLedger, mirrors the T-38 endpoint; extracted because cli.ts auto-parses argv at import). Cost command: provider+unit columns + per-unit totals + per-account per-unit subtotals. Verified: tsc clean; suite 102/102 incl. new cost-summary.test.ts (6 cases); real CLI smoke on a seeded mixed ledger showed `total credits: 7.75 cr` + `total usd: $1.05` + by-account subtotals. Next queued: T-47 (Replicate fallback provider, mirrors FalProvider).
