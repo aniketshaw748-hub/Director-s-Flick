@@ -834,3 +834,6 @@ T-62 was accepted (server.ts no longer mid-edit), so I closed T-68's one remaini
 
 ### [79] T-70 result
 Result: Done, board updated. media.ts coverage 76.72%->100% stmts/funcs/lines, 100% branch (measured, not assumed). Covered every explicit task item plus download() (0%->100%, the largest gap, not in the original bullet list but needed to genuinely hit "materially above 74%"). Found and fixed a real test-infra bug while writing the concat-list-escaping test: the pre-existing fs mock targeted 'node:fs/promises' but media.ts imports promises from 'node:fs' directly - meaning mkdir/unlink/writeFile had been silently hitting the REAL filesystem this whole time, unnoticed since nothing before asserted on file content. No source changes to media.ts itself. typecheck + full suite 217/217 green.
+
+### [80] Sweep: cycle complete, nothing further claimable
+T-70 done and committed (media.ts coverage 76.72%->100%). T-71 (my flagged SettingsPage bug) confirmed fixed by Fable-2. T-72 (Opus, cold-clone launcher verification) in-progress, not mine. Board re-swept: no Sonnet-owned task open/in-progress. Nothing further to do - letting the loop continue.
