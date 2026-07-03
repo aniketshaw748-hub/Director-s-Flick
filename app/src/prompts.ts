@@ -21,6 +21,7 @@ import type {
   Shot,
 } from './types.js';
 import { elementPlaceholder } from './types.js';
+import { LlmPromptEngine } from './prompts-llm.js';
 
 /** Max script lines per Claude call (Phase 0 manual-flow batch size). */
 const BATCH_LINE_LIMIT = 5;
@@ -390,8 +391,14 @@ export class ClaudePromptEngine implements PromptEngine {
 // Factory
 // ---------------------------------------------------------------------------
 
-/** Mock provider -> deterministic TemplatePromptEngine; real provider -> Claude. */
+/**
+ * Backend selection (T-55): `promptBackend:'llm'` -> LlmPromptEngine (official
+ * @anthropic-ai/sdk, structured output, identity guard, template fallback).
+ * Otherwise the mock provider gets the deterministic TemplatePromptEngine and
+ * the real provider gets the Claude Agent SDK engine.
+ */
 export function createPromptEngine(config: PipelineConfig): PromptEngine {
+  if (config.promptBackend === 'llm') return new LlmPromptEngine(config);
   return config.provider === 'mock'
     ? new TemplatePromptEngine()
     : new ClaudePromptEngine();
