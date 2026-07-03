@@ -1,5 +1,5 @@
 import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { computeTimeline, planShots, alignScript, normalizeScriptText, checkScriptAudioLengthMatch } from '../src/align.js';
+import { computeTimeline, planShots, alignScript, normalizeScriptText, checkScriptAudioLengthMatch, AlignInputError } from '../src/align.js';
 import type { AlignedLine } from '../src/types.js';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -20,6 +20,7 @@ let mockFfmpegWriteOutput = true;
 let mockFfmpegStderr = '';
 let mockPythonExitCode = 0;
 let mockPythonSpawnError = false;
+let mockPythonSpawnThrowsSync = false;
 let mockPythonStdoutChunk = '';
 let mockPythonStderr = '';
 // Captured at the moment python "runs", before alignScript's cleanup unlinks
@@ -70,6 +71,12 @@ vi.mock('node:child_process', () => {
       }
 
       // default: python
+      if (command === 'python' && mockPythonSpawnThrowsSync) {
+        // Simulates a raw, un-prefixed synchronous failure inside spawn()
+        // itself (a genuine bug, not one of align.ts's own crafted errors) —
+        // the Promise constructor auto-rejects with this exact error.
+        throw new TypeError('boom: unexpected synchronous spawn failure');
+      }
       process.nextTick(() => {
         if (mockPythonSpawnError) {
           child.emit('error', new Error('ENOENT: spawn python'));
@@ -123,6 +130,7 @@ describe('align', () => {
       mockFfmpegStderr = '';
       mockPythonExitCode = 0;
       mockPythonSpawnError = false;
+      mockPythonSpawnThrowsSync = false;
       mockPythonStdoutChunk = '';
       mockPythonStderr = '';
       capturedScriptContentAtPythonSpawn = null;
@@ -501,6 +509,53 @@ describe('align', () => {
           ]);
           const result = await alignScript(scriptPath, audioPath, outJsonPath);
           expect(result).toHaveLength(2);
+        });
+      });
+
+      describe('AlignInputError wrapping (T-83)', () => {
+        test('wraps a friendly validation error as AlignInputError, preserving the message', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = path.join(TMP_DIR, 'does-not-exist.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          let caught: unknown;
+          try {
+            await alignScript(scriptPath, audioPath, outJsonPath);
+          } catch (err) {
+            caught = err;
+          }
+          expect(caught).toBeInstanceOf(AlignInputError);
+          expect((caught as Error).message).toMatch(/audio file not found/);
+        });
+
+        test('wraps the alignment result sanity-gate error as AlignInputError too', async () => {
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          writeAlignmentFixture(outJsonPath, [{ index: 0, text: 'Hello world.', start: 0, end: 1, words: [] }]);
+          let caught: unknown;
+          try {
+            await alignScript(scriptPath, audioPath, outJsonPath);
+          } catch (err) {
+            caught = err;
+          }
+          expect(caught).toBeInstanceOf(AlignInputError);
+          expect((caught as Error).message).toMatch(/zero aligned words/);
+        });
+
+        test('leaves a genuinely unexpected (non-alignScript-prefixed) error unwrapped', async () => {
+          mockPythonSpawnThrowsSync = true;
+          const scriptPath = writeScript('s.txt', 'Hello world.\n');
+          const audioPath = writeAudio('a.wav');
+          const outJsonPath = path.join(TMP_DIR, 'out.json');
+          let caught: unknown;
+          try {
+            await alignScript(scriptPath, audioPath, outJsonPath);
+          } catch (err) {
+            caught = err;
+          }
+          expect(caught).not.toBeInstanceOf(AlignInputError);
+          expect(caught).toBeInstanceOf(TypeError);
+          expect((caught as Error).message).toBe('boom: unexpected synchronous spawn failure');
         });
       });
     });

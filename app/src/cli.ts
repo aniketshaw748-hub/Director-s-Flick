@@ -24,7 +24,7 @@ import { randomUUID } from 'node:crypto';
 import { openProjectDb, projectDir, projectDbPath, ProjectDb } from './db.js';
 import { loadConfig } from './config.js';
 import type { ConfigOverrides } from './config.js';
-import { alignScript, computeTimeline, planShots } from './align.js';
+import { alignScript, computeTimeline, planShots, AlignInputError } from './align.js';
 import { createStageProviders } from './providers/index.js';
 import { summarizeLedger, formatCostAmount, ledgerUnit, type CostUnit } from './cost-summary.js';
 import { createPromptEngine } from './prompts.js';
@@ -612,5 +612,11 @@ program
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
-  fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  if (err instanceof AlignInputError) {
+    // Expected input-validation failure (T-78/T-81): print the friendly
+    // one-liner only — a JS stack + embedded ffprobe internals would bury it.
+    fail(err.message);
+  } else {
+    fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  }
 });

@@ -202,6 +202,48 @@ describe('cli.ts e2e subprocess tests', () => {
     expect(seededRes.stdout).toContain('Max · $0.35');
   }, 60000);
 
+  test('align on an empty script prints a clean one-liner via AlignInputError, no JS stack (T-83)', async () => {
+    const projName = `cli_e2e_align_empty_${randomId}`;
+    const projDir = path.join(appDir, 'projects', projName);
+    const emptyScriptFile = path.join(appDir, `temp_empty_script_${randomId}.txt`);
+    fs.writeFileSync(emptyScriptFile, '   \n\n  \t\n');
+    try {
+      const initRes = await runCliCommand(['init', projName, '--script', emptyScriptFile, '--vo', voFile]);
+      expect(initRes.code).toBe(0);
+
+      const alignRes = await runCliCommand(['align', projName]);
+      expect(alignRes.code).toBe(1);
+      expect(alignRes.stderr).toContain('error: alignScript: script has no non-empty lines');
+      // A raw .stack dump would add "\n    at " frame lines and a second
+      // "Error:" from the stack's own first line — neither should appear.
+      expect(alignRes.stderr).not.toContain('\n    at ');
+      expect(alignRes.stderr.match(/error:/gi)?.length).toBe(1);
+    } finally {
+      fs.rmSync(emptyScriptFile, { force: true });
+      fs.rmSync(projDir, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  test('align on a zero-byte audio file prints a clean one-liner via AlignInputError, no JS stack (T-83)', async () => {
+    const projName = `cli_e2e_align_zerowav_${randomId}`;
+    const projDir = path.join(appDir, 'projects', projName);
+    const zeroWavFile = path.join(appDir, `temp_zero_vo_${randomId}.wav`);
+    fs.writeFileSync(zeroWavFile, '');
+    try {
+      const initRes = await runCliCommand(['init', projName, '--script', scriptFile, '--vo', zeroWavFile]);
+      expect(initRes.code).toBe(0);
+
+      const alignRes = await runCliCommand(['align', projName]);
+      expect(alignRes.code).toBe(1);
+      expect(alignRes.stderr).toContain('error: alignScript: audio file is empty (0 bytes)');
+      expect(alignRes.stderr).not.toContain('\n    at ');
+      expect(alignRes.stderr.match(/error:/gi)?.length).toBe(1);
+    } finally {
+      fs.rmSync(zeroWavFile, { force: true });
+      fs.rmSync(projDir, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test('in-process dynamic execution of cli.ts to collect Vitest V8 coverage', async () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;

@@ -218,12 +218,47 @@ function validateAlignedLines(lines: AlignedLine[], sourcePath: string): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Every error alignScript() produces (input validation, ffprobe/ffmpeg/python
+ * spawn failures, result sanity-gate violations) is already a deliberate,
+ * actionable one-liner — see T-78/T-81. Callers (cli.ts) use this class to
+ * print that message alone, without a JS stack trace burying it (T-83).
+ */
+export class AlignInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AlignInputError';
+  }
+}
+
+/**
  * Validate + normalize script and audio inputs, spawn
  * `python scripts/align_cli.py --audio <wav> --script <txt> --out <json>`
  * (array args, PYTHONIOENCODING=utf-8), stream its ASCII progress to stdout,
  * then parse + sanity-check the written JSON into AlignedLine[].
+ *
+ * Thin wrapper: every error alignScriptInner() throws already carries the
+ * `alignScript: ...` prefix (all ~22 throw/reject sites in this file use it),
+ * so any such error is by construction one of our own crafted one-liners —
+ * re-thrown as AlignInputError so callers can print message-only. Anything
+ * else (a genuine bug) passes through unchanged, stack intact.
  */
 export async function alignScript(
+  scriptPath: string,
+  audioPath: string,
+  outJsonPath: string,
+  opts?: { onProgress?: (line: string) => void },
+): Promise<AlignedLine[]> {
+  try {
+    return await alignScriptInner(scriptPath, audioPath, outJsonPath, opts);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('alignScript:')) {
+      throw new AlignInputError(err.message);
+    }
+    throw err;
+  }
+}
+
+async function alignScriptInner(
   scriptPath: string,
   audioPath: string,
   outJsonPath: string,
