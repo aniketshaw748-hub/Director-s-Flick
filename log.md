@@ -983,3 +983,5 @@ T-83 (my last item) accepted, release shipped. No Sonnet-owned task open. Keepin
 Team standby called after the tag push (efc7b5e). Session tally for the release: T-25 (playback engine, measured), T-28 (SetupPage), T-39 (export/cost/redo live), T-40 (capstone QA, 10 findings), T-41 (project-context overhaul + deck fix, 14/14 journey), T-48 (QR onboarding + firewall script + dependency-free QR encoder), T-58 (real VO waveform), T-60 (missing-clip resilience + gapless re-measure), T-67 (production packaging), T-69 (UI states + offline self-heal), T-71 (SettingsPage 4-defect fix), T-75 (launcher polish), T-76 (prod journey 14/14), T-80 (runbook dry-run), T-81 (adversarial align QA 11/11). Switching to a light standby loop pending pilot findings.
 
 ### [101] LIVE DEFECT: UI create-project OOMs Chrome on real-size VO (base64-in-JSON). URGENT T-84 (sonnet, multipart server) + T-85 (fable2, FormData client). Standby lifted; pilot holds.
+
+### [102] Owner requested codebase cleanup -> T-86 (opus): audit-first prune of unreferenced phase0 binaries (~33MB tracked) + dead-code sweep with T-84/T-85 lease exclusions

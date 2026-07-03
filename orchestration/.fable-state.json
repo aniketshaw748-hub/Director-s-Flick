@@ -1,7 +1,9 @@
 {
+  "last_seen_commit": "42601ad90baf1a77644a657d77543af3eb64065e",
+  "last_sweep": "2026-07-04T10:40",
   "pending": [
-    "STANDBY: awaiting product-owner pilot go/no-go"
-  ],
-  "last_sweep": "2026-07-04T09:15",
-  "last_seen_commit": "efc7b5ef605009e531b2772bc1818cfc11dc88e5"
+    "T-84 Sonnet URGENT",
+    "T-85 Fable-2 URGENT",
+    "pilot holds"
+  ]
 }
