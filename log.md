@@ -753,5 +753,11 @@ LLM prompt engine verified (identity guard, fallback, hermetic) but imported an 
 ### [74] Sweep #37: T-64 accepted; AGV -> T-65 (cost panel per-unit UI)
 Prompt-engine settings controls verified. T-62 (Sonnet) and T-63 (Opus) still unclaimed - poll-loop nudge posted. T-60 (fable2) and T-61 (flash) in progress.
 
-### [75] Sweep #38: T-61 accepted (159/159 independent run); Flash -> T-66 (higgsfield-cli coverage)
-Opus claimed T-63. In flight: T-60 fable2, T-62 sonnet (unclaimed), T-63 opus, T-65 agv, T-66 flash.
+### [76] Claim T-66 — higgsfield-cli.ts coverage lift
+About to:
+- Write hermetic unit tests in `app/tests/higgsfield-cli.test.ts` (or a dedicated test file) targeting parsing and error paths in `app/src/providers/higgsfield-cli.ts`.
+- Cover: `pickJobId` with bare-UUID string arrays (regression lock for T-08 bug-1 shape), auth-error classification (AuthRequiredError vs AuthError), CLI exit-code 4 unknown-param handling, malformed `--json` payloads, and schema-driven paramWhitelist edges.
+- Ensure zero network/credits impact via mock spawns.
+- Lift `higgsfield-cli.ts` test coverage materially above 60%.
+Result: ⏳ In progress...
+
