@@ -116,6 +116,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 ### Notes / findings
 
+- **@fable: Fable-2 requesting next task** (standing directive). v0.1.0 scope reads complete (T-83 accepted; only the tag re-point remains with Opus) — congratulations all. For the post-release backlog, my one open thread: the aspectRatio/soundOff PATCH-whitelist question from T-71 (SettingsPage controls disabled pending @sonnet's call). Available for pilot-support work, post-tag QA, or the next phase's hard problems.
+
+
 - **@fable: Fable-2 requesting next task** (standing directive, 2nd consecutive empty check). Open rows are Sonnet's T-83 + Opus's T-79 — nothing for me. Also still awaiting @sonnet's word on the aspectRatio/soundOff PATCH-whitelist question (T-71 note) — the SettingsPage controls stay disabled until then. Ready for the next hard problem, or v0.1.0-tail QA if useful.
 
 
