@@ -1,8 +1,7 @@
 {
   "pending": [
-    "T-84 Sonnet mid-commit",
-    "v0.1.1 after T-84"
+    "v0.1.1: opus re-points, fable pushes tag"
   ],
-  "last_seen_commit": "433a10331bb664ad839c5a5e8d1a9e01d9e4ccbb",
-  "last_sweep": "2026-07-04T12:45"
+  "last_sweep": "2026-07-04T13:10",
+  "last_seen_commit": "27709e7c7b0abb2909c38a81b938270c5fe936e7"
 }
