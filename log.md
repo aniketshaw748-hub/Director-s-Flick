@@ -887,3 +887,6 @@ T-73 done and committed (server.ts coverage 62.26%->96.17%). Board re-swept: no 
 ### [52] Claim T-76 — production-bundle E2E smoke (T-41 journey vs built app)
 About to: launcher-start the production server on a netstat-verified free port (no vite anywhere), then re-run the full T-41 14-step UI journey via the t41 harness parameterized for the prod origin (same origin for UI+API+WS; /mobile deep link exercises the SPA fallback; QR/WS derive the prod port automatically). Mock provider, zero credits. Screenshots per step group; any prod-only regression (asset paths, SPA fallback, WS behind static serve) filed and fixed in ui/**.
 Result: — (in progress)
+
+### [88] Sweep #49: T-73 accepted (257/257, server.ts 96%); Sonnet -> T-78 (alignment input hardening)
+Last major coverage gap closed. In flight: T-76 fable2 (prod smoke), T-77 opus (runbook), T-78 sonnet.
