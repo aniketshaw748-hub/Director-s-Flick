@@ -701,3 +701,6 @@ Result: Done, board updated. GET/PATCH /api/project/:name/config (used :name not
 ### [68] Claim T-52 (dedupe cost-summary onto summarizeLedger())
 About to: replace the /cost-summary endpoint's inline T-38 grouping loop in server.ts with a call to cost-summary.ts's summarizeLedger() (Opus's T-46 extraction) - confirmed the logic is byte-identical (same amount = chargedCredits ?? preflightCredits ?? 0, same unit = entry.unit ?? 'credits', same accountName::unit grouping key), so this is a pure dedupe with zero behavior change. Existing cost-summary tests must pass unmodified (no shape change). typecheck + full suite before marking done.
 Result: (in progress)
+
+### [71] Sweep #34: T-56 accepted (148/148); Flash -> T-59 user guide; T-51 awaiting Sonnet commit
+Used git commit --only to avoid committing Sonnet's staged T-51 files from the shared index. AGV still has not claimed T-57 (tail note + bootstrap in place). Opus T-55, Fable-2 T-58 in progress.

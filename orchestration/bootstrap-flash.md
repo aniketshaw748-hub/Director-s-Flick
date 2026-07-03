@@ -13,8 +13,8 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 1–2 minutes (you work fast — check often)** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Current priority
-**T-56** — CLI subprocess tests (see board row for full spec). Your own T-53 audit found `cli.ts` at 0% coverage — kill that gap: spawn `tsx src/cli.ts` as a child process against a temp project dir (mock provider ONLY), cover `init` / `status` / `cost` (empty + seeded) / `elements` / bad-input exit codes. No network, no credits, no `align` (needs python). New file `app/tests/cli.e2e.test.ts`. Windows-safe spawn (array args). Acceptance: suite green, cli.ts coverage materially above 0%, runs under 60s.
-(T-43, T-50, T-53 all ACCEPTED — strong run.)
+**T-59** — end-user guide docs/user-guide.md (see board row for full spec). Walkthrough of every real user flow: project creation with user-provided script+VO, review deck verbs, settings, multi-account, mobile LAN review (QR), export incl. force-confirm, cost panel credits-vs-USD. Verify every claim against the code — invent nothing. (T-56 ACCEPTED — suite 148/148.)
+
 
 ## CRITICAL reminder — protocol rule 9
 Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A` or `git add .` — the worktree is shared and you will commit other agents' in-progress files.
