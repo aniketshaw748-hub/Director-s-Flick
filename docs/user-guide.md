@@ -77,8 +77,30 @@ Maintaining character identity and style consistency across dozens of scenes is 
 
 ## 3. Multi-Account Profile Switching
 
-The pipeline includes built-in support for users managing multiple Higgsfield accounts:
+The pipeline supports registering multiple Higgsfield accounts and switching which one a project uses, so different projects (or the same project over time) can run under separate billing identities.
 
-- **Isolated Sessions**: Authentication credentials are stored separately under `app/accounts/<name>/credentials.json`.
-- **Environment Injection**: Whenever the backend spawns a Higgsfield CLI task, it overrides the active profile using the `HIGGSFIELD_CREDENTIALS_PATH` environment variable. This allows different projects or jobs to execute concurrently under separate accounts without race conditions.
-- **Cost Allocation**: Every generation charge is recorded in the project's `cost_ledger` table, logged against both preflight estimates and the active account name.
+### Registering an account (CLI)
+```bash
+npm run cli -- accounts --add my-studio
+```
+This ensures `app/accounts/my-studio/` exists and spawns `higgsfield auth login`, pointing it at that account's own `credentials.json` via the `HIGGSFIELD_CREDENTIALS_PATH` environment variable (the CLI itself writes the file once you complete the interactive device-auth flow in your browser). Nothing is generated and no credits are spent by this step.
+
+List registered accounts, optionally with a live balance/auth check:
+```bash
+npm run cli -- accounts            # just the registered names
+npm run cli -- accounts --status   # + live balance / "not authenticated" per account
+```
+
+### Registering / switching an account (server API)
+The same operations are available over HTTP for the review UI:
+- `GET /api/accounts` — list registered account names.
+- `GET /api/accounts/:name/status` — live balance/auth check for one account.
+- `POST /api/accounts` (body `{ "name": "my-studio" }`) — kicks off `higgsfield auth login` scoped to that account and returns immediately (`{ "started": true, "name": "my-studio" }`); the auth flow itself still needs to be completed in a browser.
+- `POST /api/project/:name/account` (body `{ "account": "my-studio" }`) — makes `my-studio` the active account for that project. This is picked up the next time the project's generation queue (re)builds its provider — safe at any point, since queue state always resumes from the database.
+
+### How this is used under the hood
+- **Isolated sessions**: each account's Higgsfield CLI session lives in its own `app/accounts/<name>/credentials.json`, never the CLI's single global session file, so switching accounts (or running two projects under different accounts at once) never clobbers another account's login.
+- **Environment injection**: whenever the backend spawns a `higgsfield` CLI call for a project with an active account, it sets `HIGGSFIELD_CREDENTIALS_PATH` to that account's file for the duration of the call.
+- **Per-project selection, not global**: which account a project uses is tracked per project name (not a single app-wide "current account"), so concurrent projects can run under different accounts safely.
+- **Cost attribution**: every `cost_ledger` row records the `account_name` it was charged against (alongside the usual preflight/charged credit amounts); `npm run cli -- cost <project>` shows it in the `account` column. Rows written before an account was ever selected simply show no account.
+- **No real generation is ever triggered by account management itself** — `accounts --add`/`--status` and their HTTP equivalents only ever call `higgsfield auth login` / `higgsfield account status`, never `generate`.
