@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAutocomplete } from '../useAutocomplete';
 import { useProject } from '../project/ProjectContext';
 import { mediaUrl } from '../paths';
+import { useSwipe } from '../useSwipe';
 
 export default function MobileReviewPage() {
   const { projectName, shots, elements } = useProject();
@@ -14,8 +15,17 @@ export default function MobileReviewPage() {
 
   const { onChange: onEditChange, AutocompletePopover: EditPopover } = useAutocomplete(elements, editInstructions, setEditInstructions, editRef);
 
+  const { handlers, offset, isDragging, animatingOut, reset } = useSwipe({
+    onSwipeRight: () => handleAction('approve'),
+    onSwipeLeft: () => { reset(); setIsSheetOpen(true); },
+  });
+
   // T-41 (T-40 CRITICAL 2): review-gate shots sit at IN_REVIEW, not IMAGE_READY
   const activeShot = shots.find((s) => s.state === 'IN_REVIEW');
+
+  useEffect(() => {
+    reset();
+  }, [activeShot?.id, reset]);
 
   // real balance for the header chip (T-41: kill "2,025 cr" demo money)
   useEffect(() => {
@@ -64,7 +74,17 @@ export default function MobileReviewPage() {
       <div className="card-stack" style={{ flex: 1 }}>
         <div className="swipe-card card-bg"></div>
         {activeShot ? (
-          <div className="swipe-card card-fg" id="front-card">
+          <div 
+            className="swipe-card card-fg" 
+            id="front-card"
+            {...handlers}
+            style={{ 
+              transform: animatingOut === 'right' ? 'translateX(120vw) rotate(30deg)' : animatingOut === 'left' ? 'translateX(-120vw) rotate(-30deg)' : isDragging ? `translateX(${offset}px) rotate(${offset * 0.05}deg)` : 'translateX(0) rotate(0)',
+              transition: isDragging ? 'none' : 'transform var(--t-slow) var(--ease-out)',
+              touchAction: 'none',
+              cursor: isDragging ? 'grabbing' : 'grab'
+            }}
+          >
             <div className="card-image">
               {activeShot.imagePath ? (
                 <img src={mediaUrl(projectName, 'images', activeShot.imagePath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Shot frame" />
