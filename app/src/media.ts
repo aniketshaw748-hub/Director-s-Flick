@@ -329,6 +329,20 @@ async function mapLimit<T, R>(
   return results;
 }
 
+/** Per-stage progress event emitted by exportTimeline (T-36: server.ts relays
+ * these as WS `exportProgress` messages). */
+export interface ExportProgressEvent {
+  stage: 'trim' | 'concat' | 'mux' | 'done';
+  /** Clips trimmed so far (stage 'trim' only). */
+  current?: number;
+  /** Total clips to trim (stage 'trim' only). */
+  total?: number;
+  /** Final MP4 path (stage 'done' only). */
+  outputPath?: string;
+  /** ffprobe-measured final duration in seconds (stage 'done' only). */
+  durationSeconds?: number;
+}
+
 /**
  * Full export per the timeline rule:
  *   1. Sort EDL entries by timelineStart (timeline order).
@@ -344,7 +358,7 @@ export async function exportTimeline(
   entries: EDLEntry[],
   voPath: string,
   outPath: string,
-  opts?: { concurrency?: number },
+  opts?: { concurrency?: number; onProgress?: (event: ExportProgressEvent) => void },
 ): Promise<string> {
   if (entries.length === 0) {
     throw new Error('[media] exportTimeline: EDL is empty');
@@ -371,14 +385,24 @@ export async function exportTimeline(
     }
   }
 
+  let trimmed = 0;
   const trimPaths = await mapLimit(ordered, concurrency, async (entry, i) => {
     const trimPath = path.join(workDir, `trim_${String(i)}.mp4`);
-    return trimNormalize(entry.clipPath, trimPath, entry.inPoint, entry.duration);
+    const result = await trimNormalize(entry.clipPath, trimPath, entry.inPoint, entry.duration);
+    trimmed += 1;
+    opts?.onProgress?.({ stage: 'trim', current: trimmed, total: ordered.length });
+    return result;
   });
 
+  opts?.onProgress?.({ stage: 'concat' });
   const concatPath = path.join(workDir, '_concat_video.mp4');
   await concatClips(trimPaths, concatPath);
+
+  opts?.onProgress?.({ stage: 'mux' });
   await muxVoiceover(concatPath, path.resolve(voPath), finalPath);
   await fsp.unlink(concatPath).catch(() => undefined);
+
+  const durationSeconds = await probeDuration(finalPath);
+  opts?.onProgress?.({ stage: 'done', outputPath: finalPath, durationSeconds });
   return finalPath;
 }

@@ -19,6 +19,8 @@ import {
   credentialsPath,
 } from './accounts.js';
 import { alignScript, computeTimeline, planShots } from './align.js';
+import { exportTimeline, type ExportProgressEvent } from './media.js';
+import type { AccountStatus } from './accounts.js';
 import type { ElementCategory } from './types.js';
 
 const ELEMENT_CATEGORIES: readonly ElementCategory[] = ['character', 'location', 'prop'];
@@ -48,6 +50,11 @@ export function startServer(port = 4000) {
   // Names with a currently-looping queue.run() (T-27: explicit start/stop -
   // an entry can exist in openProjects, for reads, while stopped).
   const runningProjects = new Set<string>();
+  // Balance cache for the polling cost-meter widget (T-36) - avoids spawning
+  // `higgsfield account status` on every poll tick. GET .../status (T-05)
+  // stays uncached for on-demand checks (e.g. opening the account switcher).
+  const BALANCE_CACHE_MS = 60_000;
+  const balanceCache = new Map<string, { status: AccountStatus; fetchedAt: number }>();
 
   function broadcast(projectName: string, payload: unknown): void {
     const wsClients = clients.get(projectName);
@@ -381,6 +388,84 @@ export function startServer(port = 4000) {
         }
         db.upsertElement(project.id, thumbUrl ? { id, name, category, thumbUrl } : { id, name, category });
         res.json({ success: true });
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
+  });
+
+  // --- T-36 export + cost endpoints -----------------------------------------
+
+  // Export the timeline (EDL -> trim -> concat -> mux -> final MP4), the same
+  // pipeline as `cli export`, streaming per-stage progress as WS events so
+  // the TimelinePage export panel (T-20) can show a real progress bar/ETA
+  // instead of its current mocked state.
+  app.post('/api/project/:name/export', async (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const project = db.getProject();
+        if (!project) {
+           res.status(404).json({ error: 'project not found' });
+           return;
+        }
+        const entries = db.listEdl();
+        if (entries.length === 0) {
+           res.status(409).json({ error: 'EDL is empty - nothing to export (run the queue first)' });
+           return;
+        }
+        const outPath =
+           typeof req.body?.outPath === 'string' && req.body.outPath
+              ? path.resolve(req.body.outPath)
+              : path.join(projectDir(project.name), 'export', 'final.mp4');
+        const finalPath = await exportTimeline(entries, project.voPath, outPath, {
+           onProgress: (evt: ExportProgressEvent) => {
+              broadcast(req.params.name, { type: 'exportProgress', ...evt });
+           },
+        });
+        res.json({ success: true, outputPath: finalPath });
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
+  });
+
+  // Cached account balance for a polling cost-meter widget (distinct from the
+  // uncached GET /api/accounts/:name/status above, which is for on-demand
+  // checks like opening the account-switcher dropdown).
+  app.get('/api/accounts/:name/balance', async (req, res) => {
+     try {
+        const name = req.params.name;
+        const cached = balanceCache.get(name);
+        if (cached && Date.now() - cached.fetchedAt < BALANCE_CACHE_MS) {
+           res.json({ ...cached.status, cached: true });
+           return;
+        }
+        const status = await getAccountStatus(name);
+        balanceCache.set(name, { status, fetchedAt: Date.now() });
+        res.json({ ...status, cached: false });
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
+  });
+
+  // Session cost summary: ledger totals for the project, broken down by the
+  // account each entry was charged against (T-32's account_name column).
+  // Computed here from listLedger() rather than a new db.ts query - db.ts
+  // isn't leased for T-36 and listLedger already carries everything needed.
+  app.get('/api/project/:name/cost-summary', (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const entries = db.listLedger();
+        const byAccount = new Map<string, { accountName: string | null; totalCredits: number; entryCount: number }>();
+        let totalCredits = 0;
+        for (const e of entries) {
+           const credits = e.chargedCredits ?? e.preflightCredits ?? 0;
+           totalCredits += credits;
+           const key = e.accountName ?? '(none)';
+           const bucket = byAccount.get(key) ?? { accountName: e.accountName ?? null, totalCredits: 0, entryCount: 0 };
+           bucket.totalCredits += credits;
+           bucket.entryCount += 1;
+           byAccount.set(key, bucket);
+        }
+        res.json({ totalCredits, byAccount: [...byAccount.values()] });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
      }

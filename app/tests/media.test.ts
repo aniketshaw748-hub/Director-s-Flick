@@ -149,20 +149,31 @@ describe('media', () => {
       },
     ];
 
-    const finalPath = await exportTimeline(entries, 'vo.wav', 'final.mp4', { concurrency: 1 });
+    const progressEvents: any[] = [];
+    const finalPath = await exportTimeline(entries, 'vo.wav', 'final.mp4', {
+      concurrency: 1,
+      onProgress: (evt) => progressEvents.push(evt),
+    });
     expect(finalPath).toBe(path.resolve('final.mp4'));
 
     // Expected spawn calls:
     // For each entry:
-    //   1. ffprobe on clipPath (2 calls)
+    //   1. ffprobe on clipPath (2 calls, inside trimNormalize)
     //   2. ffmpeg trimNormalize (2 calls)
     // Then:
     //   3. ffmpeg concatClips (1 call)
     //   4. ffmpeg muxVoiceover (1 call)
+    //   5. ffprobe on the final output (1 call, for the 'done' progress event - T-36)
     const ffprobeCalls = mockSpawnCalls.filter(c => c.command === 'ffprobe');
     const ffmpegCalls = mockSpawnCalls.filter(c => c.command === 'ffmpeg');
 
-    expect(ffprobeCalls).toHaveLength(2);
+    expect(ffprobeCalls).toHaveLength(3);
     expect(ffmpegCalls).toHaveLength(4); // 2 trimNormalizes + 1 concat + 1 mux
+
+    // T-36: per-stage progress events fired in order.
+    expect(progressEvents.map((e) => e.stage)).toEqual(['trim', 'trim', 'concat', 'mux', 'done']);
+    const doneEvent = progressEvents[progressEvents.length - 1];
+    expect(doneEvent.outputPath).toBe(path.resolve('final.mp4'));
+    expect(doneEvent.durationSeconds).toBe(mockFfprobeDuration);
   });
 });
