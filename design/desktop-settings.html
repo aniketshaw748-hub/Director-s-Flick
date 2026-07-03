@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — Director's Flick</title>
+<style>
+/* ============ TOKENS (canonical copy: tokens.css) ============ */
+:root{
+  --bg-0:#0A0A0B; --bg-1:#0E0E10; --surface-1:#141416; --surface-2:#1A1A1D; --surface-3:#212125;
+  --overlay:rgba(6,6,8,.72);
+  --border-1:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.12); --border-3:rgba(255,255,255,.18);
+  --text-1:#F2F3EE; --text-2:#A5A8A0; --text-3:#6E716A; --text-disabled:#494B44;
+  --lime:#C6FF4D; --lime-bright:#D7FF7B; --lime-deep:#A8E635; --lime-ink:#121600;
+  --lime-a08:rgba(198,255,77,.08); --lime-a12:rgba(198,255,77,.12); --lime-a20:rgba(198,255,77,.20); --lime-a35:rgba(198,255,77,.35);
+  --danger:#FF5C5C; --danger-a12:rgba(255,92,92,.12); --danger-a35:rgba(255,92,92,.35);
+  --warn:#FFB454; --warn-a12:rgba(255,180,84,.12); --info:#8AB8F0;
+  --font-sans:"Inter","Geist","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Geist Mono","JetBrains Mono","Cascadia Code","SF Mono",Consolas,"Roboto Mono",monospace;
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:20px; --r-2xl:24px; --r-full:999px;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 8px 24px rgba(0,0,0,.45); --shadow-3:0 24px 64px rgba(0,0,0,.6);
+  --glow-lime:0 0 0 1px var(--lime-a20),0 0 24px rgba(198,255,77,.15);
+  --glow-lime-strong:0 0 0 1px var(--lime-a35),0 0 40px rgba(198,255,77,.25);
+  --t-fast:150ms; --t-med:200ms; --t-slow:250ms;
+  --ease:cubic-bezier(.2,0,0,1); --ease-out:cubic-bezier(.16,1,.3,1);
+  --wave:rgba(255,255,255,.26); --focus-ring:0 0 0 2px var(--bg-0),0 0 0 4px var(--lime-a35);
+}
+@media (prefers-reduced-motion:reduce){
+  :root{--t-fast:0ms;--t-med:0ms;--t-slow:0ms}
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+/* ============ BASE ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg-0);color:var(--text-1);font:400 var(--fs-14)/1.5 var(--font-sans);-webkit-font-smoothing:antialiased;min-width:1280px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+textarea, select, input{font:inherit;color:inherit}
+button:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.mono{font-family:var(--font-mono)}
+svg{display:block}
+
+/* ============ APP CHROME ============ */
+.app{display:flex;min-height:100vh}
+.rail{width:64px;flex:none;background:var(--bg-1);border-right:1px solid var(--border-1);display:flex;flex-direction:column;align-items:center;padding:var(--sp-4) 0;gap:var(--sp-2);position:sticky;top:0;height:100vh}
+.logo{width:32px;height:32px;border-radius:10px;background:var(--lime);display:grid;place-items:center;margin-bottom:var(--sp-5);box-shadow:var(--glow-lime)}
+.nav-btn{width:40px;height:40px;border-radius:var(--r-md);display:grid;place-items:center;color:var(--text-3);position:relative;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.nav-btn:hover{color:var(--text-1);background:var(--surface-2)}
+.nav-btn.active{color:var(--lime);background:var(--lime-a08)}
+.nav-btn.active::before{content:"";position:absolute;left:-12px;top:10px;bottom:10px;width:2px;border-radius:2px;background:var(--lime);box-shadow:0 0 8px var(--lime-a35)}
+.rail-spacer{flex:1}
+.avatar{width:28px;height:28px;border-radius:var(--r-full);background:var(--surface-3);border:1px solid var(--border-2);display:grid;place-items:center;font-size:var(--fs-11);font-weight:600;color:var(--text-2)}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:60px;flex:none;display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-8);border-bottom:1px solid var(--border-1);background:var(--bg-1)}
+.proj{display:flex;align-items:baseline;gap:var(--sp-3)}
+.proj-name{font-weight:600}
+.proj-meta{color:var(--text-3);font-size:var(--fs-12)}
+.top-spacer{flex:1}
+
+/* account chip */
+.account-chip{display:flex;align-items:center;gap:var(--sp-2);height:36px;padding:0 var(--sp-3);border-radius:var(--r-full);background:var(--surface-1);border:1px solid var(--border-1);transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
+.account-chip:hover{background:var(--surface-2);border-color:var(--border-2)}
+.account-chip .initial{width:22px;height:22px;border-radius:var(--r-full);background:var(--lime-a12);border:1px solid var(--lime-a20);color:var(--lime);display:grid;place-items:center;font-size:10px;font-weight:700}
+.account-chip .name{font-size:var(--fs-13);font-weight:500}
+.account-chip .cr{font-family:var(--font-mono);font-size:var(--fs-12);color:var(--lime)}
+.account-chip .caret{color:var(--text-3)}
+
+/* connection chip */
+.conn{display:flex;align-items:center;gap:var(--sp-2);height:36px;padding:0 var(--sp-3);border-radius:var(--r-full);border:1px solid var(--border-1);color:var(--text-2);font-size:var(--fs-12)}
+.dot{width:7px;height:7px;border-radius:var(--r-full);background:var(--lime);box-shadow:0 0 8px var(--lime-a35)}
+
+/* common atoms */
+.overline{font-size:var(--fs-11);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.card{background:var(--surface-1);border:1px solid var(--border-1);border-radius:var(--r-lg)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 var(--sp-4);border-radius:var(--r-md);font-weight:500;font-size:var(--fs-14);border:1px solid transparent;transition:all var(--t-fast) var(--ease)}
+.btn-primary{background:var(--lime);color:var(--lime-ink);font-weight:600}
+.btn-primary:hover{background:var(--lime-bright);box-shadow:var(--glow-lime-strong)}
+.btn-primary:active{background:var(--lime-deep)}
+.btn-secondary{background:var(--surface-2);border-color:var(--border-1)}
+.btn-secondary:hover{background:var(--surface-3);border-color:var(--border-2)}
+.btn-ghost{color:var(--text-2);height:32px;padding:0 var(--sp-3);font-size:var(--fs-13)}
+.btn-ghost:hover{background:var(--surface-2);color:var(--text-1)}
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--r-sm);font-size:10px;font-weight:600;background:var(--surface-3);color:var(--text-2);border:1px solid var(--border-1);text-transform:uppercase;letter-spacing:.04em}
+.badge-lime{background:var(--lime-a12);color:var(--lime);border-color:var(--lime-a20)}
+
+/* ============ SETTINGS SCREEN ============ */
+.content{flex:1;padding:var(--sp-8);display:flex;flex-direction:column;align-items:center;max-width:960px;width:100%;margin:0 auto;gap:var(--sp-6)}
+.page-head{display:flex;align-items:baseline;justify-content:space-between;width:100%}
+.page-head h1{font-size:var(--fs-22);font-weight:600;letter-spacing:-.02em}
+.page-head p{color:var(--text-3);font-size:var(--fs-13);margin-top:var(--sp-1)}
+.page-head-actions{display:flex;gap:var(--sp-3)}
+
+.section{width:100%;display:flex;flex-direction:column;gap:var(--sp-4)}
+.section-title{font-size:var(--fs-16);font-weight:600;letter-spacing:-.01em;padding-bottom:var(--sp-2);border-bottom:1px solid var(--border-1)}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-6)}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-6)}
+
+.field{display:flex;flex-direction:column;gap:var(--sp-2)}
+.field label{font-size:var(--fs-13);font-weight:500;color:var(--text-2);display:flex;justify-content:space-between}
+.field select, .field input[type="text"]{height:40px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border-1);padding:0 var(--sp-3);font-size:var(--fs-14);transition:border-color var(--t-fast) var(--ease)}
+.field select:focus, .field input[type="text"]:focus{border-color:var(--lime-a35)}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A5A8A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right var(--sp-3) center}
+.field .hint{font-size:var(--fs-12);color:var(--text-3);margin-top:2px}
+.field .label-rt{color:var(--text-3);font-weight:400;font-size:var(--fs-12)}
+
+/* Provider select special states */
+.provider-sel{position:relative}
+
+/* Style bible */
+.bible-editor{background:var(--surface-2);border:1px solid var(--border-1);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);min-height:160px;width:100%;resize:vertical;font-size:var(--fs-13);line-height:1.6;color:var(--text-2);transition:border-color var(--t-fast) var(--ease)}
+.bible-editor:focus{border-color:var(--lime-a35);color:var(--text-1)}
+.preset-pills{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-2)}
+.preset-pill{height:28px;padding:0 var(--sp-3);border-radius:var(--r-full);background:var(--surface-3);border:1px solid var(--border-1);font-size:var(--fs-12);color:var(--text-2);cursor:pointer;transition:all var(--t-fast) var(--ease)}
+.preset-pill:hover{background:var(--surface-1);border-color:var(--border-2);color:var(--text-1)}
+
+/* Cost preview card */
+.cost-card{padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-4)}
+.cost-card-head{display:flex;justify-content:space-between;align-items:center}
+.cost-card-head h3{font-size:var(--fs-16);font-weight:600}
+.cost-row{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-13);color:var(--text-2);padding:6px 0;border-bottom:1px dashed var(--border-1)}
+.cost-row:last-child{border-bottom:none}
+.cost-row .item{display:flex;align-items:center;gap:var(--sp-2)}
+.cost-row .v{font-family:var(--font-mono);font-size:var(--fs-13);color:var(--text-1)}
+.cost-row .usd{color:var(--text-3);font-family:var(--font-mono);font-size:var(--fs-12);margin-left:var(--sp-2)}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== left icon rail (shared chrome) ===== -->
+  <aside class="rail">
+    <div class="logo" title="Pipeline">
+      <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 1.8 12 7l-8.5 5.2z" fill="#121600"/></svg>
+    </div>
+    <button class="nav-btn" title="Setup">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h9M16 6h1M3 14h3M10 14h7"/><circle cx="13.5" cy="6" r="2"/><circle cx="7.5" cy="14" r="2"/></svg>
+    </button>
+    <button class="nav-btn" title="Review">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="4" width="12" height="13" rx="2.5"/><path d="M3 7v8a2.5 2.5 0 0 0 1.5 2.3" stroke-linecap="round"/></svg>
+    </button>
+    <button class="nav-btn" title="Timeline">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5.5h14"/><rect x="3" y="9" width="8" height="3.5" rx="1.4"/><rect x="12.5" y="9" width="4.5" height="3.5" rx="1.4"/><path d="M3 16.5h14"/></svg>
+    </button>
+    <button class="nav-btn" title="Export">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/><path d="M4 14.5V16a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 16v-1.5"/></svg>
+    </button>
+    <div class="rail-spacer"></div>
+    <button class="nav-btn active" title="Settings" aria-current="page">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5 5l1.4 1.4M13.6 13.6 15 15M15 5l-1.4 1.4M6.4 13.6 5 15" stroke-linecap="round"/></svg>
+    </button>
+    <div class="avatar">S</div>
+  </aside>
+
+  <div class="main">
+    <!-- ===== top bar (shared chrome) ===== -->
+    <header class="topbar">
+      <div class="proj">
+        <span class="proj-name">Director's Flick</span>
+        <span class="proj-meta">draft · 96 lines · 9:42 voiceover</span>
+      </div>
+      <div class="top-spacer"></div>
+      <button class="account-chip" title="Switch Higgsfield account">
+        <span class="initial">N</span>
+        <span class="name">NexGen Studio</span>
+        <span class="cr">2,025.0 cr</span>
+        <svg class="caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5 5 6.5 8 3.5"/></svg>
+      </button>
+      <div class="conn"><span class="dot"></span>LAN · live</div>
+    </header>
+
+    <!-- ===== settings content ===== -->
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <h1>Project Settings</h1>
+          <p>Configure pipeline models, providers, and global styles for this project.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn btn-secondary">Discard</button>
+          <button class="btn btn-primary">Save Changes</button>
+        </div>
+      </div>
+
+      <!-- Models & Modes Section -->
+      <section class="section">
+        <h2 class="section-title">Models & Dimensions</h2>
+        <div class="grid-3">
+          <div class="field">
+            <label>Image Model</label>
+            <select>
+              <option selected>Nano Banana 2</option>
+              <option>Kling 3.0 Pro</option>
+            </select>
+            <span class="hint">Base model for text-to-image</span>
+          </div>
+          <div class="field">
+            <label>Video Model</label>
+            <select>
+              <option selected>Kling 3.0</option>
+              <option>Kling 2.5 Turbo Pro</option>
+            </select>
+            <span class="hint">Base model for image-to-video</span>
+          </div>
+          <div class="field">
+            <label>Video Mode</label>
+            <select>
+              <option selected>Standard (std)</option>
+              <option>Professional (pro)</option>
+              <option>4K Ultra (4k)</option>
+            </select>
+            <span class="hint">Kling specific mode</span>
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:-8px">
+          <div class="field">
+            <label>Aspect Ratio</label>
+            <select>
+              <option selected>16:9 (Landscape)</option>
+              <option>9:16 (Portrait)</option>
+              <option>1:1 (Square)</option>
+            </select>
+          </div>
+          <div class="field" style="justify-content:center; padding-top:var(--sp-4);">
+            <label style="justify-content:flex-start; gap:var(--sp-2); cursor:pointer;">
+              <input type="checkbox" checked style="width:16px; height:16px;">
+              <span>Mute video generations</span>
+            </label>
+            <span class="hint" style="margin-left:24px;">Reduces cost. Audio is mixed at export.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Providers Section -->
+      <section class="section">
+        <h2 class="section-title">Providers <span class="badge badge-lime" style="margin-left:var(--sp-2)">Advanced</span></h2>
+        <div class="grid-3">
+          <div class="field">
+            <label>Default Provider</label>
+            <select>
+              <option>Mock (Local)</option>
+              <option selected>Higgsfield CLI</option>
+              <option>Fal.ai</option>
+              <option>Replicate</option>
+            </select>
+            <span class="hint">Global provider</span>
+          </div>
+          <div class="field">
+            <label>Image Provider <span class="label-rt">Override</span></label>
+            <select>
+              <option selected>Default</option>
+              <option>Mock (Local)</option>
+              <option>Higgsfield CLI</option>
+            </select>
+            <span class="hint">Specific provider for Image stage</span>
+          </div>
+          <div class="field">
+            <label>Video Provider <span class="label-rt">Override</span></label>
+            <select>
+              <option>Default</option>
+              <option>Mock (Local)</option>
+              <option>Higgsfield CLI</option>
+              <option selected>Fal.ai</option>
+              <option>Replicate</option>
+            </select>
+            <span class="hint">Specific provider for Video stage</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Style Bible Section -->
+      <section class="section">
+        <h2 class="section-title">Style Bible</h2>
+        <div class="field">
+          <label>Global Prompt Instructions <span class="label-rt">Injected into all generations</span></label>
+          <textarea class="bible-editor" spellcheck="false" placeholder="Enter universal styling prompts, negative prompts, and camera rules...">Painterly cinematic realism. Muted teal shadows, warm amber key light from practical sources (lantern, lamp lens). 35mm, grounded camera, gentle handheld. Fine film grain, soft bloom on highlights. Never: text, watermarks, cartoon outlines, neon color.</textarea>
+          <div class="preset-pills">
+            <button class="preset-pill">Cinematic Teal & Orange</button>
+            <button class="preset-pill">Vintage 35mm Film</button>
+            <button class="preset-pill">Dark Fantasy</button>
+            <button class="preset-pill">Clean Anime</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Account Binding & Cost Preview -->
+      <section class="section">
+        <h2 class="section-title">Billing & Costs</h2>
+        <div class="grid-2">
+          <div class="field">
+            <label>Linked Account</label>
+            <select>
+              <option selected>NexGen Studio (2,025.0 cr)</option>
+              <option>Personal (100.0 cr)</option>
+              <option>Add new account...</option>
+            </select>
+            <span class="hint">Ledger transactions will be billed to this account</span>
+          </div>
+          <div class="card cost-card">
+            <div class="cost-card-head">
+              <h3>Rates Preview</h3>
+              <span class="badge">Per generation</span>
+            </div>
+            <div>
+              <div class="cost-row">
+                <div class="item"><span>Nano Banana 2</span> <span class="badge">Image</span></div>
+                <div><span class="v">1.5 cr</span> <span class="usd">≈ $0.09</span></div>
+              </div>
+              <div class="cost-row">
+                <div class="item"><span>Kling 3.0 (std)</span> <span class="badge">Video (5s)</span></div>
+                <div><span class="v">6.25 cr</span> <span class="usd">≈ $0.37</span></div>
+              </div>
+              <div class="cost-row" style="background:var(--surface-2); padding:var(--sp-2) var(--sp-2); margin-top:var(--sp-2); border-radius:var(--r-md); border-bottom:none">
+                <div class="item"><span style="color:var(--text-1)">Fal.ai Fallback</span> <span class="badge" style="background:var(--bg-1)">Video</span></div>
+                <div><span class="v" style="color:var(--lime)">$0.35</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>
