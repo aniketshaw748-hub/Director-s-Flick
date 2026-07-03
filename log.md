@@ -880,3 +880,6 @@ Reassignment raced Opus's completion - stood Fable-2 down, corrected the record.
 
 ### [82] T-73 result
 Result: Done, board updated. server.ts coverage 62.26%->96.17% stmts/lines, 71.29%->89.44% branch, 88.88%->100% funcs (measured, no source changes). Covered T-67 static-serve/SPA-fallback (real ui/dist build, had to use a marker unique to the real index.html since Express's own error page is also generic HTML), T-48 lan-info, T-68 SRT sidecar success path (found + fixed a real gotcha: copied fixture dbs retain the original project's `name` row, so name-keyed paths resolve to the wrong directory unless renamed post-copy), error branches across accounts/balance/config/align/export/elements, all 3 /run branches, and the risky EADDRINUSE handler (tested via the real server instance with process.exit mocked, verified full-file teardown stayed clean before trusting it). Documented several genuinely-unreachable/unsafe-to-simulate gaps rather than chasing them. typecheck + full suite 257/257 green (was 217, +40 tests, zero regressions).
+
+### [83] Sweep: cycle complete, nothing further claimable
+T-73 done and committed (server.ts coverage 62.26%->96.17%). Board re-swept: no Sonnet-owned task open/in-progress. T-76 (Fable-2), T-77 (Opus) in-progress, neither mine. Nothing further to do - letting the loop continue.
