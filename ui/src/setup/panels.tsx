@@ -347,9 +347,13 @@ export function CostPanel({ state }: { state: SetupState }) {
 
 // -------------------------------------------------------------- StartPanel
 
-export function StartPanel({ state }: { state: SetupState }) {
+export function StartPanel({ state, onStarted }: { state: SetupState; onStarted?: () => void }) {
   const { shots, running, busy, startGeneration, stopGeneration, mode } = state;
   const canStart = mode === 'view' && shots.length > 0 && !running && busy === null;
+  const start = async () => {
+    const ok = await startGeneration();
+    if (ok) onStarted?.();
+  };
   return (
     <div className="start">
       {running ? (
@@ -361,7 +365,7 @@ export function StartPanel({ state }: { state: SetupState }) {
         </>
       ) : (
         <>
-          <button className="btn btn-primary" disabled={!canStart} onClick={() => void startGeneration()}>
+          <button className="btn btn-primary" disabled={!canStart} onClick={() => void start()}>
             {busy === 'run' ? 'Starting…' : 'Start generation'}
           </button>
           <span className="cap">

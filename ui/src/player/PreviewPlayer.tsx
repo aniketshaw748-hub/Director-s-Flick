@@ -82,7 +82,7 @@ export default function PreviewPlayer({ voSrc, segments, onEngine }: PreviewPlay
         {/* A/B pair: engine flips opacity/z-index at clip boundaries */}
         <video ref={vidARef} style={videoStyle} muted playsInline preload="auto" />
         <video ref={vidBRef} style={videoStyle} muted playsInline preload="auto" />
-        <audio ref={audioRef} src={voSrc} preload="auto" />
+        <audio ref={audioRef} {...(voSrc ? { src: voSrc } : {})} preload="auto" />
         {segments.length === 0 && (
           <svg viewBox="0 0 44 44" width="88" height="88" opacity="0.3" style={{ position: 'relative', zIndex: 3 }}>
             <rect x="12" y="14" width="20" height="16" rx="7" fill="#1C2530" stroke="rgba(255,255,255,.18)" />

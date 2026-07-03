@@ -1,27 +1,17 @@
 /**
- * useSetupProject.ts — SetupPage state machine (T-28).
+ * useSetupProject.ts — SetupPage state machine (T-28, reworked for T-41).
  *
- * Two modes:
- *  - 'view': an existing project — real shots/elements fetched from the
- *    server, plus a page-scoped WS subscription for sync/alignProgress/
- *    shotEvent pushes (independent of App.tsx's app-level socket so the
- *    setup flow works for freshly created projects too).
- *  - 'draft': a new project being assembled locally (name + script text +
- *    voiceover File). Nothing touches the server until createAndAlign() —
- *    see api.ts CAUTION about probe-created project shells.
+ * Project identity/state/WS now live in the app-level ProjectContext (ONE
+ * socket, every page follows the selected project). This hook keeps only the
+ * setup-flow specifics: the new-project draft, create→align orchestration,
+ * align progress lines (via ctx.subscribe), element registration, run
+ * start/stop. Creating a project switches the WHOLE APP to it via
+ * ctx.selectProject — that is the T-40 CRITICAL-1 fix in action.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementRef, Project, Shot } from '../../../app/src/types';
-import {
-  alignProject,
-  createProject,
-  getProjectState,
-  isValidProjectName,
-  listElements,
-  startRun,
-  stopRun,
-  upsertElement,
-} from './api';
+import { useProject } from '../project/ProjectContext';
+import { alignProject, createProject, isValidProjectName, startRun, stopRun, upsertElement } from './api';
 
 export interface Draft {
   name: string;
@@ -50,26 +40,20 @@ export interface SetupState {
   createAndAlign: () => Promise<void>;
   rerunAlign: () => Promise<void>;
   addElement: (el: ElementRef) => Promise<void>;
-  startGeneration: () => Promise<void>;
+  /** returns true when the run actually started (caller may navigate) */
+  startGeneration: () => Promise<boolean>;
   stopGeneration: () => Promise<void>;
-  refresh: () => Promise<void>;
 }
 
-export function useSetupProject(initialProject: string, seedShots: Shot[]): SetupState {
+export function useSetupProject(): SetupState {
+  const ctx = useProject();
   const [mode, setMode] = useState<'view' | 'draft'>('view');
-  const [projectName, setProjectName] = useState(initialProject);
-  const [project, setProject] = useState<Project | null>(null);
-  const [shots, setShots] = useState<Shot[]>(seedShots);
-  const [elements, setElements] = useState<ElementRef[]>([]);
   const [draft, setDraft] = useState<Draft>({ name: '', script: '', voFile: null });
   const [alignLines, setAlignLines] = useState<string[]>([]);
   const [aligning, setAligning] = useState(false);
   const [busy, setBusy] = useState<SetupBusy>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
-  // the project the page-scoped WS is bound to; '' = none (draft mode)
-  const wsProject = mode === 'view' ? projectName : '';
   const aliveRef = useRef(true);
 
   useEffect(() => {
@@ -79,50 +63,16 @@ export function useSetupProject(initialProject: string, seedShots: Shot[]): Setu
     };
   }, []);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    if (!wsProject) return;
-    try {
-      const state = await getProjectState(wsProject);
-      if (!aliveRef.current) return;
-      setProject(state.project);
-      setShots(state.shots);
-      setElements(state.elements);
-      setError(null);
-    } catch (e) {
-      if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [wsProject]);
-
-  // initial + per-project fetch
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  // page-scoped WS: sync + alignProgress + shotEvent for the viewed project
-  useEffect(() => {
-    if (!wsProject) return;
-    const ws = new WebSocket(`ws://${window.location.host}/ws/?project=${encodeURIComponent(wsProject)}`);
-    ws.onopen = () => setWsConnected(true);
-    ws.onclose = () => setWsConnected(false);
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'sync' && Array.isArray(data.shots)) {
-          setShots(data.shots);
-        } else if (data.type === 'shotEvent' && data.shotId) {
-          setShots((prev) => prev.map((s) => (s.id === data.shotId ? { ...s, state: data.state } : s)));
-        } else if (data.type === 'alignProgress' && typeof data.line === 'string') {
-          setAlignLines((prev) => [...prev.slice(-30), data.line]);
+  // align progress lines ride the app-level socket
+  useEffect(
+    () =>
+      ctx.subscribe((msg) => {
+        if (msg.type === 'alignProgress' && typeof msg.line === 'string') {
+          setAlignLines((prev) => [...prev.slice(-30), msg.line as string]);
         }
-      } catch {
-        /* non-JSON frame — ignore */
-      }
-    };
-    return () => {
-      setWsConnected(false);
-      ws.close();
-    };
-  }, [wsProject]);
+      }),
+    [ctx.subscribe],
+  );
 
   const startDraft = useCallback(() => {
     setMode('draft');
@@ -156,21 +106,17 @@ export function useSetupProject(initialProject: string, seedShots: Shot[]): Setu
     setError(null);
     setBusy('create');
     try {
-      const created = await createProject(draft.name, draft.script, draft.voFile);
+      await createProject(draft.name, draft.script, draft.voFile);
       if (!aliveRef.current) return;
-      // switch the page to the new project BEFORE aligning so the WS is
-      // connected and alignProgress lines stream into the UI
-      setProject(created);
-      setShots([]);
-      setElements([]);
+      // switch the WHOLE APP to the new project (context owns state + WS)
+      ctx.selectProject(draft.name);
+      void ctx.refreshProjects();
       setAlignLines([]);
-      setProjectName(draft.name);
       setMode('view');
       setBusy('align');
       setAligning(true);
       await alignProject(draft.name);
-      if (!aliveRef.current) return;
-      await refreshByName(draft.name);
+      if (aliveRef.current) await ctx.refreshState();
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -179,25 +125,17 @@ export function useSetupProject(initialProject: string, seedShots: Shot[]): Setu
         setBusy(null);
       }
     }
-
-    async function refreshByName(name: string): Promise<void> {
-      const state = await getProjectState(name);
-      if (!aliveRef.current) return;
-      setProject(state.project);
-      setShots(state.shots);
-      setElements(state.elements);
-    }
-  }, [draft]);
+  }, [draft, ctx]);
 
   const rerunAlign = useCallback(async (): Promise<void> => {
-    if (!wsProject) return;
+    if (!ctx.projectName) return;
     setError(null);
     setBusy('align');
     setAligning(true);
     setAlignLines([]);
     try {
-      await alignProject(wsProject);
-      await refresh();
+      await alignProject(ctx.projectName);
+      await ctx.refreshState();
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -206,63 +144,64 @@ export function useSetupProject(initialProject: string, seedShots: Shot[]): Setu
         setBusy(null);
       }
     }
-  }, [wsProject, refresh]);
+  }, [ctx]);
 
   const addElement = useCallback(
     async (el: ElementRef): Promise<void> => {
-      if (!wsProject) return;
+      if (!ctx.projectName) return;
       setError(null);
       setBusy('element');
       try {
-        await upsertElement(wsProject, el);
-        const els = await listElements(wsProject);
-        if (aliveRef.current) setElements(els);
+        await upsertElement(ctx.projectName, el);
+        await ctx.refreshState();
       } catch (e) {
         if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (aliveRef.current) setBusy(null);
       }
     },
-    [wsProject],
+    [ctx],
   );
 
-  const startGeneration = useCallback(async (): Promise<void> => {
-    if (!wsProject) return;
+  const startGeneration = useCallback(async (): Promise<boolean> => {
+    if (!ctx.projectName) return false;
     setError(null);
     setBusy('run');
     try {
-      await startRun(wsProject);
+      await startRun(ctx.projectName);
       if (aliveRef.current) setRunning(true);
+      return true;
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       if (aliveRef.current) setBusy(null);
     }
-  }, [wsProject]);
+  }, [ctx]);
 
   const stopGeneration = useCallback(async (): Promise<void> => {
-    if (!wsProject) return;
+    if (!ctx.projectName) return;
     try {
-      await stopRun(wsProject);
+      await stopRun(ctx.projectName);
       if (aliveRef.current) setRunning(false);
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));
     }
-  }, [wsProject]);
+  }, [ctx]);
 
   return {
     mode,
-    projectName,
-    project,
-    shots,
-    elements,
+    projectName: ctx.projectName,
+    project: ctx.project,
+    shots: ctx.shots,
+    elements: ctx.elements,
     draft,
     alignLines,
     aligning,
     busy,
     error,
     running,
-    wsConnected,
+    wsConnected: ctx.wsConnected,
     startDraft,
     cancelDraft,
     patchDraft,
@@ -271,6 +210,5 @@ export function useSetupProject(initialProject: string, seedShots: Shot[]): Setu
     addElement,
     startGeneration,
     stopGeneration,
-    refresh,
   };
 }

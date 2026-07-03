@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { EDLEntry, ElementRef, Shot } from '../../../app/src/types';
+import type { EDLEntry } from '../../../app/src/types';
 import PreviewPlayer from '../player/PreviewPlayer';
 import type { PreviewEngine } from '../player/engine';
 import type { PlayerSegment } from '../player/engine';
-import { useProjectSocket } from '../useProjectSocket';
+import { useProject } from '../project/ProjectContext';
+import { mediaBasename, mediaUrl } from '../paths';
 import { useAutocomplete } from '../useAutocomplete';
 import '../player/timeline.css';
 
-const PROJECT = 'test_project';
 /** timeline strip scale: pixels per second */
 const PPS = 12;
 /** left padding of the strip content (ruler/clips/wave all share it) */
@@ -23,10 +23,6 @@ function tickLabel(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-function clipBasename(p: string): string {
-  return p.split(/[\\/]/).pop() ?? p;
 }
 
 /** Stable waveform bar heights (seeded random walk, same look as the mockup). */
@@ -62,12 +58,14 @@ interface AccountBalance {
   authenticated: boolean;
 }
 
-export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; elements?: ElementRef[] }) {
+export default function TimelinePage() {
+  const { projectName, shots, elements, subscribe } = useProject();
   const [edl, setEdl] = useState<EDLEntry[]>([]);
   const [edlVersion, setEdlVersion] = useState(0);
   const [engine, setEngine] = useState<PreviewEngine | null>(null);
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
   const [exportState, setExportState] = useState<ExportState>({ running: false, stage: '', pct: 0 });
+  const [confirmPartial, setConfirmPartial] = useState(false);
   const [cost, setCost] = useState<CostSummary | null>(null);
   const [accounts, setAccounts] = useState<AccountBalance[]>([]);
   const [redoOpen, setRedoOpen] = useState(false);
@@ -85,46 +83,54 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
   const placedShots = shots.filter((s) => s.state === 'PLACED').length;
 
   const refreshCost = useCallback(() => {
-    fetch(`/api/project/${PROJECT}/cost-summary`)
+    if (!projectName) return;
+    fetch(`/api/project/${encodeURIComponent(projectName)}/cost-summary`)
       .then((r) => r.json())
       .then((data) => {
         if (typeof data?.totalCredits === 'number') setCost(data);
       })
       .catch(() => {});
-  }, []);
+  }, [projectName]);
 
-  // exportProgress + redo swap-in (PLACED) arrive on the project WS
-  useProjectSocket(PROJECT, (msg) => {
-    if (msg.type === 'exportProgress') {
-      const stage = msg.stage as string;
-      if (stage === 'trim') {
-        const current = Number(msg.current ?? 0);
-        const total = Math.max(Number(msg.total ?? 1), 1);
-        setExportState({ running: true, stage: `Trimming clip ${current}/${total}`, pct: 5 + (current / total) * 75 });
-      } else if (stage === 'concat') {
-        setExportState({ running: true, stage: 'Concatenating clips', pct: 85 });
-      } else if (stage === 'mux') {
-        setExportState({ running: true, stage: 'Muxing voiceover', pct: 93 });
-      } else if (stage === 'done') {
-        setExportState({
-          running: false,
-          stage: 'done',
-          pct: 100,
-          outputPath: typeof msg.outputPath === 'string' ? msg.outputPath : undefined,
-          durationSeconds: typeof msg.durationSeconds === 'number' ? msg.durationSeconds : undefined,
-        });
-      }
-    } else if (msg.type === 'shotEvent' && msg.state === 'PLACED') {
-      // redo-animation swap-in (or first placement): EDL + spend changed
-      setEdlVersion((v) => v + 1);
-      refreshCost();
-    }
-  });
+  // exportProgress + redo swap-in (PLACED) arrive on the app-level project WS
+  useEffect(
+    () =>
+      subscribe((msg) => {
+        if (msg.type === 'exportProgress') {
+          const stage = msg.stage as string;
+          if (stage === 'trim') {
+            const current = Number(msg.current ?? 0);
+            const total = Math.max(Number(msg.total ?? 1), 1);
+            setExportState({ running: true, stage: `Trimming clip ${current}/${total}`, pct: 5 + (current / total) * 75 });
+          } else if (stage === 'concat') {
+            setExportState({ running: true, stage: 'Concatenating clips', pct: 85 });
+          } else if (stage === 'mux') {
+            setExportState({ running: true, stage: 'Muxing voiceover', pct: 93 });
+          } else if (stage === 'done') {
+            setExportState({
+              running: false,
+              stage: 'done',
+              pct: 100,
+              outputPath: typeof msg.outputPath === 'string' ? msg.outputPath : undefined,
+              durationSeconds: typeof msg.durationSeconds === 'number' ? msg.durationSeconds : undefined,
+            });
+          }
+        } else if (msg.type === 'shotEvent' && msg.state === 'PLACED') {
+          setEdlVersion((v) => v + 1);
+          refreshCost();
+        }
+      }),
+    [subscribe, refreshCost],
+  );
 
-  // EDL is the playback source of truth; refetch when clips land/replace.
+  // EDL is the playback source of truth; refetch when project/clips change.
   useEffect(() => {
     let alive = true;
-    fetch(`/api/project/${PROJECT}/edl`)
+    if (!projectName) {
+      setEdl([]);
+      return;
+    }
+    fetch(`/api/project/${encodeURIComponent(projectName)}/edl`)
       .then((r) => r.json())
       .then((data) => {
         if (alive && Array.isArray(data)) setEdl(data);
@@ -133,7 +139,16 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
     return () => {
       alive = false;
     };
-  }, [placedShots, edlVersion]);
+  }, [projectName, placedShots, edlVersion]);
+
+  // reset per-project UI state on project switch
+  useEffect(() => {
+    setSelectedShotId(null);
+    setExportState({ running: false, stage: '', pct: 0 });
+    setConfirmPartial(false);
+    setCost(null);
+    setRedoOpen(false);
+  }, [projectName]);
 
   // real spend + account balances (cached server-side, status-only CLI)
   useEffect(() => {
@@ -159,16 +174,18 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
 
   const segments = useMemo<PlayerSegment[]>(
     () =>
-      edl.map((e) => ({
-        id: e.id,
-        shotId: e.shotId,
-        lineIndex: e.lineIndex,
-        src: `/api/project/${PROJECT}/media/clips/${clipBasename(e.clipPath)}`,
-        inPoint: e.inPoint,
-        timelineStart: e.timelineStart,
-        duration: e.duration,
-      })),
-    [edl],
+      projectName
+        ? edl.map((e) => ({
+            id: e.id,
+            shotId: e.shotId,
+            lineIndex: e.lineIndex,
+            src: mediaUrl(projectName, 'clips', e.clipPath),
+            inPoint: e.inPoint,
+            timelineStart: e.timelineStart,
+            duration: e.duration,
+          }))
+        : [],
+    [edl, projectName],
   );
 
   const totalDuration = useMemo(() => {
@@ -254,13 +271,13 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  const handleExport = async () => {
+  const runExport = async () => {
+    setConfirmPartial(false);
     setExportState({ running: true, stage: 'Starting export…', pct: 2 });
     try {
-      const res = await fetch(`/api/project/${PROJECT}/export`, { method: 'POST' });
+      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/export`, { method: 'POST' });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? `${res.status}`);
-      // WS 'done' normally lands first; this is the fallback confirmation.
       setExportState((s) =>
         s.stage === 'done'
           ? s
@@ -271,12 +288,21 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
     }
   };
 
+  // T-41 (T-40 HIGH 3): partially-placed timelines need an explicit confirm
+  const handleExportClick = () => {
+    if (placedShots < shots.length) {
+      setConfirmPartial(true);
+      return;
+    }
+    void runExport();
+  };
+
   const submitRedoAnimation = async () => {
-    if (!selectedShotId) return;
+    if (!selectedShotId || !projectName) return;
     setRedoBusy(true);
     try {
       const prompt = redoPrompt.trim();
-      const res = await fetch(`/api/project/${PROJECT}/shots/${selectedShotId}/action`, {
+      const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${selectedShotId}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prompt ? { action: 'redoAnimation', prompt } : { action: 'redoAnimation' }),
@@ -293,11 +319,12 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
   };
 
   const selectedEntry = edl.find((e) => e.shotId === selectedShotId);
+  const missingCount = shots.length - placedShots;
 
   return (
     <div className="workspace">
       <div className="preview-area">
-        <PreviewPlayer voSrc={`/api/project/${PROJECT}/vo`} segments={segments} onEngine={setEngine} />
+        <PreviewPlayer voSrc={projectName ? `/api/project/${encodeURIComponent(projectName)}/vo` : ''} segments={segments} onEngine={setEngine} />
 
         <div className="export-panel">
           <div>
@@ -327,12 +354,26 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
                 <div className="progress-bar"><div className="progress-fill" style={{ width: `${exportState.pct}%` }}></div></div>
                 <p className="hint" style={{ textAlign: 'center' }}>NVENC trim → concat → VO mux (runs locally, no credits)</p>
               </>
+            ) : confirmPartial ? (
+              <>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--warn)', marginBottom: '8px' }} role="alert">
+                  {missingCount} of {shots.length} shots are not placed yet — the export will skip those lines.
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+                  <button className="btn btn-secondary" style={{ flex: 1, color: 'var(--warn)' }} onClick={() => void runExport()}>
+                    Export partial
+                  </button>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmPartial(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 {exportState.stage === 'done' && (
                   <div style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }} title={exportState.outputPath}>
                     <span style={{ color: 'var(--lime)' }}>✓ Exported{exportState.durationSeconds ? ` · ${formatTime(exportState.durationSeconds)}` : ''}</span>
-                    <span className="mono">{exportState.outputPath ? clipBasename(exportState.outputPath) : ''}</span>
+                    <span className="mono">{exportState.outputPath ? mediaBasename(exportState.outputPath) : ''}</span>
                   </div>
                 )}
                 {exportState.error && (
@@ -340,7 +381,7 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
                     Export failed: {exportState.error}
                   </div>
                 )}
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => void handleExport()} disabled={placedShots === 0 || edl.length === 0}>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleExportClick} disabled={placedShots === 0 || edl.length === 0 || !projectName}>
                   {exportState.stage === 'done' ? 'Export again' : 'Export timeline'}
                 </button>
               </>
@@ -412,7 +453,7 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
                   >
                     <div className="thumb">
                       <img
-                        src={`/api/project/${PROJECT}/media/images/${clipBasename(entry.clipPath).replace('.mp4', '.png')}`}
+                        src={mediaUrl(projectName, 'images', mediaBasename(entry.clipPath).replace('.mp4', '.png'))}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
                         alt={`Shot L${entry.lineIndex + 1}`}
@@ -424,7 +465,7 @@ export default function TimelinePage({ shots, elements = [] }: { shots: Shot[]; 
               })
             ) : (
               <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-12)', paddingTop: '30px' }}>
-                No placed clips yet — approve shots in Review to build the timeline.
+                {projectName ? 'No placed clips yet — approve shots in Review to build the timeline.' : 'No project selected — pick one from the top-left switcher.'}
               </div>
             )}
           </div>

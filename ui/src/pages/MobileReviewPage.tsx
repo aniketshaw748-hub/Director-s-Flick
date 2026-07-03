@@ -1,53 +1,75 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Shot, ElementRef } from '../../../app/src/types';
 import { useAutocomplete } from '../useAutocomplete';
-import './MobileReviewPage.css';
+import { useProject } from '../project/ProjectContext';
+import { mediaUrl } from '../paths';
 
-export default function MobileReviewPage({ shots, elements }: { shots: Shot[], elements: ElementRef[] }) {
+export default function MobileReviewPage() {
+  const { projectName, shots, elements } = useProject();
   const editRef = React.useRef<HTMLInputElement>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editInstructions, setEditInstructions] = useState('');
-  
+  const [balance, setBalance] = useState<number | null>(null);
+  const [acting, setActing] = useState(false);
+
   const { onChange: onEditChange, AutocompletePopover: EditPopover } = useAutocomplete(elements, editInstructions, setEditInstructions, editRef);
 
-  // Find the first shot ready for review
-  const activeShot = shots.find(s => s.state === 'IMAGE_READY');
+  // T-41 (T-40 CRITICAL 2): review-gate shots sit at IN_REVIEW, not IMAGE_READY
+  const activeShot = shots.find((s) => s.state === 'IN_REVIEW');
+
+  // real balance for the header chip (T-41: kill "2,025 cr" demo money)
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/accounts')
+      .then((r) => r.json())
+      .then(async (list: { name: string }[]) => {
+        if (!Array.isArray(list) || list.length === 0) return;
+        const b = await fetch(`/api/accounts/${encodeURIComponent(list[0].name)}/balance`).then((r) => r.json());
+        if (alive && typeof b?.balance === 'number') setBalance(b.balance);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleAction = async (action: string) => {
-    if (!activeShot) return;
+    if (!activeShot || !projectName || acting) return;
+    setActing(true);
     try {
-      await fetch(`/api/project/test_project/shots/${activeShot.id}/action`, {
+      await fetch(`/api/project/${encodeURIComponent(projectName)}/shots/${activeShot.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, instructions: editInstructions })
+        body: JSON.stringify({ action, instructions: editInstructions }),
       });
       setIsSheetOpen(false);
       setEditInstructions('');
     } catch (e) {
       console.error(e);
+    } finally {
+      setActing(false);
     }
   };
 
   return (
     <div className="mobile-review">
       <header className="topbar">
-        <Link to="/timeline" style={{width:'32px', color:'var(--text-2)', display:'block'}}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <Link to="/timeline" style={{ width: '32px', color: 'var(--text-2)', display: 'block' }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
         </Link>
-        <div className="top-title">Review · {activeShot ? `L${activeShot.lineIndex.toString().padStart(2, '0')}` : 'All caught up'}</div>
-        <div className="account-chip"><span className="cr">2,025 cr</span></div>
+        <div className="top-title">Review · {activeShot ? `L${(activeShot.lineIndex + 1).toString().padStart(2, '0')}` : 'All caught up'}</div>
+        {balance != null && <div className="account-chip"><span className="cr">{balance.toFixed(0)} cr</span></div>}
       </header>
-      
-      <div className="card-stack" style={{flex:1}}>
+
+      <div className="card-stack" style={{ flex: 1 }}>
         <div className="swipe-card card-bg"></div>
         {activeShot ? (
           <div className="swipe-card card-fg" id="front-card">
             <div className="card-image">
               {activeShot.imagePath ? (
-                <img src={`/api/project/test_project/media/images/${activeShot.imagePath.split('/').pop()}`} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="Shot frame" />
+                <img src={mediaUrl(projectName, 'images', activeShot.imagePath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Shot frame" />
               ) : (
-                <svg viewBox="0 0 44 44" width="88" height="88"><rect x="12" y="14" width="20" height="16" rx="7" fill="#1C2530" stroke="rgba(255,255,255,.18)"/><circle cx="19" cy="22" r="2.4" fill="#C6FF4D"/><circle cx="25" cy="22" r="2.4" fill="#C6FF4D"/><path d="M22 14v-4" stroke="rgba(255,255,255,.3)" strokeWidth="1.5"/><circle cx="22" cy="8" r="1.8" fill="#C6FF4D" opacity=".8"/></svg>
+                <svg viewBox="0 0 44 44" width="88" height="88"><rect x="12" y="14" width="20" height="16" rx="7" fill="#1C2530" stroke="rgba(255,255,255,.18)" /><circle cx="19" cy="22" r="2.4" fill="#C6FF4D" /><circle cx="25" cy="22" r="2.4" fill="#C6FF4D" /><path d="M22 14v-4" stroke="rgba(255,255,255,.3)" strokeWidth="1.5" /><circle cx="22" cy="8" r="1.8" fill="#C6FF4D" opacity=".8" /></svg>
               )}
             </div>
             <div className="card-content">
@@ -56,26 +78,28 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
             </div>
           </div>
         ) : (
-          <div className="swipe-card card-fg" style={{display:'flex', alignItems:'center', justifyContent:'center'}}>
-             <p style={{color:'var(--text-2)'}}>No shots to review right now.</p>
+          <div className="swipe-card card-fg" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: 'var(--text-2)', textAlign: 'center', padding: '0 24px' }}>
+              {projectName ? 'No shots to review right now.' : 'No project selected — open Setup on the desktop first.'}
+            </p>
           </div>
         )}
       </div>
 
       <div className="actions">
-        <button 
-          className="btn-circle btn-reject" 
-          disabled={!activeShot}
+        <button
+          className="btn-circle btn-reject"
+          disabled={!activeShot || acting}
           onClick={() => setIsSheetOpen(true)}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
-        <button 
-          className="btn-circle btn-approve" 
-          disabled={!activeShot}
+        <button
+          className="btn-circle btn-approve"
+          disabled={!activeShot || acting}
           onClick={() => handleAction('approve')}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>
         </button>
       </div>
 
@@ -83,25 +107,25 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
       <div className={`sheet ${isSheetOpen ? 'active' : ''}`}>
         <div className="sheet-handle"></div>
         <div className="sheet-title">Reject image</div>
-        
-        <div style={{display:'flex', gap:'8px', marginBottom:'16px', position: 'relative'}}>
-          <input 
+
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', position: 'relative' }}>
+          <input
             ref={editRef}
-            type="text" 
+            type="text"
             value={editInstructions}
             onChange={onEditChange}
-            placeholder="Edit instructions (e.g. make it darker)" 
-            style={{flex:1, background:'var(--surface-2)', border:'1px solid var(--border-1)', color:'var(--text-1)', padding:'8px 12px', borderRadius:'var(--r-sm)'}}
+            placeholder="Edit instructions (e.g. make it darker)"
+            style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-1)', color: 'var(--text-1)', padding: '8px 12px', borderRadius: 'var(--r-sm)' }}
           />
           <EditPopover />
         </div>
 
         <button className="btn-row" onClick={() => handleAction('edit')} disabled={!editInstructions}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
           Edit with instructions
         </button>
         <button className="btn-row" onClick={() => handleAction('redo')}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
           Redo (generate fresh prompt)
         </button>
       </div>
