@@ -694,3 +694,6 @@ Result: — (in progress)
 
 ### [70] AGV missed T-57 despite row+bootstrap; posted direct tail-of-board reply
 AGV idle note landed after the bootstrap fix push — he reports "board empty for me" while T-57 row exists. Posted explicit @agv reply at board tail with pull instruction. Flash/Opus/Fable-2 all claimed their tasks correctly (T-56/T-55/T-58).
+
+### [67] T-51 result
+Result: Done, board updated. GET/PATCH /api/project/:name/config (used :name not the task text's literal :id, flagged on board - matches every other endpoint's convention). GET returns {config, accountName}. PATCH whitelists provider/imageProvider/videoProvider/models(image,video,videoMode)/styleBible/accountName, 400 on unknown keys or invalid ProviderName, 404 on unknown accountName (mirrors the existing account-switch endpoint). Reused config.ts's mergeLayer() (exported it) for partial-merge semantics instead of reinventing one. Evicts cached queue + broadcasts WS sync with updated project on success, same pattern as account-switch. No new store module needed. typecheck + full suite 141/141 green (excluded another agent's untracked cli.e2e.test.ts WIP). T-52 now unblocked.

@@ -37,8 +37,10 @@ function definedOnly<T extends object>(obj: T): Partial<T> {
   return out as Partial<T>;
 }
 
-/** Merge one overrides layer onto a full config (models merged one level deep). */
-function mergeLayer(base: PipelineConfig, layer?: ConfigOverrides): PipelineConfig {
+/** Merge one overrides layer onto a full config (models merged one level deep).
+ * Exported for reuse by server.ts's PATCH /config endpoint (T-51) - same
+ * partial-merge semantics as the app/config.json + project config layering. */
+export function mergeLayer(base: PipelineConfig, layer?: ConfigOverrides): PipelineConfig {
   if (!layer) return base;
   const { models, ...rest } = layer;
   return {

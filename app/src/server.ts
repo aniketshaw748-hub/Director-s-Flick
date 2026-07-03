@@ -6,7 +6,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT } from './db.js';
-import { loadConfig } from './config.js';
+import { loadConfig, mergeLayer, type ConfigOverrides } from './config.js';
 import { createStageProviders } from './providers/index.js';
 import { createPromptEngine } from './prompts.js';
 import { ShotQueue, type ShotEvent } from './queue.js';
@@ -22,7 +22,11 @@ import {
 import { alignScript, computeTimeline, planShots } from './align.js';
 import { exportTimeline, type ExportProgressEvent } from './media.js';
 import type { AccountStatus } from './accounts.js';
-import type { ElementCategory } from './types.js';
+import type { ElementCategory, ProviderName, Project } from './types.js';
+
+const PROVIDER_NAMES: readonly ProviderName[] = ['mock', 'higgsfield-cli', 'fal', 'replicate'];
+const CONFIG_PATCH_KEYS = new Set(['provider', 'imageProvider', 'videoProvider', 'models', 'styleBible', 'accountName']);
+const MODEL_PATCH_KEYS = new Set(['image', 'video', 'videoMode']);
 
 const ELEMENT_CATEGORIES: readonly ElementCategory[] = ['character', 'location', 'prop'];
 
@@ -257,6 +261,99 @@ export function startServer(port = 4000) {
      setActiveAccount(req.params.name, account);
      openProjects.delete(req.params.name);
      res.json({ success: true });
+  });
+
+  // --- T-51 project-config endpoints (backend for T-49's settings screen) --
+  // Note: the task text says `/api/projects/:id/config` (plural, id); using
+  // `/api/project/:name/config` instead to match every other single-project
+  // endpoint's established convention in this file (singular "project",
+  // keyed by name) - flagged on the board.
+
+  app.get('/api/project/:name/config', (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const project = db.getProject()!;
+        res.json({ config: project.config, accountName: getActiveAccount(req.params.name) });
+     } catch (e: any) {
+        res.status(404).json({ error: e.message });
+     }
+  });
+
+  app.patch('/api/project/:name/config', (req, res) => {
+     let db: ProjectDb;
+     let project: Project;
+     try {
+        ({ db } = getOrOpenProject(req.params.name));
+        project = db.getProject()!;
+     } catch (e: any) {
+        res.status(404).json({ error: e.message });
+        return;
+     }
+     try {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+
+        for (const key of Object.keys(body)) {
+           if (!CONFIG_PATCH_KEYS.has(key)) {
+              res.status(400).json({ error: `unknown config key '${key}'` });
+              return;
+           }
+        }
+        for (const field of ['provider', 'imageProvider', 'videoProvider'] as const) {
+           const value = body[field];
+           if (value !== undefined && !PROVIDER_NAMES.includes(value as ProviderName)) {
+              res.status(400).json({ error: `${field} must be one of: ${PROVIDER_NAMES.join(', ')}` });
+              return;
+           }
+        }
+        if (body.models !== undefined) {
+           if (typeof body.models !== 'object' || body.models === null || Array.isArray(body.models)) {
+              res.status(400).json({ error: 'models must be an object' });
+              return;
+           }
+           const models = body.models as Record<string, unknown>;
+           for (const key of Object.keys(models)) {
+              if (!MODEL_PATCH_KEYS.has(key)) {
+                 res.status(400).json({ error: `unknown models key '${key}'` });
+                 return;
+              }
+              if (typeof models[key] !== 'string') {
+                 res.status(400).json({ error: `models.${key} must be a string` });
+                 return;
+              }
+           }
+        }
+        if (body.styleBible !== undefined && typeof body.styleBible !== 'string') {
+           res.status(400).json({ error: 'styleBible must be a string' });
+           return;
+        }
+        const accountName = body.accountName;
+        if (accountName !== undefined) {
+           if (typeof accountName !== 'string' || !accountName) {
+              res.status(400).json({ error: 'accountName must be a non-empty string' });
+              return;
+           }
+           if (!accountExists(accountName)) {
+              res.status(404).json({ error: `unknown account '${accountName}' (no credentials.json)` });
+              return;
+           }
+        }
+
+        const { accountName: _ignored, ...configPatch } = body;
+        const mergedConfig = mergeLayer(project.config, configPatch as ConfigOverrides);
+        db.saveConfig(project.id, mergedConfig);
+        if (typeof accountName === 'string') {
+           setActiveAccount(req.params.name, accountName);
+        }
+        // Same pattern as the account-switch endpoint above: evict the cached
+        // queue so the next access rebuilds it against the new config/account.
+        openProjects.delete(req.params.name);
+
+        const updatedProject = { ...project, config: mergedConfig };
+        broadcast(req.params.name, { type: 'sync', shots: db.listShots(), project: updatedProject });
+        res.json({ config: mergedConfig, accountName: getActiveAccount(req.params.name) });
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
   });
 
   // --- T-48 (Fable-2 mini-lease, additive only — @sonnet please review) ---

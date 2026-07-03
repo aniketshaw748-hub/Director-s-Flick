@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { ProjectDb, PROJECTS_ROOT, projectDbPath } from '../../src/db.js';
 import { startServer } from '../../src/server.js';
+import { credentialsPath, accountDir } from '../../src/accounts.js';
 import type { Shot } from '../../src/types.js';
 
 let serverInstance: http.Server | undefined;
@@ -539,5 +540,150 @@ describe('server integration', () => {
     expect(body.authenticated).toBe(false);
     expect(body.balance).toBeNull();
     expect(typeof body.error).toBe('string');
+  });
+
+  // --- T-51: project-config GET/PATCH ---------------------------------------
+
+  describe('GET/PATCH /api/project/:name/config', () => {
+    const configProjectName = `temp_proj_config_${Date.now()}`;
+    const configDir = path.join(PROJECTS_ROOT, configProjectName);
+    const fakeAccountName = `temp_config_test_account_${Date.now()}`;
+
+    beforeAll(async () => {
+      extraDirsToClean.push(configDir);
+      const res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: configProjectName,
+          script: 'A config-endpoint test project.',
+          voiceoverBase64: Buffer.from('fake wav bytes').toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(res.status).toBe(200);
+
+      // Fake account credentials file so accountExists()/setActiveAccount()
+      // succeed without any real CLI auth (mirrors accounts.test.ts's pattern).
+      fs.mkdirSync(accountDir(fakeAccountName), { recursive: true });
+      fs.writeFileSync(credentialsPath(fakeAccountName), '{}');
+    });
+
+    afterAll(async () => {
+      // Best-effort: the "valid partial update" test's PATCH evicts the
+      // cached queue entry (same openProjects.delete() pattern as the
+      // pre-existing account-switch endpoint) without stopping its loop -
+      // by design, so a later request rebuilds fresh rather than reusing a
+      // stale provider/config. That orphaned loop instance is then
+      // unreachable via /stop (openProjects.get() finds nothing). In
+      // production this is harmless (the loop just keeps polling against a
+      // db file that's still open); in this test it surfaces as a benign,
+      // caught-and-logged "database connection is not open" stderr once the
+      // outer afterAll closes every db this file ever opened. Same class of
+      // artifact as the pre-existing "illegal transition" noise from the
+      // shared tempProjectName project elsewhere in this file - not fixing,
+      // just documenting so it doesn't look like an unexplained flake.
+      await fetch(`http://localhost:${port}/api/project/${configProjectName}/stop`, { method: 'POST' }).catch(() => {});
+      await new Promise((resolve) => originalSetTimeout(resolve, 100));
+      if (fs.existsSync(accountDir(fakeAccountName))) {
+        fs.rmSync(accountDir(fakeAccountName), { recursive: true, force: true });
+      }
+    });
+
+    test('GET returns the default config and null accountName for a fresh project', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.config.provider).toBe('mock');
+      expect(body.config.bufferSize).toBe(5);
+      expect(body.accountName).toBeNull();
+    });
+
+    test('PATCH rejects an unknown top-level key with 400', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notAField: 'x' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects an invalid provider value with 400', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoProvider: 'not-a-real-provider' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects an unknown models sub-key with 400', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ models: { resolution: '1080p' } }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects an accountName with no matching credentials with 404', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountName: 'no-such-account' }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    test('PATCH applies a valid partial update, merges (not overwrites), and broadcasts a WS sync', async () => {
+      const configWs = new WebSocket(`ws://localhost:${port}/?project=${configProjectName}`);
+      const configWsMessages: any[] = [];
+      configWs.on('message', (data) => {
+        try {
+          configWsMessages.push(JSON.parse(data.toString()));
+        } catch {
+          // ignore
+        }
+      });
+      await new Promise<void>((resolve, reject) => {
+        configWs.on('open', resolve);
+        configWs.on('error', reject);
+      });
+
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoProvider: 'replicate',
+          models: { video: 'kling2_5' },
+          styleBible: 'Neon-noir, high contrast.',
+          accountName: fakeAccountName,
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.config.videoProvider).toBe('replicate');
+      expect(body.config.models.video).toBe('kling2_5');
+      expect(body.config.styleBible).toBe('Neon-noir, high contrast.');
+      // Untouched fields survive the partial merge - proves it's a merge, not
+      // a full overwrite (models.image and bufferSize were never in the body).
+      expect(body.config.models.image).toBe('nano_banana_2');
+      expect(body.config.bufferSize).toBe(5);
+      expect(body.accountName).toBe(fakeAccountName);
+
+      // GET reflects the persisted change.
+      const getRes = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`);
+      const getBody = (await getRes.json()) as any;
+      expect(getBody.config.videoProvider).toBe('replicate');
+      expect(getBody.accountName).toBe(fakeAccountName);
+
+      // WS sync broadcast fired with the updated project.
+      await new Promise((resolve) => originalSetTimeout(resolve, 100));
+      const syncMsg = configWsMessages.find((m) => m.type === 'sync' && m.project);
+      expect(syncMsg).toBeDefined();
+      expect(syncMsg.project.config.videoProvider).toBe('replicate');
+
+      configWs.close();
+    });
   });
 });
