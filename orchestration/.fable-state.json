@@ -1,7 +1,8 @@
 {
   "pending": [
+    "v0.1.2 cut (opus)",
     "T-87 Fable-2 add-account UI"
   ],
-  "last_seen_commit": "95ff92fe0368ea4728d8a4a955327fa983f74757",
-  "last_sweep": "2026-07-04T13:55"
+  "last_seen_commit": "8e6b0a5c151ab281743e87b5a1b1719303177c9c",
+  "last_sweep": "2026-07-04T14:35"
 }

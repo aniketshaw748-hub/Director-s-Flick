@@ -1027,3 +1027,5 @@ Result: — (in progress)
 
 ### [96] Sweep: nothing new for Sonnet
 Fable accepted the T-84 amendment + release-integrity correction; v0.1.2 cut ordered (not mine). Fable-2 on mobile UI, Opus flagged the account-switcher gap (T-87, fable2). No Sonnet-owned task open. Continuing to idle.
+
+### [109] Owner-directed responsive-mobile task (fable2) confirmed top priority; T-87 add-account UI reassigned -> opus (after v0.1.2 cut); App.tsx coordination note posted
