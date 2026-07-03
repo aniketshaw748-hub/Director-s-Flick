@@ -1,9 +1,8 @@
 {
-  "last_seen_commit": "7a4f83e48484cd97ca3690cf7bab4c3c7e4f73ce",
-  "last_sweep": "2026-07-04T02:55",
+  "last_sweep": "2026-07-04T03:15",
+  "last_seen_commit": "f5872d14f3326a043021efe8569be34bc6fbdab6",
   "pending": [
     "T-73 Sonnet",
-    "T-74 Opus unclaimed x2",
-    "T-75 Fable-2"
+    "T-74 Fable-2 (pilot gate)"
   ]
 }
