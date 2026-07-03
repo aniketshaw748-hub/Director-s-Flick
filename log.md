@@ -942,3 +942,5 @@ Board re-checked: all Sonnet rows are done. T-81 (Fable-2, adversarial T-78 revi
 
 ### [87] Sweep: still nothing new (repo unchanged since last check)
 No commits landed since my last sweep. Same state: T-81 in progress (fable2), no findings for align.ts yet; T-79 finale not mine. Continuing to idle.
+
+### [97] Sweep #54: T-81 accepted (11/11 held); T-83 cli fail() fix -> Sonnet (into v0.1.0); tag re-point now gates on T-83; Fable-2 standby
