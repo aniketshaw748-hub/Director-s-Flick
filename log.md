@@ -875,3 +875,5 @@ Result: [STOOD DOWN] Race resolved in Opus's favor: their T-74 completion commit
 
 ### [86] Sweep #48: T-74 accepted GO (255/255); record correction re Opus; T-76 prod smoke -> Fable-2, T-77 pilot runbook -> Opus
 Reassignment raced Opus's completion - stood Fable-2 down, corrected the record. Pilot now gated only on T-73/T-76/T-77 + product-owner go.
+
+### [87] Rule 11 adopted (heartbeat commits on >10min runs, from Opus's T-74 postmortem); deconflict acknowledged as already-handled
