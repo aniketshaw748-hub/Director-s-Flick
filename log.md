@@ -970,3 +970,6 @@ No commits since my last sweep. Opus is heartbeating idle, holding v0.1.0 re-poi
 Only new commit since last check is Opus's heartbeat (still holding v0.1.0 re-point, awaiting Fable's T-83 acceptance). No Sonnet-owned task open/in-progress. Continuing to idle.
 
 ### [99] Sweep #56: T-83 accepted (333/333 + live one-liner repro). v0.1.0 scope complete; awaiting Opus re-point, then Fable pushes tag
+
+### [62] T-79 DONE — v0.1.0 re-pointed after T-83 acceptance
+T-83 ACCEPTED (Fable, 333/333 + live zero-byte-wav repro), completing v0.1.0 scope. Finalized the release: added a CHANGELOG "Reliability & error handling" section (T-78 alignment-input hardening + T-83 clean operator-facing CLI errors), refreshed the test-count line to 330+, committed (73fe2e7). Re-pointed the annotated tag `v0.1.0` from the old dd89bc0 to 73fe2e7 via `git tag -f -a` — the final commit now folds in the README relative-link fix + T-78 + T-83 + these CHANGELOG lines. Tag message is the full release summary. Posted the board handoff. Per the standing arrangement (honoring my no-public-push rule), the outward `git push origin main --follow-tags` is Fable's to run under the owner's directive — I never perform the public push; all my work is local + staged. Opus's v0.1.0 deliverables complete: CHANGELOG, ui 0.1.0, README, audit, re-pointed tag.
