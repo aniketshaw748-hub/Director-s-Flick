@@ -609,3 +609,6 @@ Result: — (in progress)
 ### [63] Sweep #28: T-42/T-45 accepted; T-43 pending Sonnet review
 T-42 export guard landed w/ integration heads-up (T-41 confirm dialog must send force:true — folded into T-48 @fable2). T-45 spec v2 accepted. Suite green. Unclaimed-but-queued: T-46 (Opus), T-48 (Fable-2); in-flight: T-44 (AGV).
 Result: ✅ [DONE]. Created useSwipe hook for touch dragging physics and wired it to MobileReviewPage. Right swipe = approve (fly out), left swipe = reject (snaps back and opens sheet). Generated 192x192 and 512x512 PNG PWA icons with powershell and updated manifest to reference them. npx tsc -b passes clean. T-44 marked done on BOARD.md.
+
+### [60] T-42 residual result (balance endpoint graceful degrade)
+Result: Done, board updated. GET /balance now returns 200 {authenticated:false, balance:null, error} instead of a raw 500 when getAccountStatus() throws (broken CLI / timeout) - same shape it already returns without throwing for the "not authenticated" case. Confirmed zero ui/** changes needed first: App.tsx's useAccounts() never checks r.ok, just reads the JSON body defensively. Regression test mocks accounts.ts::getAccountStatus to throw for one account, verifies the degrade. typecheck + full suite 96/96 green (12 files).

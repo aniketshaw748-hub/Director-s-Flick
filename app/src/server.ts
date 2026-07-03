@@ -503,8 +503,8 @@ export function startServer(port = 4000) {
   // uncached GET /api/accounts/:name/status above, which is for on-demand
   // checks like opening the account-switcher dropdown).
   app.get('/api/accounts/:name/balance', async (req, res) => {
+     const name = req.params.name;
      try {
-        const name = req.params.name;
         const cached = balanceCache.get(name);
         if (cached && Date.now() - cached.fetchedAt < BALANCE_CACHE_MS) {
            res.json({ ...cached.status, cached: true });
@@ -514,7 +514,15 @@ export function startServer(port = 4000) {
         balanceCache.set(name, { status, fetchedAt: Date.now() });
         res.json({ ...status, cached: false });
      } catch (e: any) {
-        res.status(500).json({ error: e.message });
+        // Graceful degrade (T-41 residual, Fable-2): getAccountStatus() only
+        // throws for a genuinely broken CLI (not installed / spawn failure)
+        // or a timeout - both look identical to "no balance available" to a
+        // caller, exactly like the authenticated:false case it already
+        // returns without throwing. A raw 500 here was cosmetic noise only:
+        // the UI's balance fetch (App.tsx useAccounts()) doesn't check
+        // res.ok, it just reads whatever JSON body comes back - so this
+        // needs zero ui/** changes to take effect.
+        res.json({ name, balance: null, authenticated: false, cached: false, error: e.message });
      }
   });
 

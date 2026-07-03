@@ -29,6 +29,23 @@ vi.mock('../../src/db.js', async (importOriginal) => {
   };
 });
 
+// Simulate a genuinely broken CLI (T-42/T-41 residual: getAccountStatus()
+// throwing, e.g. spawn failure or timeout) for one magic account name, real
+// behavior for everything else.
+const THROWING_ACCOUNT = '__throws_for_balance_degrade_test__';
+vi.mock('../../src/accounts.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/accounts.js')>();
+  return {
+    ...original,
+    getAccountStatus: async (name: string, ...rest: any[]) => {
+      if (name === THROWING_ACCOUNT) {
+        throw new Error('Failed to spawn Higgsfield CLI: simulated ENOENT');
+      }
+      return (original.getAccountStatus as any)(name, ...rest);
+    },
+  };
+});
+
 // Mock http.createServer to capture the server instance
 vi.mock('node:http', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:http')>();
@@ -512,4 +529,15 @@ describe('server integration', () => {
       await fetch(`http://localhost:${port}/api/project/${partialName}/stop`, { method: 'POST' }).catch(() => {});
     }
   }, 20_000); // real ffmpeg trim+concat+mux of one short real clip
+
+  // --- T-42 residual (T-41 note): balance endpoint graceful degrade --------
+
+  test('GET /balance degrades gracefully (200, authenticated:false) instead of 500 when the CLI is broken', async () => {
+    const res = await fetch(`http://localhost:${port}/api/accounts/${THROWING_ACCOUNT}/balance`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.authenticated).toBe(false);
+    expect(body.balance).toBeNull();
+    expect(typeof body.error).toBe('string');
+  });
 });
