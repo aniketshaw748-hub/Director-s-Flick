@@ -49,6 +49,19 @@
   font-family: var(--font-mono); font-size: var(--fs-11); color: var(--text-2); background: var(--surface-3);
   border: 1px solid var(--border-1); border-radius: var(--r-sm); padding: 2px 6px; flex: none; min-width: 44px; text-align: center;
 }
+/* T-88 phrase sub-rows: split-line phrases group under their line with an
+   accent spine; labels widen for "L01.2" */
+.align-row.sub { padding-left: calc(var(--sp-5) + 14px); position: relative; }
+.align-row.sub::before {
+  content: ""; position: absolute; left: calc(var(--sp-5) + 3px); top: 0; bottom: 0;
+  border-left: 2px solid var(--lime-a35);
+}
+.align-row.sub.sub-first { margin-top: 3px; }
+.align-row.sub.sub-first::before { top: 5px; border-radius: 2px 2px 0 0; }
+.align-row.sub.sub-last { margin-bottom: 3px; }
+.align-row.sub.sub-last::before { bottom: 5px; border-radius: 0 0 2px 2px; }
+.align-row.sub .ln { width: 46px; }
+.align-row .dur.over { color: var(--warn); border-color: var(--warn-a12); background: var(--warn-a12); }
 .pause { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-5) 0 68px; height: 14px; }
 .pause .rule { flex: 1; border-top: 1px dashed var(--border-1); }
 .pause .p { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }

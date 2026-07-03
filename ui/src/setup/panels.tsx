@@ -161,12 +161,19 @@ export function VoiceoverCard({ state }: { state: SetupState }) {
 
 // --------------------------------------------------------------- AlignCard
 
+// mirrors the PipelineConfig.maxShotSeconds contract default — flag-only here,
+// the server owns the real value (T-88 phrase segmentation)
+const MAX_SHOT_SECONDS = 8;
+
 export function AlignCard({ state }: { state: SetupState }) {
   const { aligning, alignLines, rerunAlign, mode, busy } = state;
   // in draft mode the previous project's rows are irrelevant — show empty
   const shots = mode === 'draft' ? [] : state.shots;
   const totalDuration = shots.length > 0 ? shots[shots.length - 1].line.start + shots[shots.length - 1].line.targetDuration : 0;
   const canRerun = mode === 'view' && shots.length === 0 && !busy;
+  // T-88 sub-rows: lines that split into phrase sub-shots share a lineIndex
+  const subCounts = new Map<number, number>();
+  for (const s of shots) subCounts.set(s.lineIndex, (subCounts.get(s.lineIndex) ?? 0) + 1);
 
   return (
     <section className="card align-card">
@@ -197,13 +204,21 @@ export function AlignCard({ state }: { state: SetupState }) {
       )}
       <div className={`align-list ${shots.length > 8 ? 'align-fade' : ''}`}>
         {shots.length > 0 ? (
-          shots.map((shot: Shot) => (
+          shots.map((shot: Shot) => {
+            const subs = subCounts.get(shot.lineIndex) ?? 1;
+            const isSub = subs > 1;
+            const over = shot.line.duration > MAX_SHOT_SECONDS;
+            return (
             <React.Fragment key={shot.id}>
-              <div className="align-row">
-                <span className="ln">L{(shot.lineIndex + 1).toString().padStart(2, '0')}{shot.subIndex > 0 ? `.${shot.subIndex}` : ''}</span>
+              <div
+                className={`align-row${isSub ? ' sub' : ''}${isSub && shot.subIndex === 0 ? ' sub-first' : ''}${isSub && shot.subIndex === subs - 1 ? ' sub-last' : ''}`}
+                data-line={shot.lineIndex}
+                data-sub={shot.subIndex}
+              >
+                <span className="ln">L{(shot.lineIndex + 1).toString().padStart(2, '0')}{isSub ? `.${shot.subIndex + 1}` : ''}</span>
                 <span className="txt">{shot.line.text}</span>
                 <span className="time">{formatTime(shot.line.start)} → {formatTime(shot.line.end)}</span>
-                <span className="dur">{shot.line.duration.toFixed(1)}s</span>
+                <span className={`dur${over ? ' over' : ''}`} title={over ? `Longer than the ${MAX_SHOT_SECONDS}s shot target` : undefined}>{shot.line.duration.toFixed(1)}s</span>
               </div>
               {shot.line.pauseAfter > 0.05 && (
                 <div className="pause">
@@ -213,7 +228,8 @@ export function AlignCard({ state }: { state: SetupState }) {
                 </div>
               )}
             </React.Fragment>
-          ))
+            );
+          })
         ) : (
           <div className="align-row">
             <span className="txt" style={{ color: 'var(--text-3)' }}>
