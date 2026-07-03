@@ -38,12 +38,27 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
 }
 Write-Host "OK  node $(node --version), ffmpeg present"
 
+# Python is only needed for the ALIGN step (script-to-voiceover timing via
+# stable-ts); serving and reviewing work without it, so warn - don't fail.
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) {
+    Write-Host "NOTE python is not on PATH - creating/aligning projects will fail until it is installed (Python 3.12 + 'pip install stable-ts'). Reviewing/exporting existing projects works fine." -ForegroundColor Yellow
+} else {
+    $hasStableTs = $false
+    try { python -c "import stable_whisper" 2>$null; $hasStableTs = ($LASTEXITCODE -eq 0) } catch {}
+    if ($hasStableTs) {
+        Write-Host "OK  python + stable-ts present (align ready)"
+    } else {
+        Write-Host "NOTE python found but stable-ts is missing - run 'pip install stable-ts' before aligning new projects." -ForegroundColor Yellow
+    }
+}
+
 # 2. dependencies
 foreach ($pkg in @('app', 'ui')) {
     if (-not (Test-Path (Join-Path $root "$pkg\node_modules"))) {
-        Write-Host "... installing $pkg dependencies (first run)"
+        Write-Host "... installing $pkg dependencies - the first run can take a few minutes on a cold npm cache; deprecation warnings are normal"
         Push-Location (Join-Path $root $pkg)
-        npm install --no-audit --no-fund
+        npm install --no-audit --no-fund --loglevel=error
         if ($LASTEXITCODE -ne 0) { Pop-Location; Fail "npm install failed in $pkg/" }
         Pop-Location
     }
