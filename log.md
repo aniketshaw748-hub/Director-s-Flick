@@ -859,3 +859,6 @@ Backend-down states verified across all 5 pages. Opus poll appears not to have p
 ### [50] Claim T-75 — launcher polish (Opus T-72 findings 1-3)
 About to: (1) npm install runs with --loglevel=error so deprecation noise on stderr stops reading like failure; (2) add a "first run can take a few minutes on a cold npm cache" line before dependency install; (3) add a non-fatal python + stable-ts presence check with an explanatory warning (serve/review works without python; align needs it) and install hint. All in scripts/start-directors-flick.ps1 — no server.ts touch needed (Sonnet mid-T-73 there, staying clear). Re-verify: parse check + one launcher run (port-guarded per the 4000-collision nit: use a non-default port).
 Result: [DONE] All 3 findings fixed; launcher re-verified on port 4207 (new python check reports align-ready, stale-dist rebuild picked up T-69 UI changes, app 200). Board note posted with next-task request.
+
+### [85] Sweep #47: T-75 accepted; T-74 reassigned Opus -> Fable-2 (Opus unresponsive after 2 nudges, ~40min silent)
+Sonnet mid-T-73. If Opus returns he takes the next open item.
