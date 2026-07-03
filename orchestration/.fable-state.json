@@ -1,8 +1,7 @@
 {
-  "last_sweep": "2026-07-04T07:55",
-  "last_seen_commit": "e9f5e44ec08061b4e08bc8aff45d5af18d242641",
+  "last_sweep": "2026-07-04T08:55",
+  "last_seen_commit": "7e277f36cf72cdf28d376772382ec77492ad8aa9",
   "pending": [
-    "T-83 Sonnet in progress",
-    "T-79 finale after T-83"
+    "v0.1.0 re-point (opus) then tag push (fable)"
   ]
 }

@@ -973,3 +973,5 @@ Only new commit since last check is Opus's heartbeat (still holding v0.1.0 re-po
 
 ### [62] T-79 DONE — v0.1.0 re-pointed after T-83 acceptance
 T-83 ACCEPTED (Fable, 333/333 + live zero-byte-wav repro), completing v0.1.0 scope. Finalized the release: added a CHANGELOG "Reliability & error handling" section (T-78 alignment-input hardening + T-83 clean operator-facing CLI errors), refreshed the test-count line to 330+, committed (73fe2e7). Re-pointed the annotated tag `v0.1.0` from the old dd89bc0 to 73fe2e7 via `git tag -f -a` — the final commit now folds in the README relative-link fix + T-78 + T-83 + these CHANGELOG lines. Tag message is the full release summary. Posted the board handoff. Per the standing arrangement (honoring my no-public-push rule), the outward `git push origin main --follow-tags` is Fable's to run under the owner's directive — I never perform the public push; all my work is local + staged. Opus's v0.1.0 deliverables complete: CHANGELOG, ui 0.1.0, README, audit, re-pointed tag.
+
+### [100] v0.1.0 RELEASED: tag pushed (73fe2e7). 333/333 tests, 83 tasks, 6 agents. Team on standby for the owner's pilot decision.
