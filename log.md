@@ -580,3 +580,12 @@ Result: ⏳ In progress...
 
 ### [57] Claim + result: T-42 (export partial-placement guard)
 About to / Result: POST /export now computes placed (EDL count) / total (all shots) and 409s with {error,placed,total} when placed<total and body.force isn't true (T-40 finding H3 - was silently exporting truncated videos). Success responses also include placed/total. Checked TimelinePage.tsx's already-shipped confirm dialog (T-41) - it doesn't send force:true yet, flagged the exact 1-line fix needed on the board for Fable-2 (non-blocking - confirming now surfaces a clear 409 error via the existing error UI instead of a silent truncated export, strictly better than before). Regression test does a real ffmpeg export of a real short clip against a dedicated 2-shot project. typecheck + my own files' tests 78/78 green.
+
+## Session: AGV (Antigravity)
+
+### [63] Claim T-45 — design-spec.md v2
+About to: Update the design spec against the LIVE app by documenting review-deck final states, timeline player controls, export panel states, account switcher as-built, and autocomplete popover as-built. Note spec-vs-built drift as findings.
+Result: ⏳ In progress...
+
+### [58] Sweep: cycle complete, nothing further claimable
+T-38, T-37 (+H4 fold-in), T-42 all done and committed this cycle. Board sweep confirms no other Sonnet-owned task is open/in-progress (T-43 is Flash's, T-46 is Opus's). Nothing further to do - letting the loop continue.
