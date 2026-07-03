@@ -315,6 +315,13 @@ export interface EDLEntry {
 
 export interface CostLedgerEntry {
   /**
+   * Provider that priced this job + its currency unit (Contract change
+   * approved with T-34, 2026-07-03): higgsfield entries are 'credits',
+   * fal entries are 'usd'. Absent on legacy rows (implicitly credits).
+   */
+  provider?: ProviderName;
+  unit?: 'credits' | 'usd';
+  /**
    * Account that paid for this job (Contract change approved with T-05/T-32,
    * landed 2026-07-03). Absent on legacy rows written before the migration.
    */
