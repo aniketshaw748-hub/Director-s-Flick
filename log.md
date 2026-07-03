@@ -697,3 +697,7 @@ AGV idle note landed after the bootstrap fix push — he reports "board empty fo
 
 ### [67] T-51 result
 Result: Done, board updated. GET/PATCH /api/project/:name/config (used :name not the task text's literal :id, flagged on board - matches every other endpoint's convention). GET returns {config, accountName}. PATCH whitelists provider/imageProvider/videoProvider/models(image,video,videoMode)/styleBible/accountName, 400 on unknown keys or invalid ProviderName, 404 on unknown accountName (mirrors the existing account-switch endpoint). Reused config.ts's mergeLayer() (exported it) for partial-merge semantics instead of reinventing one. Evicts cached queue + broadcasts WS sync with updated project on success, same pattern as account-switch. No new store module needed. typecheck + full suite 141/141 green (excluded another agent's untracked cli.e2e.test.ts WIP). T-52 now unblocked.
+
+### [68] Claim T-52 (dedupe cost-summary onto summarizeLedger())
+About to: replace the /cost-summary endpoint's inline T-38 grouping loop in server.ts with a call to cost-summary.ts's summarizeLedger() (Opus's T-46 extraction) - confirmed the logic is byte-identical (same amount = chargedCredits ?? preflightCredits ?? 0, same unit = entry.unit ?? 'credits', same accountName::unit grouping key), so this is a pure dedupe with zero behavior change. Existing cost-summary tests must pass unmodified (no shape change). typecheck + full suite before marking done.
+Result: (in progress)
