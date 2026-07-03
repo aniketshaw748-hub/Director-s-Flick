@@ -21,6 +21,7 @@ import {
 } from './accounts.js';
 import { alignScript, computeTimeline, planShots } from './align.js';
 import { exportTimeline, type ExportProgressEvent } from './media.js';
+import { summarizeLedger } from './cost-summary.js';
 import type { AccountStatus } from './accounts.js';
 import type { ElementCategory, ProviderName, Project } from './types.js';
 
@@ -646,34 +647,16 @@ export function startServer(port = 4000) {
   // fal rows are 'usd' - a mixed-provider project must never sum these
   // together, per Opus's T-34 flag). Legacy rows predating this migration
   // have no `unit` column value; treat them as 'credits' (everything was
-  // higgsfield-only before the fal fallback existed). Computed here from
-  // listLedger() rather than a new db.ts query - listLedger already carries
-  // everything needed.
-  //
-  // Response shape (contract change from T-36's original totalCredits/
-  // byAccount[].totalCredits shape):
+  // higgsfield-only before the fal fallback existed). Grouping logic lives in
+  // cost-summary.ts::summarizeLedger (T-52 dedupe - Opus extracted the same
+  // grouping for `cli cost` in T-46; this endpoint used to duplicate it
+  // inline). Response shape unchanged:
   //   { totals: { credits?: number, usd?: number },
   //     byAccount: [{ accountName: string|null, unit: 'credits'|'usd', total: number, entryCount: number }] }
   app.get('/api/project/:name/cost-summary', (req, res) => {
      try {
         const { db } = getOrOpenProject(req.params.name);
-        const entries = db.listLedger();
-        const totals = new Map<'credits' | 'usd', number>();
-        const byAccount = new Map<
-           string,
-           { accountName: string | null; unit: 'credits' | 'usd'; total: number; entryCount: number }
-        >();
-        for (const e of entries) {
-           const amount = e.chargedCredits ?? e.preflightCredits ?? 0;
-           const unit = e.unit ?? 'credits';
-           totals.set(unit, (totals.get(unit) ?? 0) + amount);
-           const key = `${e.accountName ?? '(none)'}::${unit}`;
-           const bucket = byAccount.get(key) ?? { accountName: e.accountName ?? null, unit, total: 0, entryCount: 0 };
-           bucket.total += amount;
-           bucket.entryCount += 1;
-           byAccount.set(key, bucket);
-        }
-        res.json({ totals: Object.fromEntries(totals), byAccount: [...byAccount.values()] });
+        res.json(summarizeLedger(db.listLedger()));
      } catch (e: any) {
         res.status(500).json({ error: e.message });
      }
