@@ -2,12 +2,19 @@ import { vi, describe, test, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { ProjectDb, PROJECTS_ROOT, projectDbPath } from '../../src/db.js';
 import { startServer } from '../../src/server.js';
+import type { Shot } from '../../src/types.js';
 
 let serverInstance: http.Server | undefined;
 const openDbs: ProjectDb[] = [];
+// Extra per-test project dirs that the server itself opens (and keeps a live
+// ProjectDb handle open for, for the server's lifetime) - Windows locks the
+// sqlite file while it's open, so these can only be rm'd AFTER openDbs above
+// are closed in the outer afterAll below, not from within the test itself.
+const extraDirsToClean: string[] = [];
 
 // Intercept database openings so we can close them at teardown
 vi.mock('../../src/db.js', async (importOriginal) => {
@@ -164,6 +171,18 @@ describe('server integration', () => {
     // Remove temp directory
     if (fs.existsSync(destDir)) {
       fs.rmSync(destDir, { recursive: true, force: true });
+    }
+
+    // Remove any other per-test project dirs (only safe now that the dbs
+    // the server opened for them are closed, above).
+    for (const dir of extraDirsToClean) {
+      if (fs.existsSync(dir)) {
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+        } catch {
+          // Best-effort - a lingering handle here isn't worth failing the suite over.
+        }
+      }
     }
 
     // Restore original setTimeout
@@ -416,4 +435,81 @@ describe('server integration', () => {
     const healthRes = await fetch(`http://localhost:${port}/api/projects`);
     expect(healthRes.status).toBe(200);
   });
+
+  // --- T-42 (T-40 finding H3): export partial-placement guard --------------
+
+  test('POST /export 409s on a partial timeline without force, includes placed/total, force:true bypasses (T-42)', async () => {
+    const partialName = `temp_proj_partial_${Date.now()}`;
+    const partialDir = path.join(PROJECTS_ROOT, partialName);
+    fs.mkdirSync(partialDir, { recursive: true });
+    fs.cpSync(srcDir, partialDir, { recursive: true });
+    for (const suffix of ['-wal', '-shm']) {
+      const f = path.join(partialDir, `pipeline.db${suffix}`);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    extraDirsToClean.push(partialDir);
+    try {
+      const partialDb = new ProjectDb(partialName, projectDbPath(partialName));
+      const project = partialDb.getProject()!;
+      // Deterministic 2-shot scenario: 1 placed, 1 not - independent of
+      // whatever state the shared tempProjectName fixture is in by now.
+      // jobs/cost_ledger both FK shots(id) - clear them first.
+      partialDb.db.prepare('DELETE FROM edl').run();
+      partialDb.db.prepare('DELETE FROM cost_ledger').run();
+      partialDb.db.prepare('DELETE FROM jobs').run();
+      partialDb.db.prepare('DELETE FROM shots').run();
+      const now = new Date().toISOString();
+      const shots: Shot[] = [0, 1].map((i) => ({
+        id: `partial-shot-${i}`,
+        projectId: project.id,
+        lineIndex: i,
+        subIndex: 0,
+        state: i === 0 ? 'PLACED' : 'IMAGE_QUEUED',
+        line: { index: i, text: `Line ${i}.`, start: i * 3, end: i * 3 + 2, duration: 2, pauseAfter: 1, targetDuration: 3 },
+        elementIds: [],
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      }));
+      partialDb.insertShots(shots);
+      const realClip = path.join(partialDir, 'clips', '231fb6e6-74e2-4214-892e-5de028eefc62.mp4');
+      partialDb.upsertEdlEntry({
+        id: randomUUID(),
+        projectId: project.id,
+        shotId: 'partial-shot-0',
+        lineIndex: 0,
+        clipPath: realClip,
+        inPoint: 0,
+        outPoint: 2,
+        timelineStart: 0,
+        duration: 2,
+      });
+      partialDb.close();
+
+      let res = await fetch(`http://localhost:${port}/api/project/${partialName}/export`, { method: 'POST' });
+      expect(res.status).toBe(409);
+      let body = (await res.json()) as any;
+      expect(body.placed).toBe(1);
+      expect(body.total).toBe(2);
+
+      res = await fetch(`http://localhost:${port}/api/project/${partialName}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      });
+      body = (await res.json()) as any;
+      expect(res.status).toBe(200);
+      expect(body.success).toBe(true);
+      expect(body.placed).toBe(1);
+      expect(body.total).toBe(2);
+    } finally {
+      // getOrOpenProject started this project's own background queue loop -
+      // stop it (same reasoning as the shared tempProjectName's /stop in
+      // afterAll) so it doesn't keep ticking against a soon-to-be-closed db.
+      // Directory cleanup itself is deferred to the outer afterAll
+      // (extraDirsToClean, above) - Windows locks the sqlite file while the
+      // server's ProjectDb handle for it is still open.
+      await fetch(`http://localhost:${port}/api/project/${partialName}/stop`, { method: 'POST' }).catch(() => {});
+    }
+  }, 20_000); // real ffmpeg trim+concat+mux of one short real clip
 });

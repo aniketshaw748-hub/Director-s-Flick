@@ -468,6 +468,22 @@ export function startServer(port = 4000) {
            res.status(409).json({ error: 'EDL is empty - nothing to export (run the queue first)' });
            return;
         }
+        // T-42 (T-40 finding H3): a partially-placed timeline exported a
+        // short final.mp4 silently, no warning. Require an explicit
+        // force:true once placed<total so a bare POST (or a stale UI build)
+        // can't ship a silently-truncated export; the confirm dialog (T-41)
+        // sends force after the user acknowledges.
+        const total = db.listShots().length;
+        const placed = entries.length;
+        const force = req.body?.force === true;
+        if (placed < total && !force) {
+           res.status(409).json({
+              error: `only ${placed} of ${total} shots are placed - pass force:true to export anyway`,
+              placed,
+              total,
+           });
+           return;
+        }
         const outPath =
            typeof req.body?.outPath === 'string' && req.body.outPath
               ? path.resolve(req.body.outPath)
@@ -477,7 +493,7 @@ export function startServer(port = 4000) {
               broadcast(req.params.name, { type: 'exportProgress', ...evt });
            },
         });
-        res.json({ success: true, outputPath: finalPath });
+        res.json({ success: true, outputPath: finalPath, placed, total });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
      }

@@ -566,3 +566,17 @@ Both back online. Roster: Flash = tests/docs (shared w/ Sonnet, Sonnet-reviewed)
 
 ### [61] Sweep #26: T-35 accepted + live schema samples delivered; Opus -> T-46/T-47
 T-35 (schema whitelists, 84/84, over-collection bias) accepted; captured real model-get payloads (kling3_0/turbo/nano) into orchestration/samples/ — turbo declares resolution-not-mode exactly as Opus's hermetic test predicted. Opus queue: T-46 (unit-aware cli cost) -> T-47 (Replicate adapter, 'replicate' ProviderName pre-approved). Gemini assignments confirmed: Flash T-43, AGV T-45 (+T-44 blocked on T-41). Six agents fully tasked.
+
+---
+
+## Session: Flash
+
+### [62] Claim T-43 — api.md v3 + accounts tests
+About to:
+- Write hermetic unit tests in `app/tests/accounts.test.ts` for `app/src/accounts.ts`, mocking CLI spawn, checking local file/directory setups under a mock temp `APP_ROOT` (derived via mock of `db.js`), testing list, exists, job/active tags, status checks, and auth login flows.
+- Rewrite `docs/api.md` to match the current backend REST/WS interfaces as of `server.ts` v3.
+- Run `npm test` to verify everything is green.
+Result: ⏳ In progress...
+
+### [57] Claim + result: T-42 (export partial-placement guard)
+About to / Result: POST /export now computes placed (EDL count) / total (all shots) and 409s with {error,placed,total} when placed<total and body.force isn't true (T-40 finding H3 - was silently exporting truncated videos). Success responses also include placed/total. Checked TimelinePage.tsx's already-shipped confirm dialog (T-41) - it doesn't send force:true yet, flagged the exact 1-line fix needed on the board for Fable-2 (non-blocking - confirming now surfaces a clear 409 error via the existing error UI instead of a silent truncated export, strictly better than before). Regression test does a real ffmpeg export of a real short clip against a dedicated 2-shot project. typecheck + my own files' tests 78/78 green.
