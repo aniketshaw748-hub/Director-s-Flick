@@ -1,9 +1,10 @@
-import { vi, describe, test, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { ProjectDb } from '../src/db.js';
 import { ShotQueue } from '../src/queue.js';
 import type { GenProvider, PromptEngine, Shot, PipelineConfig } from '../src/types.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const TEST_PROJECT_NAME = 'temp_test_project_queue';
 const TEST_DB_DIR = path.resolve('projects', TEST_PROJECT_NAME);
@@ -12,7 +13,12 @@ const TEST_DB_FILE = path.join(TEST_DB_DIR, 'pipeline.db');
 describe('queue', () => {
   let db: ProjectDb;
 
-  beforeAll(() => {
+  beforeEach(() => {
+    // Stub setTimeout to resolve instantly
+    vi.stubGlobal('setTimeout', (fn: Function) => {
+      process.nextTick(fn);
+    });
+
     if (fs.existsSync(TEST_DB_DIR)) {
       fs.rmSync(TEST_DB_DIR, { recursive: true, force: true });
     }
@@ -20,18 +26,11 @@ describe('queue', () => {
     db = new ProjectDb(TEST_PROJECT_NAME, TEST_DB_FILE);
   });
 
-  afterAll(() => {
+  afterEach(() => {
     db.close();
     if (fs.existsSync(TEST_DB_DIR)) {
       fs.rmSync(TEST_DB_DIR, { recursive: true, force: true });
     }
-  });
-
-  beforeEach(() => {
-    // Stub setTimeout to resolve instantly
-    vi.stubGlobal('setTimeout', (fn: Function) => {
-      process.nextTick(fn);
-    });
   });
 
   test('runs the state machine to completion (auto-approve)', async () => {
@@ -64,12 +63,12 @@ describe('queue', () => {
 
     db.insertShots([mockShot]);
 
-    // Mock GenProvider
+    // Mock GenProvider with unique job ids
     const mockProvider: GenProvider = {
       name: 'mock',
       preflightCost: async () => 1.5,
-      submitImage: async () => 'img-job-uuid',
-      submitVideo: async () => 'vid-job-uuid',
+      submitImage: async () => `img-job-${randomUUID()}`,
+      submitVideo: async () => `vid-job-${randomUUID()}`,
       poll: async (jobId) => ({
         jobId,
         status: 'completed',
@@ -120,7 +119,12 @@ describe('queue', () => {
   });
 
   test('review verbs: approve, requestEdit, requestRedo, redoAnimation', async () => {
-    const project = db.getProject()!;
+    const project = db.ensureProject({
+      name: TEST_PROJECT_NAME,
+      scriptPath: 'script.txt',
+      voPath: 'vo.wav',
+    });
+
     const mockShot: Shot = {
       id: 'shot-review-1',
       projectId: project.id,
@@ -140,16 +144,18 @@ describe('queue', () => {
       attempts: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      imagePrompt: 'original prompt',
+      imagePath: 'file:///mock/image.png',
     };
 
     db.insertShots([mockShot]);
 
-    // Mock GenProvider
+    // Mock GenProvider with unique job ids
     const mockProvider: GenProvider = {
       name: 'mock',
       preflightCost: async () => 1.5,
-      submitImage: async () => 'img-job-uuid',
-      submitVideo: async () => 'vid-job-uuid-2',
+      submitImage: async () => `img-job-${randomUUID()}`,
+      submitVideo: async () => `vid-job-${randomUUID()}`,
       poll: async (jobId) => ({
         jobId,
         status: 'completed',
@@ -160,11 +166,26 @@ describe('queue', () => {
     };
 
     const mockPrompts: PromptEngine = {
-      imagePromptBatch: async (lines) => [],
+      imagePromptBatch: async (lines) =>
+        lines.map((l) => ({ lineIndex: l.index, imagePrompt: 'regenerated image prompt' })),
       animationPrompt: async () => 'anim prompt',
     };
 
-    const config = db.getProject()!.config;
+    const config: PipelineConfig = {
+      provider: 'mock',
+      models: {
+        image: 'nano_banana_2',
+        video: 'kling3_0',
+        videoMode: 'std',
+      },
+      bufferSize: 5,
+      concurrency: 4,
+      elementsViaPlaceholders: true,
+      aspectRatio: '16:9',
+      soundOff: true,
+      styleBible: '',
+    };
+
     const queue = new ShotQueue(db, mockProvider, mockPrompts, config);
 
     // Test approve
@@ -177,25 +198,43 @@ describe('queue', () => {
     // Test requestEdit
     await queue.requestEdit('shot-review-1', 'make it brighter');
     let shot = db.getShot('shot-review-1')!;
-    expect(shot.state).toBe('PROMPTED');
-    expect(shot.imagePrompt).toContain('make it brighter');
+    expect(shot.state).toBe('IMAGE_QUEUED');
+    expect(shot.imagePrompt).toBe('original prompt make it brighter');
 
     // Reset back to IN_REVIEW for other tests
-    db.db.prepare("UPDATE shots SET state = 'IN_REVIEW', image_prompt = NULL WHERE id = 'shot-review-1'").run();
+    db.db.prepare("UPDATE shots SET state = 'IN_REVIEW', image_prompt = 'original prompt' WHERE id = 'shot-review-1'").run();
 
-    // Test requestRedo
+    // Test requestRedo without prompt (should regenerate via PromptEngine)
     await queue.requestRedo('shot-review-1');
     shot = db.getShot('shot-review-1')!;
-    expect(shot.state).toBe('PROMPTED');
-    expect(shot.imagePrompt).toBeUndefined();
+    expect(shot.state).toBe('IMAGE_QUEUED');
+    expect(shot.imagePrompt).toBe('regenerated image prompt');
+
+    // Reset back to IN_REVIEW for other tests
+    db.db.prepare("UPDATE shots SET state = 'IN_REVIEW', image_prompt = 'original prompt' WHERE id = 'shot-review-1'").run();
+
+    // Test requestRedo with custom prompt
+    await queue.requestRedo('shot-review-1', 'verbatim user prompt');
+    shot = db.getShot('shot-review-1')!;
+    expect(shot.state).toBe('IMAGE_QUEUED');
+    expect(shot.imagePrompt).toBe('verbatim user prompt');
 
     // Reset back to PLACED to test redoAnimation
     db.db.prepare("UPDATE shots SET state = 'PLACED' WHERE id = 'shot-review-1'").run();
 
-    // Test redoAnimation
-    await queue.redoAnimation('shot-review-1', 'new motion');
+    // Test redoAnimation without prompt
+    await queue.redoAnimation('shot-review-1');
     shot = db.getShot('shot-review-1')!;
     expect(shot.state).toBe('VIDEO_QUEUED');
-    expect(shot.animationPrompt).toBe('new motion');
+    expect(shot.animationPrompt).toBe('anim prompt');
+
+    // Reset back to PLACED
+    db.db.prepare("UPDATE shots SET state = 'PLACED' WHERE id = 'shot-review-1'").run();
+
+    // Test redoAnimation with custom prompt
+    await queue.redoAnimation('shot-review-1', 'custom animation prompt');
+    shot = db.getShot('shot-review-1')!;
+    expect(shot.state).toBe('VIDEO_QUEUED');
+    expect(shot.animationPrompt).toBe('custom animation prompt');
   });
 });
