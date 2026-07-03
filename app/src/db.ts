@@ -599,8 +599,8 @@ export class ProjectDb {
     const info = this.db
       .prepare(
         `INSERT INTO cost_ledger (project_id, job_id, shot_id, kind, model,
-                                  preflight_credits, charged_credits, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                                  preflight_credits, charged_credits, account_name, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.projectId,
@@ -610,6 +610,7 @@ export class ProjectDb {
         entry.model,
         entry.preflightCredits,
         entry.chargedCredits,
+        entry.accountName ?? null,
         entry.createdAt,
       );
     return Number(info.lastInsertRowid);
@@ -620,6 +621,14 @@ export class ProjectDb {
     this.db
       .prepare(`UPDATE cost_ledger SET charged_credits = ? WHERE job_id = ?`)
       .run(chargedCredits, jobId);
+  }
+
+  /** Tag a ledger row's account after the fact (e.g. accounts.ts's job->account
+   * map reconciled once a queue's ShotQueue knows the active account). */
+  updateLedgerAccount(jobId: string, accountName: string): void {
+    this.db
+      .prepare(`UPDATE cost_ledger SET account_name = ? WHERE job_id = ?`)
+      .run(accountName, jobId);
   }
 
   listLedger(): CostLedgerEntry[] {
@@ -634,6 +643,7 @@ export class ProjectDb {
       model: string;
       preflight_credits: number | null;
       charged_credits: number | null;
+      account_name: string | null;
       created_at: string;
     }[];
     return rows.map((r) => {
@@ -648,6 +658,7 @@ export class ProjectDb {
         createdAt: r.created_at,
       };
       if (r.shot_id !== null) e.shotId = r.shot_id;
+      if (r.account_name !== null) e.accountName = r.account_name;
       return e;
     });
   }

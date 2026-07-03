@@ -31,14 +31,24 @@ export class ShotQueue extends EventEmitter {
   private config: PipelineConfig;
   private project: Project;
   private stopped = false;
+  /** Active account name (see accounts.ts), tagged onto every ledger row this
+   * queue inserts. Undefined for mock runs / no account selected. */
+  private accountName: string | undefined;
 
-  constructor(db: ProjectDb, provider: GenProvider, prompts: PromptEngine, config: PipelineConfig) {
+  constructor(
+    db: ProjectDb,
+    provider: GenProvider,
+    prompts: PromptEngine,
+    config: PipelineConfig,
+    accountName?: string,
+  ) {
     super();
     this.db = db;
     this.provider = provider;
     this.prompts = prompts;
     this.config = config;
     this.project = db.getProject()!;
+    this.accountName = accountName;
   }
 
   /** Signal run() to exit at the top of its next iteration (T-27: explicit
@@ -268,6 +278,7 @@ export class ShotQueue extends EventEmitter {
          model: spec.model,
          preflightCredits: cost,
          chargedCredits: null,
+         accountName: this.accountName,
          createdAt: new Date().toISOString()
       });
       this.db.updateShotState(shot.id, 'VIDEO_QUEUED', {
@@ -320,6 +331,7 @@ export class ShotQueue extends EventEmitter {
          model: spec.model,
          preflightCredits: cost,
          chargedCredits: null,
+         accountName: this.accountName,
          createdAt: new Date().toISOString()
       });
       this.db.updateShotState(shot.id, 'IMAGE_QUEUED', {

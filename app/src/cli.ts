@@ -233,7 +233,7 @@ async function stepRunQueue(
     accountName ? { credentialsPath: accountCredentialsPath(accountName), accountName } : undefined,
   );
   const prompts = createPromptEngine(config);
-  const queue = new ShotQueue(db, provider, prompts, config);
+  const queue = new ShotQueue(db, provider, prompts, config, accountName);
   await queue.run({ autoApprove });
 }
 
@@ -547,7 +547,10 @@ program
               e.model,
               e.preflightCredits === null ? '-' : e.preflightCredits.toFixed(2),
               e.chargedCredits === null ? '-' : e.chargedCredits.toFixed(2),
-              getJobAccount(e.jobId) ?? '-',
+              // Prefer the ledger row's own account_name (written at insert
+              // time since T-32); fall back to the _usage.json map for rows
+              // written before that column existed.
+              e.accountName ?? getJobAccount(e.jobId) ?? '-',
               e.jobId,
             ]),
           ),

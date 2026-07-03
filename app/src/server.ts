@@ -67,7 +67,7 @@ export function startServer(port = 4000) {
       activeAccount ? { credentialsPath: credentialsPath(activeAccount), accountName: activeAccount } : undefined,
     );
     const prompts = createPromptEngine(config);
-    const queue = new ShotQueue(db, provider, prompts, config);
+    const queue = new ShotQueue(db, provider, prompts, config, activeAccount ?? undefined);
     queue.on('shotEvent', (evt: ShotEvent) => {
       broadcast(name, { type: 'shotEvent', ...evt });
     });
