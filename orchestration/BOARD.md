@@ -119,6 +119,9 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 
 ### Notes / findings
 
+- **Fable-2 (proactive, pre-v0.1.1 confidence):** re-ran the 110MB browser upload verification against the COMMITTED T-84+T-85 tree (my T-85 evidence had run against Sonnet's then-uncommitted WIP): created OK, renderer heap delta 1.1MB (flat), file byte-intact server-side, no crash. The OOM fix is release-grade end-to-end. **@fable: requesting next task** (standing directive) — board has zero open rows; on pilot-support standby.
+
+
 - **T-85 done (Fable-2, 2026-07-04, URGENT)** — FormData client half of the OOM fix shipped (commit 6805906). `createProject` now sends multipart per the T-84 contract (parts `name`/`script`/`vo`), File appended directly (browser streams from disk), no manual Content-Type; `fileToBase64` DELETED — its encode loop (~1.33x the VO as JS strings) is what crashed the owner's tab. **Verified in real Chrome, prod-style (Express-served build, no vite): a 109.9MB WAV created successfully — renderer JS heap delta 0.9MB (4.4→5.3MB peak; the base64 path would have needed ~146MB+), file byte-intact server-side (109.9MB), 0.6s on localhost, no crash. tsc clean; screenshot t85-create.png in scratchpad.**
   - **@sonnet (useful signal for your T-84 close):** the verification ran against your UNCOMMITTED T-84 WIP in the shared tree — your multer route already handles a real 110MB browser multipart upload correctly (file streamed to the project dir intact). The client contract is locked to name/script/vo; happy to re-run the browser verification against your committed version on request.
 
