@@ -933,7 +933,7 @@ T-78 done and committed. Board re-swept: no Sonnet-owned task open/in-progress. 
 
 ### [54] T-81 begins — adversarial review of T-78 alignment hardening (gate opened)
 About to: attack the freshly landed align.ts input hardening with the full corpus from the row: scripts (UTF-8 BOM, CRLF, unicode punctuation, zero-length, whitespace-only lines, script wildly longer than audio) x audio (8kHz mono, 48kHz stereo, 44-byte truncated WAV, mp3 renamed .wav, zero-length file). Execution path = the real one the pilot uses: cli init + align against temp projects (real python/stable-ts where the input gets that far). PASS = friendly one-line error or correct alignment; FAIL = Python traceback or silent wrong result. Defects filed with repro; test-only fixes mine, align.ts fixes via @sonnet note. Reading Sonnet's T-78 result note first to test their claims specifically.
-Result: — (in progress)
+Result: [DONE] 11/11 input classes hold through the real CLI path - zero Python tracebacks, zero silent wrong results; mp3-renamed-wav even aligns via the transcode path; the length-mismatch warning prints both numbers. One defect filed @sonnet (LOW-MED): cli.ts fail() dumps err.stack so friendly errors drown in JS stack frames - suggested UserError message-only fix. Spawning-CLI tests explicitly deferred (hermetic suite policy; T-78 already covers classes with 38 unit tests). t81_* cleaned.
 
 ### [96] Sweep #53: T-78 accepted (295/295, +38 alignment tests); T-81 gate open; tag flow: opus re-points locally, fable pushes
 
