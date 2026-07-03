@@ -276,6 +276,58 @@ function pickError(json: unknown): string | null {
   return null;
 }
 
+/**
+ * Extract the set of declared parameter names from a `higgsfield model get
+ * <model> --json` payload (T-35). Tolerant to several shapes since the schema
+ * is provider-defined: arrays of `{ name | key | id }` objects, and objects
+ * keyed by param name under params / parameters / inputs / fields / arguments /
+ * properties (JSON-schema style). Names are normalized to lowercase snake_case
+ * with leading dashes stripped. Biased toward OVER-collection: a superset only
+ * fails to suppress an unknown flag (degrading to today's behavior), whereas
+ * under-collection could drop a valid one.
+ */
+function extractParamNames(json: unknown): Set<string> {
+  const out = new Set<string>();
+  const norm = (s: string): string => s.trim().toLowerCase().replace(/^-+/, '').replace(/-/g, '_');
+  const CONTAINER_KEYS = ['params', 'parameters', 'inputs', 'fields', 'arguments', 'args', 'properties'];
+  const NAME_KEYS = ['name', 'key', 'id', 'param', 'flag'];
+  const visit = (node: unknown, depth: number): void => {
+    if (depth > 6 || node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          const rec = item as Record<string, unknown>;
+          for (const nk of NAME_KEYS) {
+            const v = rec[nk];
+            if (typeof v === 'string' && v.length > 0) {
+              out.add(norm(v));
+              break;
+            }
+          }
+        }
+        visit(item, depth + 1);
+      }
+      return;
+    }
+    const rec = node as Record<string, unknown>;
+    for (const ck of CONTAINER_KEYS) {
+      const v = rec[ck];
+      if (Array.isArray(v)) {
+        visit(v, depth + 1);
+      } else if (v && typeof v === 'object') {
+        // object keyed by param name (JSON-schema properties, or a plain map)
+        for (const k of Object.keys(v as object)) out.add(norm(k));
+        visit(v, depth + 1);
+      }
+    }
+    for (const v of Object.values(rec)) {
+      if (v && typeof v === 'object') visit(v, depth + 1);
+    }
+  };
+  visit(json, 0);
+  return out;
+}
+
 const TERMINAL_STATUSES: ReadonlySet<JobStatus> = new Set([
   'completed',
   'failed',
@@ -338,6 +390,10 @@ export class HiggsfieldCliProvider implements GenProvider {
   private readonly resultCache = new Map<string, JobResult>();
   /** Lazily probed: does the CLI support `generate get`? */
   private getSupport: boolean | null = null;
+  /** Per-model declared-param whitelist from `model get --json` (T-35), cached
+   * for the provider's lifetime. A Set = use it to gate flags; null = schema
+   * unavailable -> fall back to the built-in per-model behavior. */
+  private readonly paramWhitelistCache = new Map<string, ReadonlySet<string> | null>();
 
   constructor(config: PipelineConfig, opts: HiggsfieldCliOptions = {}) {
     this.config = config;
@@ -459,31 +515,42 @@ export class HiggsfieldCliProvider implements GenProvider {
   }
 
   private async buildCreateArgs(spec: ImageJobSpec | VideoJobSpec): Promise<string[]> {
+    // Schema-driven param whitelist (T-35): with a model schema, pass a tunable
+    // flag only if the model declares it; without a schema, fall back to the
+    // built-in per-model behavior. This replaces hard-coded guards (the
+    // `if model !== 'kling3_0'` resolution special-case, plus always-sending
+    // --mode which kling3_0_turbo would reject). Structural flags — prompt,
+    // start-image, duration, element-reference --image — are ALWAYS passed:
+    // they define the request and were never the unknown-param bug class.
+    const allowed = await this.paramWhitelist(spec.model);
+    const wants = (param: string, fallback: boolean): boolean =>
+      allowed === null ? fallback : allowed.has(param);
+
     // elementsViaPlaceholders=true: <<<element_id>>> placeholders are already
     // embedded in spec.prompt -> pass the prompt through verbatim, no flags.
     const args = ['generate', 'create', spec.model, '--prompt', spec.prompt];
     if (spec.kind === 'video') {
       if (spec.startImage) args.push('--start-image', spec.startImage);
       args.push('--duration', String(spec.duration));
-      args.push('--mode', spec.mode ?? this.config.models.videoMode);
-      args.push('--sound', spec.soundOff ? 'off' : 'on');
-      // kling3_0 has no `resolution` param (quality is selected via --mode:
-      // std/pro/4k) — the CLI hard-errors on unknown params (observed live,
-      // T-08). Only pass --resolution to models that declare it. (Review
-      // note: the original hotfix dropped the '720p' default for every OTHER
-      // model too, since spec.resolution is normally unset - restored it here
-      // so only kling3_0 actually changes behavior. A real per-model schema
-      // whitelist, per Fable's follow-up request, is a separate task.)
-      if (spec.model !== 'kling3_0') {
+      if (wants('mode', true)) args.push('--mode', spec.mode ?? this.config.models.videoMode);
+      if (wants('sound', true)) args.push('--sound', spec.soundOff ? 'off' : 'on');
+      // Fallback preserves the old guard: everything except kling3_0 got
+      // --resolution (default 720p). With a schema, kling3_0 is no longer a
+      // special case — it simply doesn't declare `resolution`.
+      if (wants('resolution', spec.model !== 'kling3_0')) {
         args.push('--resolution', spec.resolution ?? '720p');
       }
     } else {
-      if (spec.resolution) args.push('--resolution', spec.resolution);
+      // Image: send --resolution only when a value is set AND the model either
+      // declares it (schema) or we have no schema (fallback = old behavior).
+      if (spec.resolution && wants('resolution', true)) {
+        args.push('--resolution', spec.resolution);
+      }
       // Edit = image-to-image: the rejected image is passed as a reference
       // input, same --image flag used for explicit element references below.
       if (spec.referenceImagePath) args.push('--image', spec.referenceImagePath);
     }
-    args.push('--aspect_ratio', spec.aspectRatio);
+    if (wants('aspect_ratio', true)) args.push('--aspect_ratio', spec.aspectRatio);
     if (!this.config.elementsViaPlaceholders) {
       // Placeholder support off -> pass element references explicitly.
       for (const ref of spec.elementIds) {
@@ -539,6 +606,32 @@ export class HiggsfieldCliProvider implements GenProvider {
       this.getSupport = false;
     }
     return this.getSupport;
+  }
+
+  /**
+   * Declared param-name whitelist for a model from `higgsfield model get
+   * <model> --json`, cached for the provider's lifetime (T-35). Returns null
+   * when the schema is unavailable / errors / is unparsable / is empty — the
+   * caller then falls back to the built-in per-model behavior. Never throws.
+   */
+  private async paramWhitelist(model: string): Promise<ReadonlySet<string> | null> {
+    const cached = this.paramWhitelistCache.get(model);
+    if (cached !== undefined) return cached;
+    let names: ReadonlySet<string> | null = null;
+    try {
+      const run = await this.run(['model', 'get', model, '--json'], {
+        timeoutMs: 30_000,
+        check: false,
+      });
+      if (run.code === 0 && !isAuthFailureText(`${run.stdout}\n${run.stderr}`)) {
+        const parsed = extractParamNames(extractJson(run.stdout));
+        if (parsed.size > 0) names = parsed;
+      }
+    } catch {
+      names = null;
+    }
+    this.paramWhitelistCache.set(model, names);
+    return names;
   }
 
   private run(
