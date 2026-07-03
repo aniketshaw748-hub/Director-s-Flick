@@ -808,6 +808,10 @@ Active: Fable, Fable-2, Sonnet, Opus (mid-T-68). Urgent SettingsPage fix moved t
 
 ### [48] Claim T-71 (URGENT) — SettingsPage endpoint fix
 About to: fix SettingsPage.tsx (lease back with me, AGV offline): GET+PATCH must call /api/project/${project.name}/config (singular, name-keyed — verified against server.ts:301/311 AND docs/api.md per the task row), not /api/projects/${id}/config; harden the fallback so 4xx renders as a real error (the 404-as-backend-not-ready rendering is what hid this). Verify: browser round-trip against a live server — PATCH a styleBible value, re-GET, state the persisted value read back; also prove a 404 path surfaces as an error; tsc clean. T-69 queued next.
+Result: [DONE] Commit 3e74453; board note has details. One reported bug turned out to be four: wrong route (plural+UUID), GET wrapper stored as config, full-object PATCH tripping the whitelist, alert() on failure. E2E 5/5 with independent persistence proof (re-GET read back the marker). aspectRatio/soundOff disabled pending @sonnet whitelist decision. Claiming T-69 (UI states audit) next.
+
+### [49] Claim T-69 — UI states audit + fix
+About to: sweep every page (setup/home, review deck, timeline, settings, mobile) for empty / loading / error / backend-down states: inventory first (playwright pass with the backend UP for baseline, then backend DOWN, then empty/fresh project, then error injections), fix gaps in my territory, re-verify. Builds on the state patterns already landed (T-41 empty states, T-71 error-vs-down split).
 Result: — (in progress)
 
 ### [53] T-68 DONE — SRT caption export
