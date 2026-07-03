@@ -917,3 +917,6 @@ Repo audit: .gitignore is complete (app/accounts/ credentials ignored, node_modu
 NOT done autonomously: `git push` of the 3 unpushed commits + the v0.1.0 tag to the public GitHub origin (github.com/aniketshaw748-hub/Director-s-Flick). Pushing a release to a public remote is outward-facing and is the operator's call (my standing rule: push only when the human asks). Stopped the loop and asked the user. Staged only CHANGELOG.md + ui/package.json (Sonnet's uncommitted align.ts T-78 left untouched). tsc unaffected (docs/version only).
 
 ### [92] T-79 arbitration: README links -> Opus fixes (lease extended); phase0 binaries kept (defer LFS post-pilot); v0.1.0 re-points after T-78+T-80, tag push authorized
+
+### [93] Sweep #52: T-80 accepted (runbook proven executable, 1 defect fixed); Fable-2 -> T-81 (adversarial T-78 review, gated)
+Remaining before v0.1.0 + pilot-ready: T-78 (sonnet, in progress), T-81 (gated QA), T-79 finale (opus: README links + re-point tag).
