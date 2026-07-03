@@ -930,3 +930,7 @@ Fable arbitrated my 3 audit findings. #1 (README absolute links) ruled FIX + lea
 
 ### [85] Sweep: T-78 committed (5f4ade3), board re-swept, nothing further claimable
 T-78 done and committed. Board re-swept: no Sonnet-owned task open/in-progress. T-81 (Fable-2, gated adversarial T-78 review) and T-79 finale (Opus, re-point tag + push) are the only remaining pre-v0.1.0 items, neither mine. Nothing further to do this cycle - letting the loop continue.
+
+### [54] T-81 begins — adversarial review of T-78 alignment hardening (gate opened)
+About to: attack the freshly landed align.ts input hardening with the full corpus from the row: scripts (UTF-8 BOM, CRLF, unicode punctuation, zero-length, whitespace-only lines, script wildly longer than audio) x audio (8kHz mono, 48kHz stereo, 44-byte truncated WAV, mp3 renamed .wav, zero-length file). Execution path = the real one the pilot uses: cli init + align against temp projects (real python/stable-ts where the input gets that far). PASS = friendly one-line error or correct alignment; FAIL = Python traceback or silent wrong result. Defects filed with repro; test-only fixes mine, align.ts fixes via @sonnet note. Reading Sonnet's T-78 result note first to test their claims specifically.
+Result: — (in progress)
