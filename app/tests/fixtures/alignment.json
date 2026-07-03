@@ -1,0 +1,27 @@
+{
+  "lines": [
+    {
+      "index": 0,
+      "text": "The storm had finally passed, leaving the harbor town wrapped in a cold gray mist.",
+      "start": 0.1,
+      "end": 4.8,
+      "words": [
+        { "word": "The", "start": 0.1, "end": 0.3 },
+        { "word": "storm", "start": 0.4, "end": 0.8 },
+        { "word": "had", "start": 0.9, "end": 1.1 },
+        { "word": "finally", "start": 1.2, "end": 1.7 },
+        { "word": "passed,", "start": 1.8, "end": 2.2 },
+        { "word": "leaving", "start": 2.3, "end": 2.7 },
+        { "word": "the", "start": 2.8, "end": 2.9 },
+        { "word": "harbor", "start": 3.0, "end": 3.4 },
+        { "word": "town", "start": 3.5, "end": 3.9 },
+        { "word": "wrapped", "start": 4.0, "end": 4.3 },
+        { "word": "in", "start": 4.4, "end": 4.5 },
+        { "word": "a", "start": 4.6, "end": 4.7 },
+        { "word": "cold", "start": 4.8, "end": 5.2 },
+        { "word": "gray", "start": 5.3, "end": 5.7 },
+        { "word": "mist.", "start": 5.8, "end": 6.2 }
+      ]
+    }
+  ]
+}

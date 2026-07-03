@@ -47,8 +47,15 @@ ui/dist/
 ui/build/
 
 # Backend Data / Generated assets
-app/projects/
-!app/projects/.gitkeep
+app/projects/**/*.png
+app/projects/**/*.mp4
+app/projects/**/*.db
+app/projects/**/*.db-shm
+app/projects/**/*.db-wal
+app/projects/**/*.json
+
+# Accounts / credentials
+app/accounts/
 
 # Python (if virtual environments exist)
 venv/
