@@ -1,12 +1,11 @@
 {
-  "last_seen_commit": "5d006151cf397da0a06bb78ed7bb3a70816fd005",
-  "last_sweep": "2026-07-03T22:45:35.6597308+05:30",
+  "last_seen_commit": "eeb9d28ad5890d2abc02f77a19550842e7dd2293",
   "pending": [
-    "T-41 Fable-2",
     "T-42 Sonnet",
     "T-43 Flash",
-    "T-45 AGV",
+    "T-44+T-45 AGV",
     "T-46/T-47 Opus",
-    "T-44 blocked on T-41"
-  ]
+    "T-48 Fable-2"
+  ],
+  "last_sweep": "2026-07-03T22:49:45.2224544+05:30"
 }
