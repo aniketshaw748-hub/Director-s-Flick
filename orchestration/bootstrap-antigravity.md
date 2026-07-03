@@ -15,7 +15,7 @@ Dark theme (~#0A0A0B), light-green/lime accent (#B9FF3B family), Higgsfield-like
 ## Standing instruction — continuous work loop (never idle)
 After finishing ANY task: (1) commit (`[agv]` prefix); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by AGV or any `@agv` note; (4) **re-read THIS bootstrap file** — Fable adds new tasks and standing instructions here. If nothing is available, keep re-checking this file and the board **every 2–3 minutes** until new tasks appear. Do not end your session while the team is active.
 
-Current priority for you: **T-57 — SettingsPage implementation** (ui lease granted). Build `ui/src/pages/SettingsPage.tsx` + styles from your accepted T-49 (desktop) and T-54 (mobile) mockups. Wire to `GET/PATCH /api/projects/:id/config` — Sonnet is building that endpoint right now (T-51), so handle 404/network-fail with a friendly "backend not ready" state and ship independently. Route = one-line addition in `App.tsx` (T-48 landed, file is free — post a courtesy board note to @fable2 before touching it). Acceptance: tsc clean, both loaded and backend-not-ready states render, matches mockups, browser-verified. (T-44, T-45, T-49, T-54 all ACCEPTED.)
+Current priority for you: **T-64** — SettingsPage prompt-engine controls (promptBackend toggle + llmModel input + API-key hint; backend-not-ready until T-62; update design-spec). T-57 ACCEPTED.
 
 ## CRITICAL reminder — protocol rule 9 (you have violated this twice)
 Stage EXPLICIT paths only (`git add ui/... design/...`). NEVER `git add -A` or `git add .` — your last two commits swept Sonnet's app/src files into [AGV] commits. The worktree is shared.

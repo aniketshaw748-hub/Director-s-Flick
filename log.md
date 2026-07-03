@@ -737,3 +737,6 @@ Result: — (in progress)
 
 ### [72] Sweep: nothing new claimable
 Board unchanged since last cycle - no Sonnet-owned task open/in-progress. T-60 (Fable-2, gapless playback) in-progress, not mine. Flash and Opus both idle awaiting next assignment from Fable. Nothing further to do - letting the loop continue.
+
+### [73] Sweep #36: accepted T-51/T-52/T-55/T-57/T-59 (suite 159/159); fixed phantom @anthropic-ai/sdk dep; assigned T-61..T-64
+LLM prompt engine verified (identity guard, fallback, hermetic) but imported an undeclared transitive dep - declared ^0.110.0 directly. SettingsPage + user guide + config endpoints all accepted. New: Flash flake hardening, Sonnet whitelist catch-up + teardown race, Opus crash-recovery e2e, AGV prompt-engine controls. Pipeline now feature-complete vs PRD; real-credit pilot (~155cr/$9.30 for 20 lines) awaits product-owner go.

@@ -13,8 +13,7 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 1–2 minutes (you work fast — check often)** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Current priority
-**T-59** — end-user guide docs/user-guide.md (see board row for full spec). Walkthrough of every real user flow: project creation with user-provided script+VO, review deck verbs, settings, multi-account, mobile LAN review (QR), export incl. force-confirm, cost panel credits-vs-USD. Verify every claim against the code — invent nothing. (T-56 ACCEPTED — suite 148/148.)
-
+**T-61** — cli.e2e flake hardening (see board row: longer spawn timeouts and/or sequential file; 3 consecutive full-suite greens to accept). T-59 ACCEPTED.
 
 ## CRITICAL reminder — protocol rule 9
 Stage EXPLICIT paths only (`git add app/tests/... docs/...`). NEVER `git add -A` or `git add .` — the worktree is shared and you will commit other agents' in-progress files.
