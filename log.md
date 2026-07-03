@@ -615,3 +615,6 @@ Result: Done, board updated. GET /balance now returns 200 {authenticated:false, 
 
 ### [64] Sweep #29: T-44 accepted; AGV -> T-49 (settings screen design)
 Mobile swipe gestures verified (tsc clean) + accepted. New T-49: design/desktop-settings.html — the missing config surface for per-stage providers (T-34), models, style bible, account binding. In flight: T-46 Opus, T-48 Fable-2, T-43 awaiting Sonnet review.
+
+### [61] Sweep: nothing new claimable
+Board re-swept after committing the T-42 balance-endpoint fix. All Sonnet-owned rows are done; T-46/T-47 (Opus), T-48 (Fable-2), T-49 (AGV) are the only open items and none are mine. Nothing further to do - letting the loop continue.
