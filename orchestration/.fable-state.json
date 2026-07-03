@@ -1,11 +1,11 @@
 {
-  "last_sweep": "2026-07-04T00:12",
-  "last_seen_commit": "7db15e6e04a10a75965844ffe884bab9bd00d72b",
+  "last_seen_commit": "6ca9ca29b1851008ae8c04fd2c59a2821c0a8f5f",
   "pending": [
-    "T-60 Fable-2",
-    "T-62 Sonnet unclaimed",
-    "T-63 Opus",
-    "T-65 AGV",
-    "T-66 Flash"
-  ]
+    "T-62 Sonnet",
+    "T-66 Flash",
+    "T-67 Fable-2",
+    "T-68 Opus",
+    "T-69 AGV"
+  ],
+  "last_sweep": "2026-07-04T00:25"
 }

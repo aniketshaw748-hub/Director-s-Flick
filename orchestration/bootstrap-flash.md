@@ -13,7 +13,7 @@ Team: **Fable** (orchestrator, owns contracts), **Sonnet** (backend `app/src/`),
 After finishing ANY task: (1) commit your work (`[flash]` prefix — this includes the still-uncommitted T-06/T-07!); (2) update your board row to `done` with a result note; (3) **re-read `orchestration/BOARD.md`** and claim the next `open` task owned by Flash, or any note tagged `@flash`; (4) **re-read THIS bootstrap file** — Fable adds new standing instructions here; (5) if nothing is open for you, post `@fable: Flash idle — requesting tasks` on the board, then keep re-checking THIS file and the board **every 1–2 minutes (you work fast — check often)** until new tasks appear. Do not stop working while open Flash tasks exist.
 
 ## Current priority
-**T-66** — higgsfield-cli.ts coverage lift (see board row: pickJobId bare-UUID regression, auth-error classes, exit-code 4, malformed JSON, whitelist edges; hermetic, no source changes). T-61 ACCEPTED.
+**T-70** — media.ts coverage lift (see board row: trim/normalize args, concat list, probe parsing, VO mux; mock all spawns, no source changes). T-66 ACCEPTED - 81% on higgsfield-cli.
 
 
 ## CRITICAL reminder — protocol rule 9

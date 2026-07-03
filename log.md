@@ -780,3 +780,6 @@ Result: (in progress)
 
 ### [76] Sweep #39: accepted T-60/T-63/T-65 (162/162); assigned T-67 packaging, T-68 SRT export, T-69 UI states
 Gapless audit found+fixed dead-src wedge; crash-recovery proves no double spend at both stages; cost panel shows per-unit totals. Next wave: one-command launcher (fable2), captions (opus), states audit (agv). Flash on T-66, Sonnet on T-62.
+
+### [77] Sweep #40: T-66 accepted (168/168, higgsfield-cli 81%); Flash -> T-70 (media.ts coverage)
+Suite grew 162->168. Awaiting claims on T-67 (fable2), T-68 (opus), T-69 (agv); Sonnet mid-T-62.
