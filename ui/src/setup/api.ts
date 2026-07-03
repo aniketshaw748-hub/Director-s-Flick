@@ -38,13 +38,19 @@ export async function createProject(
   script: string,
   voFile: File,
 ): Promise<Project> {
-  const voiceoverBase64 = await fileToBase64(voFile);
-  const voiceoverExt = (voFile.name.split('.').pop() || 'wav').toLowerCase();
-  const body = { name, script, voiceoverBase64, voiceoverExt };
+  // T-85 (live OOM fix): multipart FormData per the T-84 contract — parts
+  // `name`/`script`/`vo`. The File object is appended directly so the browser
+  // STREAMS it from disk; the old base64-in-JSON path materialized the whole
+  // VO (x1.33) as strings in renderer memory and crashed the tab on real
+  // voiceovers. No manual Content-Type: the browser must set the multipart
+  // boundary itself.
+  const form = new FormData();
+  form.append('name', name);
+  form.append('script', script);
+  form.append('vo', voFile);
   const res = await fetch('/api/projects', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: form,
   });
   return (await j<{ project: Project }>(res)).project;
 }
@@ -86,16 +92,6 @@ export const ELEMENT_CATEGORIES: readonly ElementCategory[] = ['character', 'loc
 /** Valid project name per the server's create-project validation. */
 export function isValidProjectName(name: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(name);
-}
-
-async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
 }
 
 // ---------------------------------------------------------------------------
