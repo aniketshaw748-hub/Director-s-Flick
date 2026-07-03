@@ -645,7 +645,7 @@ Result: accounts.test.ts PASSES - genuinely hermetic (spawn fully mocked, zero r
 About to:
 - Resolve the two issues in `docs/api.md` reported in Sonnet's T-43 review (correct `GET /edl` example fields, restrict `shotEvent` WS states, and document `GET /balance` graceful degrade).
 - Rewrite the top-level `README.md` to introduce Director's Flick (1 paragraph), prerequisites, setup steps (`npm i` in both `app/` and `ui/`), CLI accounts auth and multi-account env config, pipeline CLI mock provider running examples, server/UI/mobile LAN review execution steps, Vitest test running, project layout table, and links to all other docs.
-Result: ⏳ In progress...
+Result: ✅ [DONE]. Updated README.md and corrected docs/api.md per Sonnet's review findings. Verified all 102 unit/integration tests pass cleanly.
 
 ### [64] Sweep: nothing further claimable
 T-43 review posted (accounts.test.ts pass, 2 doc issues flagged for Flash). No other Sonnet-owned task open/in-progress on the board. Nothing further to do - letting the loop continue.
