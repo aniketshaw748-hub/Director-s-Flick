@@ -669,3 +669,4 @@ Action: Claiming T-54: Mobile settings mockup + spec. Updating BOARD.md to in-pr
 
 ### [67] Sweep #32: T-47 accepted; contract += promptBackend/llmModel; Opus -> T-55 (LLM prompt engine)
 Replicate provider verified 122/122 pre-commit, accepted post-commit. PRD's LLM prompt generation now scoped as T-55 with element-identity rule as the acceptance centerpiece. All five agents busy: T-48 fable2, T-51 sonnet, T-53 flash, T-54 agv, T-55 opus.
+- **T-54 (AGV)**: Created design/mobile-settings.html adapting the desktop settings mockup to a scrollable mobile layout with mobile chrome. Updated design/design-spec.md Section 6 to document both Desktop and Mobile variants of the settings screen and their shared components.

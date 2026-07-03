@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Settings — Director's Flick</title>
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --bg-0:#0A0A0B; --bg-1:#0E0E10; --surface-1:#141416; --surface-2:#1A1A1D; --surface-3:#212125;
+  --overlay:rgba(6,6,8,.72);
+  --border-1:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.12); --border-3:rgba(255,255,255,.18);
+  --text-1:#F2F3EE; --text-2:#A5A8A0; --text-3:#6E716A; --text-disabled:#494B44;
+  --lime:#C6FF4D; --lime-bright:#D7FF7B; --lime-deep:#A8E635; --lime-ink:#121600;
+  --lime-a08:rgba(198,255,77,.08); --lime-a12:rgba(198,255,77,.12); --lime-a20:rgba(198,255,77,.20); --lime-a35:rgba(198,255,77,.35);
+  --danger:#FF5C5C; --danger-a12:rgba(255,92,92,.12); --danger-a35:rgba(255,92,92,.35);
+  --warn:#FFB454; --warn-a12:rgba(255,180,84,.12); --info:#8AB8F0;
+  --font-sans:"Inter","Geist","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Geist Mono","JetBrains Mono","Cascadia Code","SF Mono",Consolas,"Roboto Mono",monospace;
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:20px; --r-2xl:24px; --r-full:999px;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 8px 24px rgba(0,0,0,.45); --shadow-3:0 24px 64px rgba(0,0,0,.6);
+  --glow-lime:0 0 0 1px var(--lime-a20),0 0 24px rgba(198,255,77,.15);
+  --glow-lime-strong:0 0 0 1px var(--lime-a35),0 0 40px rgba(198,255,77,.25);
+  --t-fast:150ms; --t-med:200ms; --t-slow:250ms;
+  --ease:cubic-bezier(.2,0,0,1); --ease-out:cubic-bezier(.16,1,.3,1);
+  --focus-ring:0 0 0 2px var(--bg-0),0 0 0 4px var(--lime-a35);
+}
+
+/* ============ MOBILE BASE ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg-0);color:var(--text-1);font:400 var(--fs-14)/1.5 var(--font-sans);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+button:active{opacity:0.8}
+textarea, select, input{font:inherit;color:inherit;background:none;border:0}
+button:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.mono{font-family:var(--font-mono)}
+svg{display:block}
+
+/* Topbar */
+.topbar{height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-4);background:var(--bg-1);border-bottom:1px solid var(--border-1);position:sticky;top:0;z-index:10}
+.top-title{font-size:var(--fs-14);font-weight:600}
+.btn-nav{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--text-2)}
+.btn-save{color:var(--lime);font-weight:600;font-size:var(--fs-14)}
+
+/* Common */
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--r-sm);font-size:10px;font-weight:600;background:var(--surface-3);color:var(--text-2);border:1px solid var(--border-1);text-transform:uppercase;letter-spacing:.04em}
+.badge-lime{background:var(--lime-a12);color:var(--lime);border-color:var(--lime-a20)}
+
+/* Content */
+.content{flex:1;overflow-y:auto;padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-6);padding-bottom:calc(var(--sp-8) + env(safe-area-inset-bottom))}
+.section{display:flex;flex-direction:column;gap:var(--sp-4)}
+.section-title{font-size:var(--fs-16);font-weight:600;letter-spacing:-.01em;padding-bottom:var(--sp-2);border-bottom:1px solid var(--border-1)}
+
+.field{display:flex;flex-direction:column;gap:var(--sp-2)}
+.field label{font-size:var(--fs-13);font-weight:500;color:var(--text-2);display:flex;justify-content:space-between;align-items:center}
+.field select, .field input[type="text"]{height:44px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border-1);padding:0 var(--sp-3);font-size:var(--fs-14);transition:border-color var(--t-fast) var(--ease)}
+.field select:focus, .field input[type="text"]:focus{border-color:var(--lime-a35)}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A5A8A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right var(--sp-3) center}
+.field .hint{font-size:var(--fs-12);color:var(--text-3);margin-top:2px}
+.field .label-rt{color:var(--text-3);font-weight:400;font-size:var(--fs-12)}
+
+/* Style bible */
+.bible-editor{background:var(--surface-2);border:1px solid var(--border-1);border-radius:var(--r-md);padding:var(--sp-3);min-height:120px;width:100%;resize:vertical;font-size:var(--fs-14);line-height:1.5;color:var(--text-2);transition:border-color var(--t-fast) var(--ease)}
+.bible-editor:focus{border-color:var(--lime-a35);color:var(--text-1)}
+.preset-pills{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-2)}
+.preset-pill{height:28px;padding:0 var(--sp-3);border-radius:var(--r-full);background:var(--surface-3);border:1px solid var(--border-1);font-size:var(--fs-12);color:var(--text-2);cursor:pointer}
+.preset-pill:active{background:var(--surface-1);border-color:var(--border-2);color:var(--text-1)}
+
+/* Cost preview card */
+.cost-card{padding:var(--sp-4);background:var(--surface-1);border:1px solid var(--border-1);border-radius:var(--r-lg);display:flex;flex-direction:column;gap:var(--sp-3)}
+.cost-card-head{display:flex;justify-content:space-between;align-items:center}
+.cost-card-head h3{font-size:var(--fs-14);font-weight:600}
+.cost-row{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-13);color:var(--text-2);padding:6px 0;border-bottom:1px dashed var(--border-1)}
+.cost-row:last-child{border-bottom:none}
+.cost-row .item{display:flex;align-items:center;gap:var(--sp-2)}
+.cost-row .v{font-family:var(--font-mono);font-size:var(--fs-13);color:var(--text-1)}
+.cost-row .usd{color:var(--text-3);font-family:var(--font-mono);font-size:var(--fs-12);margin-left:var(--sp-2)}
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <button class="btn-nav" title="Back">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="top-title">Settings</div>
+    <button class="btn-save">Save</button>
+  </header>
+  
+  <main class="content">
+    
+    <!-- Models Section -->
+    <section class="section">
+      <h2 class="section-title">Models & Dimensions</h2>
+      <div class="field">
+        <label>Image Model</label>
+        <select>
+          <option selected>Nano Banana 2</option>
+          <option>Kling 3.0 Pro</option>
+        </select>
+        <span class="hint">Base model for text-to-image</span>
+      </div>
+      <div class="field">
+        <label>Video Model</label>
+        <select>
+          <option selected>Kling 3.0</option>
+          <option>Kling 2.5 Turbo Pro</option>
+        </select>
+        <span class="hint">Base model for image-to-video</span>
+      </div>
+      <div class="field">
+        <label>Video Mode</label>
+        <select>
+          <option selected>Standard (std)</option>
+          <option>Professional (pro)</option>
+          <option>4K Ultra (4k)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Aspect Ratio</label>
+        <select>
+          <option selected>16:9 (Landscape)</option>
+          <option>9:16 (Portrait)</option>
+          <option>1:1 (Square)</option>
+        </select>
+      </div>
+      <div class="field" style="padding-top:var(--sp-2);">
+        <label style="justify-content:flex-start; gap:var(--sp-3); cursor:pointer;">
+          <input type="checkbox" checked style="width:18px; height:18px;">
+          <span>Mute video generations</span>
+        </label>
+        <span class="hint" style="margin-left:30px;">Reduces cost. Audio is mixed at export.</span>
+      </div>
+    </section>
+
+    <!-- Providers Section -->
+    <section class="section">
+      <h2 class="section-title">Providers <span class="badge badge-lime" style="margin-left:var(--sp-2)">Advanced</span></h2>
+      <div class="field">
+        <label>Default Provider</label>
+        <select>
+          <option>Mock (Local)</option>
+          <option selected>Higgsfield CLI</option>
+          <option>Fal.ai</option>
+          <option>Replicate</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Image Override</label>
+        <select>
+          <option selected>Default</option>
+          <option>Mock (Local)</option>
+          <option>Higgsfield CLI</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Video Override</label>
+        <select>
+          <option>Default</option>
+          <option>Mock (Local)</option>
+          <option>Higgsfield CLI</option>
+          <option selected>Fal.ai</option>
+          <option>Replicate</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Style Bible -->
+    <section class="section">
+      <h2 class="section-title">Style Bible</h2>
+      <div class="field">
+        <label>Global Prompts <span class="label-rt">Injected</span></label>
+        <textarea class="bible-editor" spellcheck="false" placeholder="Enter universal styling prompts, negative prompts...">Painterly cinematic realism. Muted teal shadows, warm amber key light from practical sources (lantern, lamp lens). 35mm, grounded camera, gentle handheld. Fine film grain, soft bloom on highlights. Never: text, watermarks, cartoon outlines, neon color.</textarea>
+        <div class="preset-pills">
+          <button class="preset-pill">Teal & Orange</button>
+          <button class="preset-pill">35mm Film</button>
+          <button class="preset-pill">Dark Fantasy</button>
+          <button class="preset-pill">Anime</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Billing -->
+    <section class="section">
+      <h2 class="section-title">Billing & Costs</h2>
+      <div class="field">
+        <label>Linked Account</label>
+        <select>
+          <option selected>NexGen Studio (2,025.0 cr)</option>
+          <option>Personal (100.0 cr)</option>
+          <option>Add new account...</option>
+        </select>
+      </div>
+      <div class="cost-card">
+        <div class="cost-card-head">
+          <h3>Rates Preview</h3>
+          <span class="badge">Per generation</span>
+        </div>
+        <div>
+          <div class="cost-row">
+            <div class="item"><span>Nano Banana 2</span> <span class="badge">Image</span></div>
+            <div><span class="v">1.5 cr</span> <span class="usd">≈ $0.09</span></div>
+          </div>
+          <div class="cost-row">
+            <div class="item"><span>Kling 3.0 (std)</span> <span class="badge">Video</span></div>
+            <div><span class="v">6.25 cr</span> <span class="usd">≈ $0.37</span></div>
+          </div>
+          <div class="cost-row" style="background:var(--surface-2); padding:var(--sp-2) var(--sp-2); margin-top:var(--sp-2); border-radius:var(--r-md); border-bottom:none">
+            <div class="item"><span style="color:var(--text-1)">Fal.ai Fallback</span> <span class="badge" style="background:var(--bg-1)">Video</span></div>
+            <div><span class="v" style="color:var(--lime)">$0.35</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
