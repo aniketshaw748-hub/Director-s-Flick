@@ -97,7 +97,7 @@ export default function ReviewPage({ shots, elements }: { shots: Shot[], element
                 <span>{activeShot.attempts > 1 ? `Attempt ${activeShot.attempts}` : ''}</span>
               </div>
               <div style={{ fontSize: 'var(--fs-18)', fontWeight: 500, color: 'var(--text-1)', lineHeight: 1.4 }}>{activeShot.line.text}</div>
-              <div style={{ fontSize: 'var(--fs-14)', color: 'var(--text-3)', lineHeight: 1.6 }}>{renderPrompt(activeShot.imagePrompt)}</div>
+              <div style={{ fontSize: 'var(--fs-14)', color: 'var(--text-3)', lineHeight: 1.6 }}>{renderPrompt(activeShot.imagePrompt || '')}</div>
             </div>
           </div>
         ) : (

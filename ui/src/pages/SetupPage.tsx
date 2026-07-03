@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Shot } from '../../../app/src/types';
+import './SetupPage.css';
 
 export default function SetupPage({ shots }: { shots: Shot[] }) {
   const formatTime = (seconds: number) => {
@@ -62,7 +63,7 @@ export default function SetupPage({ shots }: { shots: Shot[] }) {
           </div>
           <div className="align-list align-fade">
             {shots.length > 0 ? (
-              shots.map((shot: Shot, idx: number) => (
+              shots.map((shot: Shot) => (
                 <React.Fragment key={shot.id}>
                   <div className="align-row">
                     <span className="ln">L{(shot.lineIndex + 1).toString().padStart(2, '0')}</span>

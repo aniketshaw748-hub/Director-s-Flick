@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Shot, ElementRef } from '../../../app/src/types';
 import { useAutocomplete } from '../useAutocomplete';
+import './MobileReviewPage.css';
 
 export default function MobileReviewPage({ shots, elements }: { shots: Shot[], elements: ElementRef[] }) {
   const editRef = React.useRef<HTMLInputElement>(null);
@@ -12,7 +13,6 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
 
   // Find the first shot ready for review
   const activeShot = shots.find(s => s.state === 'IMAGE_READY');
-  const totalReview = shots.filter(s => s.state === 'IMAGE_READY').length;
 
   const handleAction = async (action: string) => {
     if (!activeShot) return;
@@ -30,7 +30,7 @@ export default function MobileReviewPage({ shots, elements }: { shots: Shot[], e
   };
 
   return (
-    <div style={{display:'flex', flexDirection:'column', height:'100vh', background:'var(--bg-0)'}}>
+    <div className="mobile-review">
       <header className="topbar">
         <Link to="/timeline" style={{width:'32px', color:'var(--text-2)', display:'block'}}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>

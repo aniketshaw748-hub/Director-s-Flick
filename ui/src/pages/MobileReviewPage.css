@@ -1,0 +1,62 @@
+/* Director's Flick — Mobile review PWA (ported from design/mobile-review.html).
+ * Scoped under .mobile-review so the mobile topbar/account-chip/at-chip don't
+ * collide with the desktop chrome in index.css. Imported by MobileReviewPage.tsx. */
+
+.mobile-review { display: flex; flex-direction: column; height: 100vh; background: var(--bg-0); overflow: hidden; }
+
+/* topbar (mobile variant) */
+.mobile-review .topbar {
+  height: 56px; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-4); background: var(--bg-1); border-bottom: 1px solid var(--border-1);
+}
+.mobile-review .top-title { font-size: var(--fs-14); font-weight: 600; }
+.mobile-review .account-chip { height: 28px; padding: 0 var(--sp-3); gap: 0; }
+
+/* swipe area */
+.mobile-review .card-stack { flex: 1; position: relative; padding: var(--sp-4); display: flex; flex-direction: column; align-items: center; perspective: 1000px; min-height: 0; }
+.mobile-review .swipe-card {
+  width: 100%; max-width: 420px; height: 100%; background: var(--surface-1);
+  border: 1px solid var(--border-1); border-radius: var(--r-xl); display: flex; flex-direction: column;
+  overflow: hidden; box-shadow: var(--shadow-2); position: absolute; will-change: transform;
+}
+.mobile-review .card-bg { transform: scale(0.95) translateY(16px); opacity: 0.6; z-index: 1; border-color: var(--border-2); }
+.mobile-review .card-fg { z-index: 2; transform: scale(1) translateY(0); transition: transform var(--t-med) var(--ease-out); }
+.mobile-review .card-image { flex: 1; background: var(--surface-2); position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.mobile-review .card-content { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); border-top: 1px solid var(--border-1); background: var(--surface-1); }
+.mobile-review .card-line { font-size: var(--fs-16); font-weight: 500; line-height: 1.4; color: var(--text-1); }
+.mobile-review .card-prompt {
+  font-size: var(--fs-13); color: var(--text-3); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.mobile-review .at-chip { height: 20px; padding: 0 6px; font-size: var(--fs-11); }
+
+/* actions */
+.mobile-review .actions {
+  padding: var(--sp-4); display: flex; justify-content: center; gap: var(--sp-6);
+  padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom)); flex: none;
+}
+.mobile-review .btn-reject { border-color: var(--danger-a35); }
+
+/* bottom sheet */
+.mobile-review .sheet-backdrop {
+  position: fixed; inset: 0; background: var(--overlay); z-index: 10; opacity: 0; pointer-events: none;
+  transition: opacity var(--t-slow) var(--ease-out);
+}
+.mobile-review .sheet-backdrop.active { opacity: 1; pointer-events: auto; }
+.mobile-review .sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface-1);
+  border-top: 1px solid var(--border-2); border-radius: var(--r-2xl) var(--r-2xl) 0 0;
+  padding: var(--sp-5); padding-bottom: calc(var(--sp-5) + env(safe-area-inset-bottom)); z-index: 11;
+  transform: translateY(100%); transition: transform var(--t-slow) var(--ease-out);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.mobile-review .sheet.active { transform: translateY(0); }
+.mobile-review .sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--surface-3); margin: 0 auto var(--sp-2); }
+.mobile-review .sheet-title { font-size: var(--fs-18); font-weight: 600; letter-spacing: -0.01em; text-align: center; margin-bottom: var(--sp-2); }
+.mobile-review .btn-row {
+  display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-3); height: 56px;
+  padding: 0 var(--sp-4); border-radius: var(--r-md); background: var(--surface-2);
+  border: 1px solid var(--border-1); font-weight: 500; font-size: var(--fs-14); width: 100%;
+}
+.mobile-review .btn-row:active { background: var(--surface-3); }
+.mobile-review .btn-row:disabled { color: var(--text-disabled); cursor: not-allowed; }

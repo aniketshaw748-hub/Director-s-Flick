@@ -1,11 +1,12 @@
-import React, { useState, RefObject } from 'react';
+import React, { useState } from 'react';
+import type { RefObject } from 'react';
 import type { ElementRef } from '../../app/src/types';
 
 export function useAutocomplete(
   elements: ElementRef[], 
   value: string, 
   setValue: (v: string) => void, 
-  ref: RefObject<HTMLTextAreaElement | HTMLInputElement>
+  ref: RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 ) {
   const [show, setShow] = useState(false);
   const [query, setQuery] = useState('');
@@ -58,11 +59,7 @@ export function useAutocomplete(
       <div className="autocomplete-popover">
         {filtered.map(el => (
           <div key={el.id} className="ac-item" onClick={() => insertElement(el)}>
-            <div className="thumb">
-              {el.imagePath ? (
-                <img src={`/api/project/test_project/media/images/${el.imagePath.split('/').pop()}`} alt={el.name} />
-              ) : null}
-            </div>
+            <div className="thumb"></div>
             <span>@{el.name}</span>
           </div>
         ))}

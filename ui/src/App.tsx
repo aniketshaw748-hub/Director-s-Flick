@@ -126,12 +126,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/setup" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} elements={elements} /></Chrome>} />
+        <Route path="/setup" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} /></Chrome>} />
         <Route path="/timeline" element={<Chrome wsConnected={wsConnected}><TimelinePage shots={shots} /></Chrome>} />
         <Route path="/deck" element={<Chrome wsConnected={wsConnected}><ReviewPage shots={shots} elements={elements} /></Chrome>} />
-        <Route path="/mobile" element={<MobileReviewPage shots={shots} elements={elements} wsConnected={wsConnected} />} />
+        <Route path="/mobile" element={<MobileReviewPage shots={shots} elements={elements} />} />
         {/* Default route */}
-        <Route path="*" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} elements={elements} /></Chrome>} />
+        <Route path="*" element={<Chrome wsConnected={wsConnected}><SetupPage shots={shots} /></Chrome>} />
       </Routes>
     </BrowserRouter>
   );
