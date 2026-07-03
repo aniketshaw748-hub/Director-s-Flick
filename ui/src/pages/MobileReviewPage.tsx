@@ -5,6 +5,7 @@ import { useProject } from '../project/ProjectContext';
 import { mediaUrl } from '../paths';
 import { useSwipe } from '../useSwipe';
 import OfflineBanner from '../OfflineBanner';
+import './MobileReviewPage.css';
 
 export default function MobileReviewPage() {
   const { projectName, shots, elements, backendDown, initialized } = useProject();

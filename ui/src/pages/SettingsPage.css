@@ -10,7 +10,7 @@
 .settings-page.desktop {
   overflow-y: auto;
   align-items: center;
-  padding: var(--sp-8);
+  padding: clamp(var(--sp-4), 3vw, var(--sp-8)); /* fluid on narrow windows */
 }
 
 .settings-page.desktop .settings-container {
@@ -231,13 +231,23 @@
 }
 
 /* Mobile Chrome */
+.settings-page.mobile {
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport (mobile browser chrome) */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  -webkit-tap-highlight-color: transparent;
+}
+.settings-page.mobile button,
+.settings-page.mobile select { touch-action: manipulation; }
+
 .settings-page.mobile .topbar {
-  height: 56px;
+  min-height: 56px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--sp-4);
+  padding: env(safe-area-inset-top) var(--sp-4) 0; /* bg under the notch */
   background: var(--bg-1);
   border-bottom: 1px solid var(--border-1);
   position: sticky;
@@ -251,8 +261,8 @@
 }
 
 .settings-page.mobile .btn-nav {
-  width: 32px;
-  height: 32px;
+  width: 44px;  /* minimum touch target */
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -263,6 +273,8 @@
   color: var(--lime);
   font-weight: 600;
   font-size: var(--fs-14);
+  min-height: 44px;  /* minimum touch target */
+  padding: 0 var(--sp-3);
 }
 
 .settings-page.mobile .content {
@@ -289,4 +301,12 @@
 .not-ready-state svg {
   color: var(--text-3);
   margin-bottom: var(--sp-4);
+}
+
+/* ---- responsive tuning (owner request) ----------------------------------- */
+/* narrow windows on the desktop route: collapse the field grids */
+@media (max-width: 720px) {
+  .settings-page.desktop .settings-grid-3,
+  .settings-page.desktop .settings-grid-2 { grid-template-columns: 1fr; }
+  .settings-page.desktop .page-head { flex-direction: column; align-items: stretch; gap: var(--sp-3); }
 }
