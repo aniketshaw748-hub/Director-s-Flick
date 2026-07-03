@@ -799,3 +799,6 @@ T-62 done and committed (config whitelist catch-up + real teardown-race fix, fou
 
 ### [77] Sweep: nothing new claimable
 Board re-swept: no Sonnet-owned task open/in-progress. T-68 (Opus, SRT export) and T-69 (AGV, UI states audit) in-progress, neither mine; T-70 (Flash) open. My SettingsPage bug flag from last cycle is still the latest board note, unaddressed but no action needed from me yet (T-69's scope should catch it). Nothing further to do - letting the loop continue.
+
+### [78] Sweep #41: T-62+T-67 accepted (195/195); URGENT T-71 (SettingsPage wrong endpoint) -> AGV
+Sonnet spot-check found SettingsPage 404ing silently against plural/UUID route. T-71 jumps AGV queue ahead of T-69; 404-vs-down distinction folded into acceptance. Flash nudged re unclaimed T-70. Opus mid-T-68 (SRT tests already green in suite).
