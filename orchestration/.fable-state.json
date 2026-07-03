@@ -1,10 +1,11 @@
 {
   "pending": [
-    "T-37 Sonnet",
-    "T-40 Fable-2",
-    "T-35 Opus",
+    "T-41 Fable-2 in-progress",
+    "T-37 Sonnet in-progress",
+    "T-42 queued",
+    "T-35 Opus STALLED - user checking terminal",
     "user: git push"
   ],
-  "last_sweep": "2026-07-03T22:19:22.6432950+05:30",
-  "last_seen_commit": "e36e56a050a134fbe603b0b99f556ea3dcfbac53"
+  "last_seen_commit": "74e00f85cfc2cbb8f334081e47d10fbadec4d94b",
+  "last_sweep": "2026-07-03T22:32:21.8993698+05:30"
 }
