@@ -105,13 +105,14 @@ The backend uses a path-based body parser dispatcher to enforce scoped JSON payl
   [
     {
       "id": "edl-uuid-1",
+      "projectId": "proj-uuid",
       "shotId": "shot-uuid-1",
+      "lineIndex": 0,
       "clipPath": "C:/Coding/Video Automation/app/projects/test_project/clips/shot-uuid-1.mp4",
-      "duration": 5.0,
       "inPoint": 0.0,
       "outPoint": 5.0,
-      "start": 0.0,
-      "end": 5.0
+      "timelineStart": 0.0,
+      "duration": 5.0
     }
   ]
   ```
@@ -155,14 +156,26 @@ The backend uses a path-based body parser dispatcher to enforce scoped JSON payl
 * **Route**: `GET /api/accounts/:name/balance`
 * **Description**: Returns account balance utilizing a **60-second cache** layer to optimize frequent UI polling.
 * **Response**: Includes `cached` boolean metadata.
-  ```json
-  {
-    "name": "Max",
-    "balance": 1127.15,
-    "authenticated": true,
-    "cached": true
-  }
-  ```
+  * **Success (200 OK)**:
+    ```json
+    {
+      "name": "Max",
+      "balance": 1127.15,
+      "authenticated": true,
+      "cached": true
+    }
+    ```
+  * **Graceful Degradation / Auth Failure (200 OK)**:
+    If the account credentials fail status validation or the CLI throws a spawn timeout, the endpoint gracefully falls back rather than returning a 500 status:
+    ```json
+    {
+      "name": "Max",
+      "balance": null,
+      "authenticated": false,
+      "cached": false,
+      "error": "Error details from CLI..."
+    }
+    ```
 
 ### Add Account
 * **Route**: `POST /api/accounts`
@@ -410,7 +423,7 @@ Clients connect to the WebSocket server to receive live state updates, alignment
   {
     "type": "shotEvent",
     "shotId": "shot-uuid",
-    "state": "IMAGE_QUEUED" | "IMAGE_READY" | "IN_REVIEW" | "APPROVED" | "VIDEO_QUEUED" | "VIDEO_READY" | "PLACED" | "FAILED"
+    "state": "IMAGE_READY" | "VIDEO_READY" | "PLACED"
   }
   ```
 

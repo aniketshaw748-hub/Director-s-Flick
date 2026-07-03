@@ -1,93 +1,139 @@
 # Director's Flick
 
-Local AI-video pipeline: Script + Voiceover &rarr; Aligned Lines &rarr; Consistent Keyframes &rarr; Animating Clips &rarr; Timeline EDL &rarr; FFmpeg Muxed Export.
+**Director's Flick** is a local AI-video pipeline and review application that automates the process of transforming a script and voiceover into a fully-produced video. It splits scripts into logical cut-points, aligns narration to voiceover audio using word-level alignment, registers character and prop definitions to keep generated styles consistent, generates keyframes and motion video animations via Higgsfield or Fal.ai providers, and compiles everything through a gapless, frame-accurate preview player and FFmpeg-based timeline exporter.
 
 ---
 
-## 1. Setup & Installation
+## 1. Prerequisites
 
-### Prerequisites
-1. **Node.js**: Version 22 or higher.
-2. **Python**: Version 3.12 or higher.
-3. **FFmpeg**: Version 8.1.1 (or higher) with `h264_nvenc` support, added to your system `PATH`.
-4. **Higgsfield CLI**: (Required for real generation) CLI authentication session. Run `higgsfield auth login` to authenticate.
+Make sure the following dependencies are installed globally and added to your system `PATH`:
 
-### Local Installation
-1. Clone the repository and navigate to the project directory.
-2. **Backend Setup**:
+1. **Node.js**: Version `22.x` or higher (includes npm).
+2. **Python**: Version `3.12.x` or higher (required for `stable-ts` alignment script).
+3. **FFmpeg**: Version `8.1.1` or higher with `h264_nvenc` support (required for high-performance hardware-accelerated video rendering/muxing).
+4. **Higgsfield CLI**: Globally installed npm package (required for real generations on Higgsfield).
+
+---
+
+## 2. Setup & Installation
+
+To install dependencies for both the backend (CLI, server, queue runner) and frontend (React review interface):
+
+```bash
+# Clone the repository and navigate into it
+cd "Video Automation"
+
+# Install backend dependencies
+cd app
+npm install
+
+# Install frontend dependencies
+cd ../ui
+npm install
+
+# Install Python audio alignment package
+pip install stable-ts
+```
+
+---
+
+## 3. Authentication & Multi-Account Switching
+
+* **Single Account Login**: Authenticate the Higgsfield CLI by running the standard login command:
+  ```bash
+  higgsfield auth login
+  ```
+* **Multi-Account Profiles**: Different projects can run concurrently under separate credentials without session clobbering. 
+  - Register a scoped credentials profile via:
+    ```bash
+    npm run cli -- accounts --add <account_name>
+    ```
+  - The CLI saves these sessions under `app/accounts/<account_name>/credentials.json`.
+  - The backend loader injects the appropriate `HIGGSFIELD_CREDENTIALS_PATH` env variable pointing to this credentials file to sandbox the subprocess execution.
+  - Active accounts can be bound and switched per-project in the UI. For more details on multi-account configuration and response formats, see [api.md](file:///C:/Coding/Video%20Automation/docs/api.md) and the [User Guide](file:///C:/Coding/Video%20Automation/docs/user-guide.md).
+
+---
+
+## 4. Running the Pipeline
+
+### Happy Path: Headless Pipeline CLI (Mock / Zero-Cost Provider)
+To run the entire pipeline end-to-end (init, align, queue generation, and export) in one command using the offline, zero-cost **Mock Provider**:
+
+```bash
+cd app
+npm run cli -- run my_project --script path/to/script.txt --vo path/to/voiceover.wav --provider mock
+```
+
+Alternatively, you can run the pipeline stages manually step-by-step:
+
+```bash
+# 1. Initialize project database and folders
+npm run cli -- init my_project --script path/to/script.txt --vo path/to/voiceover.wav
+
+# 2. Compute cut-points and align sentences to voiceover
+npm run cli -- align my_project
+
+# 3. Process the queue with the mock provider (automatically auto-approves)
+npm run cli -- run my_project --provider mock
+
+# 4. Compile the EDL timeline and mux VO into final.mp4
+npm run cli -- export my_project
+
+# 5. Review ledger cost breakdown
+npm run cli -- cost my_project
+```
+
+### Server & Web Interface
+To run the interactive desktop/mobile review app:
+
+1. **Start the Express + WebSocket Backend Server** (runs on port `4000` by default):
    ```bash
    cd app
-   npm install
+   npm run cli -- serve
    ```
-> **Mobile Review over LAN:** The Vite dev server is configured with `host: true`. To access the mobile review interface from your phone, connect to the same Wi-Fi network and navigate to `http://<your-local-ip>:5173/mobile` in your mobile browser. The UI is PWA-ready and can be installed to your home screen!
-3. **Frontend Setup**:
+2. **Start the Vite Dev Server for the React UI**:
    ```bash
-   cd ../ui
-   npm install
+   cd ui
+   npm run dev
    ```
-4. **Python Alignment Setup**:
-   ```bash
-   pip install stable-ts
-   ```
+3. **Open the Desktop Web UI**:
+   Navigate to `http://localhost:5173` in your browser.
+4. **Access the Mobile Review UI over LAN**:
+   The Vite dev server is configured with `host: true`. Connect your computer and mobile phone to the same Wi-Fi network and navigate to `http://<your-computer-ip>:5173/mobile` to review and approve keyframe shots on your phone.
 
 ---
 
-## 2. CLI Commands Quick Reference
+## 5. Running Tests
 
-Run backend commands using `npm run cli -- <command>` within the `app/` directory:
+Unit tests are written using `vitest`. The suite is fully hermetic (zero network calls, zero credit spend, and zero real FFmpeg/Python subprocesses).
 
-| Command | Usage | Description |
-|---|---|---|
-| `init` | `npm run cli -- init <project> --script <path> --vo <path>` | Initializes a new project directory and its SQLite database. |
-| `align` | `npm run cli -- align <project>` | Aligns script sentences with voiceover audio using `stable-ts`, computing cut points and splitting long segments into sub-shots. |
-| `elements` | `npm run cli -- elements <project> [--add <id:name:category>]` | Lists or registers reusable Higgsfield character/location/prop element references (`category` = `character` \| `location` \| `prop`). |
-| `run` | `npm run cli -- run <project> [--auto-approve]` | Starts the state machine to generate still frames and video animations. |
-| `status` | `npm run cli -- status <project>` | Displays status of shots by state, active background jobs, and consumed credits. |
-| `export` | `npm run cli -- export <project> [--out <path>]` | Compiles the EDL, trims/normalizes all clips in parallel to 1080p30 CFR, and muxes the voiceover. |
-| `cost` | `npm run cli -- cost <project>` | Dumps the cost ledger for the project, showing both preflight estimates and actual charges. |
-| `serve` | `npm run cli -- serve [--port <port>]` | Starts the Express + WebSocket backend server (port `4000` by default) to power the review UI. |
+To run the backend test suite:
+```bash
+cd app
+npm test
+```
 
 ---
 
-## 3. Architecture 1-Pager
+## 6. Project Layout
 
-```
-               ┌──────────────────────────────────────────────────┐
-               │              Director's Flick App                │
-               └────────┬───────────────────────────────┬─────────┘
-                        │                               │
-                        ▼                               ▼
-                 [CLI Interface]                 [server Module]
-                   cli.ts / npm                Express + WebSocket
-                        │                               │
-             ┌──────────┴───────────────┬───────────────┴──────────┐
-             ▼                          ▼                          ▼
-       [align Module]            [queue Module]             [media Module]
-    Stable-ts Aligner           Shot State Machine          FFmpeg & NVENC
-    Word-level slices          Auto-approve / Review       Trim, Normalize,
-    Long line splitting         Buffer size controls      Concat, and VO Mux
-             │                          │                          │
-             └──────────────────────────┼──────────────────────────┘
-                                        ▼
-                                 [db Module]
-                            SQLite (WAL) pipeline.db
-                         Cost Ledger, EDL & Elements
-```
+| Directory/File | Description |
+|---|---|
+| [`app/`](file:///C:/Coding/Video%20Automation/app/) | Backend application containing CLI commands, server routing, and SQLite migrations. |
+| [`app/src/`](file:///C:/Coding/Video%20Automation/app/src/) | Core backend modules (align, queue runner, media processing, provider adapters). |
+| [`app/tests/`](file:///C:/Coding/Video%20Automation/app/tests/) | Vitest unit tests, integration tests, and static test fixtures. |
+| [`ui/`](file:///C:/Coding/Video%20Automation/ui/) | Frontend React Single Page Application (Vite/TypeScript/CSS reset system). |
+| [`design/`](file:///C:/Coding/Video%20Automation/design/) | Static HTML/CSS mockups and design token definitions (`tokens.css`). |
+| [`docs/`](file:///C:/Coding/Video%20Automation/docs/) | Product, cost, API reference, and development guides. |
+| `app/projects/` *(gitignored)* | Runtime database and media folder for created projects. |
+| `app/accounts/` *(gitignored)* | Saved credential JSON files per registered account profile. |
 
-### Module Structure
-- **server** (`src/server.ts`): Starts the Express REST API and WebSocket subscription server. Manages live `ShotQueue` and `ProjectDb` instances per active project, and broadcasts real-time `shotEvent` pushes alongside 2-second state sync loops.
-- **align** (`src/align.ts`, `scripts/align_cli.py`): Spawns the python aligner, computes line/sub-shot timings based on the timeline rules, and plans pending shots in the database.
-- **providers** (`src/providers/`): Abstracts the generation provider interface. Includes `MockProvider` (zero-cost offline simulation) and `HiggsfieldCliProvider` (interacts with the real `higgsfield` CLI).
-- **prompts** (`src/prompts.ts`): Orchestrates prompt generation. Employs `ClaudePromptEngine` for generating rich visual prompts in batches with element tags, and `TemplatePromptEngine` for offline mock runs.
-- **queue** (`src/queue.ts`): Manages the state machine transitions (`PENDING` &rarr; `PROMPTED` &rarr; `IMAGE_QUEUED` &rarr; `IMAGE_READY` &rarr; `IN_REVIEW` &rarr; `APPROVED` &rarr; `VIDEO_QUEUED` &rarr; `VIDEO_READY` &rarr; `PLACED`) and throttles requests according to concurrency and buffer limits.
-- **media** (`src/media.ts`): Invokes local `ffmpeg`/`ffprobe` commands via secure, parameterized subprocess spawning. Handles frame holding/padding, clip concatenation, and audio mapping.
-- **db** (`src/db.ts`): Executes SQLite queries via sync bindings (`better-sqlite3`). Provides transactional safety for project, job, shot, EDL, ledger, and element states.
+---
 
-### Timeline Rules & Invariants
-- Each line $i$ must cover the interval from its start to the start of the next line:
-  $$\text{target\_duration}_i = \text{start}_{i+1} - \text{start}_i$$
-- For the last line, the duration includes a trailing pad of `0.5s`:
-  $$\text{target\_duration}_{\text{last}} = \text{duration}_{\text{last}} + 0.5\text{s}$$
-- Generated video clips are clamped to integer seconds between `3` and `15` seconds:
-  $$\text{video\_duration}_i = \text{clamp}(\lceil\text{target\_duration}_i\rceil, 3, 15)$$
-- During the final export process, video clips are frame-accurately trimmed to their exact fractional `target_duration`.
+## 7. Reference Documentation Links
+
+* **System Design & Contracts**: [app/ARCHITECTURE.md](file:///C:/Coding/Video%20Automation/app/ARCHITECTURE.md)
+* **REST & WebSockets API Reference**: [docs/api.md](file:///C:/Coding/Video%20Automation/docs/api.md)
+* **User Onboarding & Elements Guide**: [docs/user-guide.md](file:///C:/Coding/Video%20Automation/docs/user-guide.md)
+* **Credit Cost & Pricing Model**: [docs/cost-model.md](file:///C:/Coding/Video%20Automation/docs/cost-model.md)
+* **Phase-0 Research & Phase-1 Plans**: [research-and-plan.md](file:///C:/Coding/Video%20Automation/research-and-plan.md)
