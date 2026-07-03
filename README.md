@@ -50,7 +50,7 @@ pip install stable-ts
     ```
   - The CLI saves these sessions under `app/accounts/<account_name>/credentials.json`.
   - The backend loader injects the appropriate `HIGGSFIELD_CREDENTIALS_PATH` env variable pointing to this credentials file to sandbox the subprocess execution.
-  - Active accounts can be bound and switched per-project in the UI. For more details on multi-account configuration and response formats, see [api.md](file:///C:/Coding/Video%20Automation/docs/api.md) and the [User Guide](file:///C:/Coding/Video%20Automation/docs/user-guide.md).
+  - Active accounts can be bound and switched per-project in the UI. For more details on multi-account configuration and response formats, see [api.md](docs/api.md) and the [User Guide](docs/user-guide.md).
 
 ---
 
@@ -133,12 +133,12 @@ npm test
 
 | Directory/File | Description |
 |---|---|
-| [`app/`](file:///C:/Coding/Video%20Automation/app/) | Backend application containing CLI commands, server routing, and SQLite migrations. |
-| [`app/src/`](file:///C:/Coding/Video%20Automation/app/src/) | Core backend modules (align, queue runner, media processing, provider adapters). |
-| [`app/tests/`](file:///C:/Coding/Video%20Automation/app/tests/) | Vitest unit tests, integration tests, and static test fixtures. |
-| [`ui/`](file:///C:/Coding/Video%20Automation/ui/) | Frontend React Single Page Application (Vite/TypeScript/CSS reset system). |
-| [`design/`](file:///C:/Coding/Video%20Automation/design/) | Static HTML/CSS mockups and design token definitions (`tokens.css`). |
-| [`docs/`](file:///C:/Coding/Video%20Automation/docs/) | Product, cost, API reference, and development guides. |
+| [`app/`](app/) | Backend application containing CLI commands, server routing, and SQLite migrations. |
+| [`app/src/`](app/src/) | Core backend modules (align, queue runner, media processing, provider adapters). |
+| [`app/tests/`](app/tests/) | Vitest unit tests, integration tests, and static test fixtures. |
+| [`ui/`](ui/) | Frontend React Single Page Application (Vite/TypeScript/CSS reset system). |
+| [`design/`](design/) | Static HTML/CSS mockups and design token definitions (`tokens.css`). |
+| [`docs/`](docs/) | Product, cost, API reference, and development guides. |
 | `app/projects/` *(gitignored)* | Runtime database and media folder for created projects. |
 | `app/accounts/` *(gitignored)* | Saved credential JSON files per registered account profile. |
 
@@ -146,8 +146,8 @@ npm test
 
 ## 7. Reference Documentation Links
 
-* **System Design & Contracts**: [app/ARCHITECTURE.md](file:///C:/Coding/Video%20Automation/app/ARCHITECTURE.md)
-* **REST & WebSockets API Reference**: [docs/api.md](file:///C:/Coding/Video%20Automation/docs/api.md)
-* **User Onboarding & Elements Guide**: [docs/user-guide.md](file:///C:/Coding/Video%20Automation/docs/user-guide.md)
-* **Credit Cost & Pricing Model**: [docs/cost-model.md](file:///C:/Coding/Video%20Automation/docs/cost-model.md)
-* **Phase-0 Research & Phase-1 Plans**: [research-and-plan.md](file:///C:/Coding/Video%20Automation/research-and-plan.md)
+* **System Design & Contracts**: [app/ARCHITECTURE.md](app/ARCHITECTURE.md)
+* **REST & WebSockets API Reference**: [docs/api.md](docs/api.md)
+* **User Onboarding & Elements Guide**: [docs/user-guide.md](docs/user-guide.md)
+* **Credit Cost & Pricing Model**: [docs/cost-model.md](docs/cost-model.md)
+* **Phase-0 Research & Phase-1 Plans**: [research-and-plan.md](research-and-plan.md)
