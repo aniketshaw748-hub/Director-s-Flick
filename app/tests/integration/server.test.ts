@@ -329,4 +329,91 @@ describe('server integration', () => {
     expect(updatedShotAnim.state).toBe('VIDEO_QUEUED');
     expect(updatedShotAnim.animationPrompt).toBe('custom anim prompt');
   });
+
+  // --- T-38 BUG 1: 413 on real VOs -----------------------------------------
+
+  test('POST /api/projects accepts a large, real-VO-sized base64 body (T-38 BUG 1 regression)', async () => {
+    const bigProjectName = `temp_proj_bigvo_${Date.now()}`;
+    const bigDir = path.join(PROJECTS_ROOT, bigProjectName);
+    try {
+      // ~4MB of raw bytes -> ~5.3MB base64. Comfortably bigger than both
+      // Express's original ~100KB default AND the new small (2mb) global
+      // limit that now applies to every OTHER JSON endpoint - this can only
+      // succeed because POST /api/projects gets its own much larger parser.
+      const rawBytes = Buffer.alloc(4 * 1024 * 1024, 1);
+      const res = await fetch(`http://localhost:${port}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: bigProjectName,
+          script: 'A large voiceover regression test.',
+          voiceoverBase64: rawBytes.toString('base64'),
+          voiceoverExt: 'wav',
+        }),
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.project.name).toBe(bigProjectName);
+
+      const voPath = path.join(bigDir, 'voiceover.wav');
+      expect(fs.existsSync(voPath)).toBe(true);
+      expect(fs.statSync(voPath).size).toBe(rawBytes.length);
+    } finally {
+      if (fs.existsSync(bigDir)) fs.rmSync(bigDir, { recursive: true, force: true });
+    }
+  });
+
+  test('other POST endpoints keep the small global body limit (T-38 BUG 1 scoping)', async () => {
+    // Proves the large limit is scoped to POST /api/projects only, not
+    // applied blanket-wide (the downside of T-27's original fix that T-38
+    // corrects). /account is a safe target either way: even if this request
+    // were NOT rejected, the handler only does an fs-based accountExists()
+    // check - no process is ever spawned.
+    const oversized = 'x'.repeat(3 * 1024 * 1024); // 3MB > the 2mb global default
+    const res = await fetch(`http://localhost:${port}/api/project/${tempProjectName}/account`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account: oversized }),
+    });
+    expect(res.status).toBe(413);
+  });
+
+  // --- T-38 BUG 2: queue-poisoning on GET/WS-before-create -----------------
+
+  test('GET /api/project/:name for a nonexistent project 404s and leaves no shell db behind (T-38 BUG 2 regression)', async () => {
+    const bogusName = `temp_proj_bogus_${Date.now()}`;
+    const bogusDir = path.join(PROJECTS_ROOT, bogusName);
+    expect(fs.existsSync(bogusDir)).toBe(false);
+
+    const res = await fetch(`http://localhost:${port}/api/project/${bogusName}`);
+    expect(res.status).toBe(404);
+
+    // No shell directory/db left behind - the old bug's telltale debris, and
+    // the reason a later legitimate creation of this same name must not find
+    // a pre-existing (project-row-less) pipeline.db in its way.
+    expect(fs.existsSync(bogusDir)).toBe(false);
+  });
+
+  test('WS connect for a nonexistent project closes gracefully instead of crashing the server (T-38 BUG 2)', async () => {
+    const bogusName = `temp_proj_bogus_ws_${Date.now()}`;
+    const bogusDir = path.join(PROJECTS_ROOT, bogusName);
+
+    const bogusWs = new WebSocket(`ws://localhost:${port}/?project=${bogusName}`);
+    const closeCode: number = await new Promise((resolve, reject) => {
+      const timer = originalSetTimeout(() => reject(new Error('timed out waiting for ws close')), 3000);
+      bogusWs.on('close', (code) => {
+        clearTimeout(timer);
+        resolve(code);
+      });
+    });
+    expect(closeCode).toBe(1008);
+    expect(fs.existsSync(bogusDir)).toBe(false);
+
+    // The server itself must still be healthy afterward - the original bug's
+    // real danger was an uncaught throw inside the WS 'connection' callback
+    // (not an Express request handler, so Express's error handling never
+    // catches it), which would otherwise take down the whole process.
+    const healthRes = await fetch(`http://localhost:${port}/api/projects`);
+    expect(healthRes.status).toBe(200);
+  });
 });

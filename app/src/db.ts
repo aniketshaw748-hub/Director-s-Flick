@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS cost_ledger (
   preflight_credits REAL,
   charged_credits   REAL,
   account_name      TEXT,
+  provider          TEXT,
+  unit              TEXT,
   created_at        TEXT NOT NULL
 );
 
@@ -257,6 +259,8 @@ export class ProjectDb {
     this.db.exec(SCHEMA);
     // Migrate columns added after a project's db was first created.
     ensureColumn(this.db, 'cost_ledger', 'account_name', 'TEXT');
+    ensureColumn(this.db, 'cost_ledger', 'provider', 'TEXT');
+    ensureColumn(this.db, 'cost_ledger', 'unit', 'TEXT');
     ensureColumn(this.db, 'elements', 'thumb_url', 'TEXT');
   }
 
@@ -599,8 +603,9 @@ export class ProjectDb {
     const info = this.db
       .prepare(
         `INSERT INTO cost_ledger (project_id, job_id, shot_id, kind, model,
-                                  preflight_credits, charged_credits, account_name, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                  preflight_credits, charged_credits, account_name,
+                                  provider, unit, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.projectId,
@@ -611,6 +616,8 @@ export class ProjectDb {
         entry.preflightCredits,
         entry.chargedCredits,
         entry.accountName ?? null,
+        entry.provider ?? null,
+        entry.unit ?? null,
         entry.createdAt,
       );
     return Number(info.lastInsertRowid);
@@ -644,6 +651,8 @@ export class ProjectDb {
       preflight_credits: number | null;
       charged_credits: number | null;
       account_name: string | null;
+      provider: string | null;
+      unit: string | null;
       created_at: string;
     }[];
     return rows.map((r) => {
@@ -659,6 +668,8 @@ export class ProjectDb {
       };
       if (r.shot_id !== null) e.shotId = r.shot_id;
       if (r.account_name !== null) e.accountName = r.account_name;
+      if (r.provider !== null) e.provider = r.provider as CostLedgerEntry['provider'];
+      if (r.unit !== null) e.unit = r.unit as CostLedgerEntry['unit'];
       return e;
     });
   }

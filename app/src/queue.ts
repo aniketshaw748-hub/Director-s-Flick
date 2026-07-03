@@ -11,10 +11,16 @@ import type {
   GenProvider,
   PromptEngine,
   ElementRef,
-  Project
+  Project,
+  ProviderName,
 } from './types.js';
 import { clampVideoSeconds } from './types.js';
 import { projectDir, type ProjectDb, type JobRow } from './db.js';
+
+/** higgsfield-cli/mock price in credits; fal is dollar-denominated (T-38c). */
+function unitForProvider(providerName: string): 'credits' | 'usd' {
+  return providerName === 'fal' ? 'usd' : 'credits';
+}
 
 /** Emitted by ShotQueue whenever a shot reaches a state a UI should react to
  * immediately (IMAGE_READY, VIDEO_READY, PLACED), in addition to whatever
@@ -59,7 +65,19 @@ export class ShotQueue extends EventEmitter {
     }
     this.prompts = prompts;
     this.config = config;
-    this.project = db.getProject()!;
+    // T-38 BUG 2: db.getProject() is undefined for a shell db opened for a
+    // project that was never created (e.g. openProjectDb() on a bad/typo'd
+    // name) - the old `!` assertion let that through silently, and this
+    // queue's very first submit crashed with "Cannot read properties of
+    // undefined (reading 'id')" deep inside a background run() loop that had
+    // already been cached by the caller. Fail loudly here instead, at
+    // construction time, so getOrOpenProject (server.ts) can catch this and
+    // return a clean 404 without ever caching a broken queue.
+    const project = db.getProject();
+    if (!project) {
+      throw new Error(`ShotQueue: no project row in this db (project was never created)`);
+    }
+    this.project = project;
     this.accountName = accountName;
   }
 
@@ -293,6 +311,8 @@ export class ShotQueue extends EventEmitter {
          preflightCredits: cost,
          chargedCredits: null,
          accountName: this.accountName,
+         provider: this.videoProvider.name as ProviderName,
+         unit: unitForProvider(this.videoProvider.name),
          createdAt: new Date().toISOString()
       });
       this.db.updateShotState(shot.id, 'VIDEO_QUEUED', {
@@ -346,6 +366,8 @@ export class ShotQueue extends EventEmitter {
          preflightCredits: cost,
          chargedCredits: null,
          accountName: this.accountName,
+         provider: this.imageProvider.name as ProviderName,
+         unit: unitForProvider(this.imageProvider.name),
          createdAt: new Date().toISOString()
       });
       this.db.updateShotState(shot.id, 'IMAGE_QUEUED', {

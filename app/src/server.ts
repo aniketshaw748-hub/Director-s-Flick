@@ -33,9 +33,24 @@ interface OpenProject {
 export function startServer(port = 4000) {
   const app = express();
   app.use(cors());
-  // Default 100kb limit is far too small for POST /api/projects, which
-  // carries a base64-encoded voiceover file in the JSON body (T-27).
-  app.use(express.json({ limit: '150mb' }));
+  // T-38 BUG 1: T-27's original fix (`express.json({limit:'150mb'})` applied
+  // to EVERY request) fixed the 413 but exposed every small JSON endpoint to
+  // oversized bodies just to accommodate the one route that legitimately
+  // needs it. POST /api/projects carries a base64-encoded voiceover and can
+  // legitimately be very large (a long real VO can exceed even 150MB once
+  // base64-inflated); every other endpoint here is small hand-typed JSON.
+  // this body-parser version has no "already parsed" guard, so two
+  // express.json() calls can't safely stack on one request (the second would
+  // try to re-read an already-drained stream) - dispatch to exactly one.
+  const smallJsonParser = express.json({ limit: '2mb' });
+  const projectCreateJsonParser = express.json({ limit: '500mb' });
+  app.use((req, res, next) => {
+     if (req.method === 'POST' && req.path === '/api/projects') {
+        projectCreateJsonParser(req, res, next);
+     } else {
+        smallJsonParser(req, res, next);
+     }
+  });
 
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
@@ -97,6 +112,22 @@ export function startServer(port = 4000) {
       });
   }
 
+  /** Remove the shell db files openProjectDb() creates on first open, and the
+   * directory itself if nothing else (script/voiceover) was ever written
+   * there. Only removes the specific sqlite files it knows it created - never
+   * a blind rm -rf of the whole dir - so a concurrent legitimate
+   * POST /api/projects for this same name (mid-write) is never touched. */
+  function cleanupShellProjectDir(name: string): void {
+     const dir = projectDir(name);
+     for (const suffix of ['', '-wal', '-shm']) {
+        const f = path.join(dir, `pipeline.db${suffix}`);
+        if (fs.existsSync(f)) fs.rmSync(f, { force: true });
+     }
+     if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
+        fs.rmSync(dir, { recursive: true, force: true });
+     }
+  }
+
   /**
    * Open (or reuse) a project's db + a live ShotQueue. On a true cache miss
    * (never opened this server session) this also starts the review-gate loop
@@ -104,12 +135,21 @@ export function startServer(port = 4000) {
    * approve/edit/redo). Once cached, further calls just return the existing
    * entry WITHOUT restarting its loop if it was explicitly stopped (T-27) -
    * only POST .../run does that. Idempotent per project name.
+   *
+   * Throws for a project that doesn't exist (T-38 BUG 2) rather than silently
+   * creating+caching a shell db and a ShotQueue that would crash on its first
+   * submit — callers must catch and turn this into a 404.
    */
   function getOrOpenProject(name: string): OpenProject {
     const existing = openProjects.get(name);
     if (existing) return existing;
 
     const db = openProjectDb(name);
+    if (!db.getProject()) {
+       db.close();
+       cleanupShellProjectDir(name);
+       throw new Error(`project '${name}' does not exist`);
+    }
     const entry = buildProjectEntry(name, db);
     openProjects.set(name, entry);
     startQueueLoop(name, entry);
@@ -126,7 +166,19 @@ export function startServer(port = 4000) {
           clients.set(projectName, new Set());
        }
        clients.get(projectName)!.add(ws);
-       getOrOpenProject(projectName); // start driving the queue as soon as anyone watches
+       try {
+          getOrOpenProject(projectName); // start driving the queue as soon as anyone watches
+       } catch (e: any) {
+          // T-38 BUG 2: getOrOpenProject now throws for an unknown project -
+          // a thrown error here is a synchronous callback inside `ws`'s own
+          // connection event, NOT an Express request handler, so it is NOT
+          // caught by Express's error handling and would otherwise crash the
+          // whole process. Close the socket gracefully instead.
+          console.error(`[server] WS connect for unknown project '${projectName}':`, e.message);
+          clients.get(projectName)?.delete(ws);
+          ws.close(1008, 'project not found');
+          return;
+       }
 
        ws.on('close', () => {
           clients.get(projectName)?.delete(ws);
@@ -331,16 +383,20 @@ export function startServer(port = 4000) {
   // only this /run endpoint resumes it, by building a fresh ShotQueue since
   // a stopped instance's stop flag can't be un-set (queue.ts::stop() docs).
   app.post('/api/project/:name/run', (req, res) => {
-     const name = req.params.name;
-     let entry = openProjects.get(name);
-     if (!entry) {
-        entry = getOrOpenProject(name);
-     } else if (!runningProjects.has(name)) {
-        entry = buildProjectEntry(name, entry.db);
-        openProjects.set(name, entry);
-        startQueueLoop(name, entry);
+     try {
+        const name = req.params.name;
+        let entry = openProjects.get(name);
+        if (!entry) {
+           entry = getOrOpenProject(name);
+        } else if (!runningProjects.has(name)) {
+           entry = buildProjectEntry(name, entry.db);
+           openProjects.set(name, entry);
+           startQueueLoop(name, entry);
+        }
+        res.json({ success: true, running: true });
+     } catch (e: any) {
+        res.status(404).json({ error: e.message });
      }
-     res.json({ success: true, running: true });
   });
 
   app.post('/api/project/:name/stop', (req, res) => {
@@ -446,26 +502,39 @@ export function startServer(port = 4000) {
      }
   });
 
-  // Session cost summary: ledger totals for the project, broken down by the
-  // account each entry was charged against (T-32's account_name column).
-  // Computed here from listLedger() rather than a new db.ts query - db.ts
-  // isn't leased for T-36 and listLedger already carries everything needed.
+  // Session cost summary: ledger totals for the project, broken down by
+  // account AND currency unit (T-38c: higgsfield/mock rows are 'credits',
+  // fal rows are 'usd' - a mixed-provider project must never sum these
+  // together, per Opus's T-34 flag). Legacy rows predating this migration
+  // have no `unit` column value; treat them as 'credits' (everything was
+  // higgsfield-only before the fal fallback existed). Computed here from
+  // listLedger() rather than a new db.ts query - listLedger already carries
+  // everything needed.
+  //
+  // Response shape (contract change from T-36's original totalCredits/
+  // byAccount[].totalCredits shape):
+  //   { totals: { credits?: number, usd?: number },
+  //     byAccount: [{ accountName: string|null, unit: 'credits'|'usd', total: number, entryCount: number }] }
   app.get('/api/project/:name/cost-summary', (req, res) => {
      try {
         const { db } = getOrOpenProject(req.params.name);
         const entries = db.listLedger();
-        const byAccount = new Map<string, { accountName: string | null; totalCredits: number; entryCount: number }>();
-        let totalCredits = 0;
+        const totals = new Map<'credits' | 'usd', number>();
+        const byAccount = new Map<
+           string,
+           { accountName: string | null; unit: 'credits' | 'usd'; total: number; entryCount: number }
+        >();
         for (const e of entries) {
-           const credits = e.chargedCredits ?? e.preflightCredits ?? 0;
-           totalCredits += credits;
-           const key = e.accountName ?? '(none)';
-           const bucket = byAccount.get(key) ?? { accountName: e.accountName ?? null, totalCredits: 0, entryCount: 0 };
-           bucket.totalCredits += credits;
+           const amount = e.chargedCredits ?? e.preflightCredits ?? 0;
+           const unit = e.unit ?? 'credits';
+           totals.set(unit, (totals.get(unit) ?? 0) + amount);
+           const key = `${e.accountName ?? '(none)'}::${unit}`;
+           const bucket = byAccount.get(key) ?? { accountName: e.accountName ?? null, unit, total: 0, entryCount: 0 };
+           bucket.total += amount;
            bucket.entryCount += 1;
            byAccount.set(key, bucket);
         }
-        res.json({ totalCredits, byAccount: [...byAccount.values()] });
+        res.json({ totals: Object.fromEntries(totals), byAccount: [...byAccount.values()] });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
      }

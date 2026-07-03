@@ -224,4 +224,57 @@ describe('db', () => {
     expect(retrieved).toBeDefined();
     expect(retrieved!.id).toBe('element-uuid-1');
   });
+
+  test('ledger provider/unit round-trip (T-38c)', () => {
+    const project = db.getProject()!;
+
+    const higgsfieldEntry: CostLedgerEntry = {
+      projectId: project.id,
+      jobId: 'job-uuid-provider-1',
+      shotId: 'shot-uuid-2',
+      kind: 'video',
+      model: 'kling3_0',
+      preflightCredits: 6.25,
+      chargedCredits: null,
+      provider: 'higgsfield-cli',
+      unit: 'credits',
+      createdAt: new Date().toISOString(),
+    };
+    const falEntry: CostLedgerEntry = {
+      projectId: project.id,
+      jobId: 'job-uuid-provider-2',
+      shotId: 'shot-uuid-3',
+      kind: 'video',
+      model: 'kling-video/v2.5-turbo/pro/image-to-video',
+      preflightCredits: 0.35,
+      chargedCredits: null,
+      provider: 'fal',
+      unit: 'usd',
+      createdAt: new Date().toISOString(),
+    };
+    // Legacy-style row: no provider/unit at all (pre-T-38c data).
+    const legacyEntry: CostLedgerEntry = {
+      projectId: project.id,
+      jobId: 'job-uuid-provider-3',
+      kind: 'image',
+      model: 'nano_banana_2',
+      preflightCredits: 1.5,
+      chargedCredits: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    db.insertLedger(higgsfieldEntry);
+    db.insertLedger(falEntry);
+    db.insertLedger(legacyEntry);
+
+    const list = db.listLedger();
+    const found = (jobId: string) => list.find((e) => e.jobId === jobId)!;
+
+    expect(found('job-uuid-provider-1').provider).toBe('higgsfield-cli');
+    expect(found('job-uuid-provider-1').unit).toBe('credits');
+    expect(found('job-uuid-provider-2').provider).toBe('fal');
+    expect(found('job-uuid-provider-2').unit).toBe('usd');
+    expect(found('job-uuid-provider-3').provider).toBeUndefined();
+    expect(found('job-uuid-provider-3').unit).toBeUndefined();
+  });
 });

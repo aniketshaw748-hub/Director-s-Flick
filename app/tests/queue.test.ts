@@ -237,4 +237,121 @@ describe('queue', () => {
     expect(shot.state).toBe('VIDEO_QUEUED');
     expect(shot.animationPrompt).toBe('custom animation prompt');
   });
+
+  test('constructor throws a clear error for a db with no project row (T-38 BUG 2)', () => {
+    // No db.ensureProject() call - simulates openProjectDb() on a name that
+    // was never actually created (the queue-poisoning repro: a shell db with
+    // schema but no project row). The old `db.getProject()!` non-null
+    // assertion let this through silently and crashed much later, deep
+    // inside a background run() loop server.ts had already cached.
+    const mockProvider: GenProvider = {
+      name: 'mock',
+      preflightCost: async () => 1.5,
+      submitImage: async () => `img-job-${randomUUID()}`,
+      submitVideo: async () => `vid-job-${randomUUID()}`,
+      poll: async (jobId) => ({ jobId, status: 'completed' }),
+      download: async (result, destPath) => destPath,
+    };
+    const mockPrompts: PromptEngine = {
+      imagePromptBatch: async (lines) =>
+        lines.map((l) => ({ lineIndex: l.index, imagePrompt: 'x' })),
+      animationPrompt: async () => 'x',
+    };
+    const config: PipelineConfig = {
+      provider: 'mock',
+      models: { image: 'nano_banana_2', video: 'kling3_0', videoMode: 'std' },
+      bufferSize: 5,
+      concurrency: 4,
+      elementsViaPlaceholders: true,
+      aspectRatio: '16:9',
+      soundOff: true,
+      styleBible: '',
+    };
+
+    expect(() => new ShotQueue(db, mockProvider, mockPrompts, config)).toThrow();
+  });
+
+  test('tags cost-ledger rows with the servicing provider + currency unit (T-38c)', async () => {
+    const project = db.ensureProject({
+      name: TEST_PROJECT_NAME,
+      scriptPath: 'script.txt',
+      voPath: 'vo.wav',
+    });
+
+    const mockShot: Shot = {
+      id: 'shot-units-1',
+      projectId: project.id,
+      lineIndex: 0,
+      subIndex: 0,
+      state: 'PENDING',
+      line: {
+        index: 0,
+        text: 'Unit-tagging test line.',
+        start: 0,
+        end: 2.0,
+        duration: 2.0,
+        pauseAfter: 1.0,
+        targetDuration: 3.0,
+      },
+      elementIds: [],
+      attempts: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.insertShots([mockShot]);
+
+    // A 'fal'-named provider on the video stage should tag video ledger rows
+    // 'usd', while the (default 'mock') image stage stays 'credits'.
+    const falProvider: GenProvider = {
+      name: 'fal',
+      preflightCost: async () => 0.35,
+      submitImage: async () => {
+        throw new Error('fal is video-only');
+      },
+      submitVideo: async () => `vid-job-${randomUUID()}`,
+      poll: async (jobId) => ({ jobId, status: 'completed', creditsCharged: 0.35 }),
+      download: async (result, destPath) => destPath,
+    };
+    const mockImageProvider: GenProvider = {
+      name: 'mock',
+      preflightCost: async () => 1.5,
+      submitImage: async () => `img-job-${randomUUID()}`,
+      submitVideo: async () => {
+        throw new Error('unused');
+      },
+      poll: async (jobId) => ({ jobId, status: 'completed', creditsCharged: 1.5 }),
+      download: async (result, destPath) => destPath,
+    };
+    const mockPrompts: PromptEngine = {
+      imagePromptBatch: async (lines) =>
+        lines.map((l) => ({ lineIndex: l.index, imagePrompt: 'mocked image prompt' })),
+      animationPrompt: async () => 'mocked animation prompt',
+    };
+    const config: PipelineConfig = {
+      provider: 'mock',
+      models: { image: 'nano_banana_2', video: 'kling3_0', videoMode: 'std' },
+      bufferSize: 5,
+      concurrency: 4,
+      elementsViaPlaceholders: true,
+      aspectRatio: '16:9',
+      soundOff: true,
+      styleBible: '',
+    };
+
+    const queue = new ShotQueue(
+      db,
+      { image: mockImageProvider, video: falProvider },
+      mockPrompts,
+      config,
+    );
+    await queue.run({ autoApprove: true });
+
+    const ledger = db.listLedger();
+    const imageEntry = ledger.find((e) => e.kind === 'image')!;
+    const videoEntry = ledger.find((e) => e.kind === 'video')!;
+    expect(imageEntry.provider).toBe('mock');
+    expect(imageEntry.unit).toBe('credits');
+    expect(videoEntry.provider).toBe('fal');
+    expect(videoEntry.unit).toBe('usd');
+  });
 });
