@@ -56,6 +56,9 @@ export class ShotQueue extends EventEmitter {
   private config: PipelineConfig;
   private project: Project;
   private stopped = false;
+  /** The in-flight run() loop's promise (T-62), so stop() can await genuine
+   * termination instead of just flipping the flag and hoping. */
+  private runPromise: Promise<void> | undefined;
   /** Active account name (see accounts.ts), tagged onto every ledger row this
    * queue inserts. Undefined for mock runs / no account selected. */
   private accountName: string | undefined;
@@ -119,14 +122,38 @@ export class ShotQueue extends EventEmitter {
     this.videoProviderFallback = videoProviderFallback;
   }
 
-  /** Signal run() to exit at the top of its next iteration (T-27: explicit
-   * start/stop from the setup flow). A stopped instance is done for good -
-   * construct a new ShotQueue to resume (safe: state persists in the db). */
-  stop(): void {
+  /**
+   * Signal run() to exit at the top of its next iteration (T-27: explicit
+   * start/stop from the setup flow), and wait for it to actually finish
+   * (T-62). A stopped instance is done for good - construct a new ShotQueue
+   * to resume (safe: state persists in the db).
+   *
+   * Awaiting this is the ONLY way to know the loop has genuinely exited -
+   * before this fix, `stop()` just flipped a flag and returned immediately,
+   * so a caller that closed the db (or reused the account/config) right
+   * after calling it could race an in-flight tick still using the old db
+   * connection / provider, surfacing as "database connection is not open" in
+   * tests and, in production, as a `/stop` response claiming `running:false`
+   * while the loop was still mid-tick doing real work.
+   */
+  async stop(): Promise<void> {
     this.stopped = true;
+    if (this.runPromise) {
+      // run() can reject (e.g. AuthError) - that's the caller's concern via
+      // the run() promise itself, not stop()'s; just wait for it to settle.
+      await this.runPromise.catch(() => {});
+    }
   }
 
-  async run(opts: { autoApprove: boolean }): Promise<void> {
+  /** Starts the review-gate loop and remembers its promise so stop() can
+   * await genuine termination (T-62). The actual loop lives in runLoop(). */
+  run(opts: { autoApprove: boolean }): Promise<void> {
+    const promise = this.runLoop(opts);
+    this.runPromise = promise;
+    return promise;
+  }
+
+  private async runLoop(opts: { autoApprove: boolean }): Promise<void> {
     let idleCount = 0;
     while (!this.stopped) {
       const shots = this.db.listShots();

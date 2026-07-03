@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT } from './db.js';
+import { ProjectDb, openProjectDb, projectDir, PROJECTS_ROOT, APP_ROOT } from './db.js';
 import { loadConfig, mergeLayer, type ConfigOverrides } from './config.js';
 import { createStageProviders } from './providers/index.js';
 import { createPromptEngine } from './prompts.js';
@@ -26,7 +26,17 @@ import type { AccountStatus } from './accounts.js';
 import type { ElementCategory, ProviderName, Project } from './types.js';
 
 const PROVIDER_NAMES: readonly ProviderName[] = ['mock', 'higgsfield-cli', 'fal', 'replicate'];
-const CONFIG_PATCH_KEYS = new Set(['provider', 'imageProvider', 'videoProvider', 'models', 'styleBible', 'accountName']);
+const PROMPT_BACKENDS = ['template', 'llm'] as const;
+const CONFIG_PATCH_KEYS = new Set([
+   'provider',
+   'imageProvider',
+   'videoProvider',
+   'models',
+   'styleBible',
+   'accountName',
+   'promptBackend',
+   'llmModel',
+]);
 const MODEL_PATCH_KEYS = new Set(['image', 'video', 'videoMode']);
 
 const ELEMENT_CATEGORIES: readonly ElementCategory[] = ['character', 'location', 'prop'];
@@ -132,6 +142,24 @@ export function startServer(port = 4000) {
      if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
         fs.rmSync(dir, { recursive: true, force: true });
      }
+  }
+
+  /**
+   * Stop and evict a project's cached entry, if one exists (T-62). Awaits
+   * genuine queue termination BEFORE dropping it from the cache - the
+   * account-switch and config-PATCH endpoints below both need the next
+   * access to rebuild fresh against new credentials/config, but evicting
+   * without stopping first orphans the old queue's still-running loop with
+   * no way to reach it again (openProjects.get() would find nothing), which
+   * either keeps ticking forever in production (wasted polling against a db
+   * nobody's watching) or throws "database connection is not open" the
+   * moment something else closes that db (exactly what surfaced in tests).
+   */
+  async function evictProjectEntry(name: string): Promise<void> {
+     const entry = openProjects.get(name);
+     if (!entry) return;
+     await entry.queue.stop();
+     openProjects.delete(name);
   }
 
   /**
@@ -249,7 +277,7 @@ export function startServer(port = 4000) {
   // ShotQueue/provider so the next access rebuilds it with the new account's
   // credentials (safe: state resumes from listShots()/listOpenJobs(), same
   // as the crash-recovery path above).
-  app.post('/api/project/:name/account', (req, res) => {
+  app.post('/api/project/:name/account', async (req, res) => {
      const { account } = req.body ?? {};
      if (typeof account !== 'string' || !account) {
         res.status(400).json({ error: 'switch-account requires a string "account" field' });
@@ -260,7 +288,7 @@ export function startServer(port = 4000) {
         return;
      }
      setActiveAccount(req.params.name, account);
-     openProjects.delete(req.params.name);
+     await evictProjectEntry(req.params.name);
      res.json({ success: true });
   });
 
@@ -280,7 +308,7 @@ export function startServer(port = 4000) {
      }
   });
 
-  app.patch('/api/project/:name/config', (req, res) => {
+  app.patch('/api/project/:name/config', async (req, res) => {
      let db: ProjectDb;
      let project: Project;
      try {
@@ -327,6 +355,14 @@ export function startServer(port = 4000) {
            res.status(400).json({ error: 'styleBible must be a string' });
            return;
         }
+        if (body.promptBackend !== undefined && !PROMPT_BACKENDS.includes(body.promptBackend as 'template' | 'llm')) {
+           res.status(400).json({ error: `promptBackend must be one of: ${PROMPT_BACKENDS.join(', ')}` });
+           return;
+        }
+        if (body.llmModel !== undefined && (typeof body.llmModel !== 'string' || !body.llmModel)) {
+           res.status(400).json({ error: 'llmModel must be a non-empty string' });
+           return;
+        }
         const accountName = body.accountName;
         if (accountName !== undefined) {
            if (typeof accountName !== 'string' || !accountName) {
@@ -346,8 +382,9 @@ export function startServer(port = 4000) {
            setActiveAccount(req.params.name, accountName);
         }
         // Same pattern as the account-switch endpoint above: evict the cached
-        // queue so the next access rebuilds it against the new config/account.
-        openProjects.delete(req.params.name);
+        // queue (T-62: stop-before-evict) so the next access rebuilds it
+        // against the new config/account, with no orphaned loop left behind.
+        await evictProjectEntry(req.params.name);
 
         const updatedProject = { ...project, config: mergedConfig };
         broadcast(req.params.name, { type: 'sync', shots: db.listShots(), project: updatedProject });
@@ -515,9 +552,12 @@ export function startServer(port = 4000) {
      }
   });
 
-  app.post('/api/project/:name/stop', (req, res) => {
+  app.post('/api/project/:name/stop', async (req, res) => {
      const entry = openProjects.get(req.params.name);
-     if (entry) entry.queue.stop();
+     // T-62: await genuine termination (queue.ts::stop() docs) so this
+     // response's running:false is honest - not just "asked to stop" while
+     // the loop could still be mid-tick.
+     if (entry) await entry.queue.stop();
      res.json({ success: true, running: false });
   });
 
@@ -713,6 +753,42 @@ export function startServer(port = 4000) {
         broadcast(projectName, { type: 'sync', shots });
      }
   }, 2000);
+
+  // --- T-67 production static serving (Fable-2, additive end block) ---------
+  // When ui/dist exists (vite build), serve the app from this server so no
+  // vite dev process is needed: static assets + SPA fallback for client-side
+  // routes. Registered LAST so every /api route above wins; the WS upgrade
+  // path is unaffected (wss ignores the URL path, reads only ?project=).
+  // NOTE: Express 5's path-to-regexp rejects the classic '*' wildcard route —
+  // a plain middleware guard is the compatible SPA fallback.
+  const distDir = path.resolve(APP_ROOT, '..', 'ui', 'dist');
+  if (fs.existsSync(path.join(distDir, 'index.html'))) {
+    app.use(express.static(distDir));
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+    console.log(`[server] serving ui from ${distDir}`);
+  } else {
+    console.log('[server] ui/dist not found - API-only mode (run `npm run build` in ui/ or use the vite dev server)');
+  }
+
+  // Friendly port-in-use exit. IMPORTANT: the ws WebSocketServer forwards the
+  // http server's 'error' events to itself, and its forwarder is attached
+  // (at construction) BEFORE this handler — an unhandled re-emit on `wss`
+  // would throw first, so the handler must be on BOTH emitters.
+  const onServerError = (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[server] port ${port} is already in use - is Director's Flick already running? (close it or pass --port <other>)`);
+      process.exit(1);
+    }
+    throw err;
+  };
+  server.on('error', onServerError);
+  wss.on('error', onServerError);
 
   server.listen(port, () => {
     console.log(`Server listening on port ${port}`);

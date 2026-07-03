@@ -83,8 +83,22 @@ npm run cli -- export my_project
 npm run cli -- cost my_project
 ```
 
-### Server & Web Interface
-To run the interactive desktop/mobile review app:
+### Run the App (production, one command)
+
+The launcher checks prerequisites, installs dependencies on first run, builds the UI when it is stale, starts the server (which serves the built UI itself — no Vite process needed), and opens your browser:
+
+```powershell
+powershell -File scripts\start-directors-flick.ps1
+# options: -Port 4100  |  -NoBrowser
+```
+
+The whole app then runs at `http://localhost:4000`. If the port is taken, the server prints a friendly message instead of crashing — close the other instance or pass `-Port`.
+
+**Review on your phone:** your phone must be on the same Wi-Fi as this PC. One-time setup: run `app\scripts\allow-lan.ps1` in an elevated PowerShell (adds inbound firewall rules for the app's ports, Private profile only). Then click the **Phone** button in the app's top bar and scan the QR code — it opens the mobile review page bound to the current project.
+
+### Development mode (hot reload)
+
+For UI development, run the backend and the Vite dev server separately:
 
 1. **Start the Express + WebSocket Backend Server** (runs on port `4000` by default):
    ```bash
@@ -99,7 +113,7 @@ To run the interactive desktop/mobile review app:
 3. **Open the Desktop Web UI**:
    Navigate to `http://localhost:5173` in your browser.
 4. **Access the Mobile Review UI over LAN**:
-   The Vite dev server is configured with `host: true`. Connect your computer and mobile phone to the same Wi-Fi network and navigate to `http://<your-computer-ip>:5173/mobile` to review and approve keyframe shots on your phone.
+   The Vite dev server is configured with `host: true`. Connect your computer and mobile phone to the same Wi-Fi network and use the in-app **Phone** QR button (or navigate to `http://<your-computer-ip>:5173/mobile?project=<name>`) to review and approve keyframe shots on your phone.
 
 ---
 

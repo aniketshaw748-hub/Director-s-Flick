@@ -151,10 +151,12 @@ describe('server integration', () => {
     // non-autoApprove (review-gate) mode by design - without this it keeps
     // ticking after the db/server below are torn down and throws "database
     // connection is not open" against the just-closed db on its next tick.
+    // T-62: POST /stop now awaits the queue's genuine termination (queue.ts
+    // ::stop() docs), so this await alone is sufficient - no more guessing
+    // at a safe delay afterward.
     if (port) {
       try {
         await fetch(`http://localhost:${port}/api/project/${tempProjectName}/stop`, { method: 'POST' });
-        await new Promise((resolve) => originalSetTimeout(resolve, 100));
       } catch {
         // Server may already be down in some failure paths - fine to ignore.
       }
@@ -570,21 +572,14 @@ describe('server integration', () => {
     });
 
     afterAll(async () => {
-      // Best-effort: the "valid partial update" test's PATCH evicts the
-      // cached queue entry (same openProjects.delete() pattern as the
-      // pre-existing account-switch endpoint) without stopping its loop -
-      // by design, so a later request rebuilds fresh rather than reusing a
-      // stale provider/config. That orphaned loop instance is then
-      // unreachable via /stop (openProjects.get() finds nothing). In
-      // production this is harmless (the loop just keeps polling against a
-      // db file that's still open); in this test it surfaces as a benign,
-      // caught-and-logged "database connection is not open" stderr once the
-      // outer afterAll closes every db this file ever opened. Same class of
-      // artifact as the pre-existing "illegal transition" noise from the
-      // shared tempProjectName project elsewhere in this file - not fixing,
-      // just documenting so it doesn't look like an unexplained flake.
+      // T-62: the "valid partial update" test's PATCH used to evict the
+      // cached queue entry without stopping its loop first (same gap the
+      // account-switch endpoint had), orphaning it beyond this /stop's
+      // reach. Both endpoints now stop-before-evict (evictProjectEntry() in
+      // server.ts), so this plain /stop reaches whatever's currently cached
+      // and genuinely awaits its termination - no more benign teardown
+      // stderr to explain away here.
       await fetch(`http://localhost:${port}/api/project/${configProjectName}/stop`, { method: 'POST' }).catch(() => {});
-      await new Promise((resolve) => originalSetTimeout(resolve, 100));
       if (fs.existsSync(accountDir(fakeAccountName))) {
         fs.rmSync(accountDir(fakeAccountName), { recursive: true, force: true });
       }
@@ -626,6 +621,24 @@ describe('server integration', () => {
       expect(res.status).toBe(400);
     });
 
+    test('PATCH rejects an invalid promptBackend value with 400 (T-62)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promptBackend: 'gpt5' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test('PATCH rejects an empty-string llmModel with 400 (T-62)', async () => {
+      const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ llmModel: '' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
     test('PATCH rejects an accountName with no matching credentials with 404', async () => {
       const res = await fetch(`http://localhost:${port}/api/project/${configProjectName}/config`, {
         method: 'PATCH',
@@ -658,6 +671,8 @@ describe('server integration', () => {
           models: { video: 'kling2_5' },
           styleBible: 'Neon-noir, high contrast.',
           accountName: fakeAccountName,
+          promptBackend: 'llm',
+          llmModel: 'claude-opus-4-8',
         }),
       });
       expect(res.status).toBe(200);
@@ -665,6 +680,8 @@ describe('server integration', () => {
       expect(body.config.videoProvider).toBe('replicate');
       expect(body.config.models.video).toBe('kling2_5');
       expect(body.config.styleBible).toBe('Neon-noir, high contrast.');
+      expect(body.config.promptBackend).toBe('llm');
+      expect(body.config.llmModel).toBe('claude-opus-4-8');
       // Untouched fields survive the partial merge - proves it's a merge, not
       // a full overwrite (models.image and bufferSize were never in the body).
       expect(body.config.models.image).toBe('nano_banana_2');
