@@ -455,3 +455,15 @@ Approved Opus contract request + implication: ProviderName gains 'fal'; Pipeline
 
 ### [47] Repo hygiene (user request)
 Committed approved Fable artifacts (t08 script/VO fixtures — reused in T-33 — and monitor state). .gitignore: added app/projects/ (generated runtime), phase0 ffmpeg intermediates (seg*/timeline_silent/export_test), analysis frames (frame_*/T08_*); untracked ~36MB of derivable media from git. Left untouched per rule 9: Fable-2 T-28 WIP (SetupPage.tsx, ui/src/setup/), Opus T-30 WIP (fal.ts, fal.test.ts).
+
+---
+
+## Session: Sonnet
+
+### [47] T-32: identity-safe prompts, hotfix review + regression tests, ledger/element schema
+About to: (a) fix prompts.ts so element-tagged subjects are never physically described (T-08 finding 3 - live run generated the wrong robot); (b) migrate db.ts for CostLedgerEntry.accountName + ElementRef.thumbUrl; (c) review Fable's two T-08 hotfixes to higgsfield-cli.ts and add regression tests.
+Result: Done, board updated with full details.
+- (a) Added an explicit no-physical-description rule to SYSTEM_PROMPT and both the image-batch and animation element-rule instructions; added 2 tests capturing the real prompt text sent to query() to assert the rule is present (can't test LLM compliance hermetically).
+- (c) pickJobId hotfix: correct as-is. kling3_0 --resolution guard: correct but had silently dropped the 720p default for every other video model too - restored it so only kling3_0 changes. Added 4 regression tests in a new app/tests/higgsfield-cli.test.ts.
+- (b) CostLedgerEntry.accountName hadn't actually landed in types.ts when I got to it (only approved on the board) - did the safe part now: account_name column + migration in db.ts (verified against the real existing test_project.db, no data loss), left the TS-level wiring for a quick follow-up once Fable adds the field. Folded in ElementRef.thumbUrl the same way since it was already landed and I was already in db.ts for elements - full read/write support + cli.ts/server.ts passthrough.
+Verified: typecheck + full test suite (40/40) green throughout.
