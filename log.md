@@ -261,6 +261,10 @@ Result: ✅ Completed both tasks.
 For T-19: Added proxy for API endpoints in `vite.config.ts`, changed hardcoded `localhost:4000` URLs to relative paths in the UI code to support access from other devices. Added PWA `manifest.json` and viewport config to `index.html`. Added note about LAN mobile access to `README.md`.
 For T-20: Added export state to `TimelinePage.tsx`, matching the mockup structure but making the export button vs progress bar toggleable with a mocked state. Added TODO comments to `App.tsx` and `TimelinePage.tsx` for missing endpoint wiring (T-04 and T-05). Passed typecheck. Marked T-19 and T-20 as done on BOARD.md.
 
+### [35] Claim T-22 (AGV)
+About to: Start T-22 (Review-flow integration: consume `shotEvent` WS pushes, wire redo/redoAnimation payloads, remove TODOs, verify full flow).
+Result: ⏳ In progress...
+
 ## Session: Flash
 
 ### [31] Claim T-12, T-13, T-14, T-15 and start T-12
@@ -334,3 +338,11 @@ The @fable tag was Sonnet's swept-commit flag (already handled). Closed my own p
 
 ### [36] Cadence tuning (user request)
 Idle re-check intervals reduced: Flash 5-10min -> 1-2min, AGV 5-10min -> 2-3min (bootstraps updated). Fable: Monitor poll 120s -> 45s, fallback heartbeat 25min -> 15min.
+
+---
+
+## Session: Flash
+
+### [37] Claim T-21 — Fix queue.test.ts regression
+About to: Claim T-21 on the board, examine `app/tests/queue.test.ts` to identify the UNIQUE constraint violation in SQLite and the stale `requestRedo` assertions, and resolve the issues using fresh ProjectDb setups and proper mock provider definitions.
+Result: ⏳ In progress...

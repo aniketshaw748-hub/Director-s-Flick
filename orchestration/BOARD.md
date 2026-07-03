@@ -49,8 +49,8 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
 | T-18 | AGV | done | **T-11 fix (MED) — typed API layer**: replace `any` shot/project types in `ui/` with a type-only import from `app/src/types.ts` if the Vite/tsc toolchain allows; otherwise create `ui/src/apiTypes.ts` mirroring ONLY the needed interfaces with a "source of truth: app/src/types.ts — keep in sync" header. | `ui/src/**` | No `any` for shots/projects; tsc clean |
 | T-19 | AGV | done | **UI polish batch**: fix T-17/T-18 leftovers (SetupPage `shot: any` → `Shot`; TimelinePage hardcoded host/project in thumbnail URL → derive from current project, relative URL); PWA support for the mobile review page (manifest.json, icons, viewport polish, installable); vite config `host: true` + README note for phone-on-LAN access. | `ui/**` | Installable from phone browser over LAN; no hardcoded host/project; tsc clean |
 | T-20 | AGV | done | **Export panel + cost meter UI** on TimelinePage per `design/desktop-timeline.html`: export button w/ progress bar + ETA, session cost meter (per-account chip). Wire to endpoints that exist; anything missing gets `// TODO(T-04/T-05)` and a mocked state. | `ui/src/pages/TimelinePage.tsx` + components | Matches mockup; degrades gracefully w/o backend endpoints; tsc clean |
-| T-21 | Flash | open | **Fix queue.test.ts regression (30/31)** exactly per Sonnet's T-04 note: (a) mock providers must return unique job ids per call (counter or randomUUID), not a shared literal; (b) update the stale `requestRedo` assertions to the new contract — redo submits directly, ends at `IMAGE_QUEUED` with a real prompt (regenerated or verbatim), never `PROMPTED`/undefined; (c) prefer a fresh ProjectDb per test. | `app/tests/**` | `npm test` 31/31 green |
-| T-22 | AGV | open | **Review-flow integration (T-04 landed)**: consume the new `shotEvent` WS pushes in `App.tsx` for instant shot updates (replace the dead `shot_updated` handler — read server.ts for the exact payload); wire redo/redoAnimation payloads to the final contract (prompt optional); remove `TODO(T-04)` markers that are now live; run server in non-auto-approve mode and browser-verify the full approve/edit/redo flow end-to-end on the mock provider (screenshot/note). | `ui/src/**` | Full review flow works live in browser; shot cards update instantly on shotEvent (not just the 2s sync); tsc clean |
+| T-21 | Flash | done | **Fix queue.test.ts regression (30/31)** exactly per Sonnet's T-04 note: (a) mock providers must return unique job ids per call (counter or randomUUID), not a shared literal; (b) update the stale `requestRedo` assertions to the new contract — redo submits directly, ends at `IMAGE_QUEUED` with a real prompt (regenerated or verbatim), never `PROMPTED`/undefined; (c) prefer a fresh ProjectDb per test. | `app/tests/**` | `npm test` 31/31 green |
+| T-22 | AGV | in-progress (AGV) | **Review-flow integration (T-04 landed)**: consume the new `shotEvent` WS pushes in `App.tsx` for instant shot updates (replace the dead `shot_updated` handler — read server.ts for the exact payload); wire redo/redoAnimation payloads to the final contract (prompt optional); remove `TODO(T-04)` markers that are now live; run server in non-auto-approve mode and browser-verify the full approve/edit/redo flow end-to-end on the mock provider (screenshot/note). | `ui/src/**` | Full review flow works live in browser; shot cards update instantly on shotEvent (not just the 2s sync); tsc clean |
 
 ### Notes / findings
 
@@ -76,9 +76,14 @@ Contracts (`app/src/types.ts`, `app/ARCHITECTURE.md`) are READ-ONLY for Sonnet/A
   - Committed all T-06/T-07 files and hygiene changes under `[flash]` prefixes.
 - **T-13 (Flash)**: Documented server REST endpoints and WebSockets in `docs/api.md`, detailing connection formats, JSON request/response shapes, and adding `TODO(T-04)` integration hooks for review-gate controls.
 - **T-14 (Flash)**: Extracted and consolidated Phase-0 measured credit costs (Image and Video models, 10-minute projection estimates) into `docs/cost-model.md` as a unified cost reference.
-- **T-15 (Flash)**: Expanded test coverage (now 31/31 green) by adding:
+- **T-15 (Flash)**: Expanded test coverage (now 31/3 green) by adding:
   - `prompts.test.ts`: Verifies `TemplatePromptEngine` determinism, visual prompt builders, and `ClaudePromptEngine` SDK mock retry handling.
   - `config.test.ts`: Verifies default configuration cascading, app/config.json layer overrides, and project SQLite DB loader overrides.
+- **T-21 (Flash)**: Fixed `queue.test.ts` regression:
+  - Added unique job UUID generation (`randomUUID`) inside mock providers to prevent SQLite primary key constraint collisions.
+  - Configured fresh SQLite DB and directory contexts (`ProjectDb` setup/cleanup) per test in `beforeEach`/`afterEach` hooks.
+  - Updated stale `requestRedo` and `requestEdit` assertions to align with the new direct-submission contract (`IMAGE_QUEUED` target state).
+  - All 31 tests are fully passing again.
 
 - **T-01 findings (Sonnet)** — read-only pass over `queue.ts`, `server.ts`, `cli.ts`, `db.ts`, `types.ts` (for context) + rename-fallout grep across `app/`, `ui/`, `design/`. `npm run typecheck` in `app/` is currently clean (0 errors). No fixes applied — posting for triage, per protocol.
 
