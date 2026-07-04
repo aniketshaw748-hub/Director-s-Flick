@@ -153,10 +153,22 @@ export class ShotQueue extends EventEmitter {
     return promise;
   }
 
+  /**
+   * CHUNKED PRODUCTION (owner-directed, 2026-07-04): the loop only ever sees
+   * shots belonging to config.activeChunk — one chunk's segments/prompts/
+   * images move together; the next chunk starts when the operator advances
+   * activeChunk. Legacy shots without chunkIndex are chunk 0, and projects
+   * without SECTION markers have a single chunk 0 — behavior unchanged there.
+   */
+  private activeChunkShots(shots: Shot[]): Shot[] {
+    const active = this.config.activeChunk ?? 0;
+    return shots.filter((s: Shot) => (s.line.chunkIndex ?? 0) === active);
+  }
+
   private async runLoop(opts: { autoApprove: boolean }): Promise<void> {
     let idleCount = 0;
     while (!this.stopped) {
-      const shots = this.db.listShots();
+      const shots = this.activeChunkShots(this.db.listShots());
       const allPlaced = shots.length > 0 && shots.every((s: Shot) => s.state === 'PLACED');
 
       // Only exit-when-done in autoApprove mode (CLI/mock bounded runs, so
@@ -218,7 +230,7 @@ export class ShotQueue extends EventEmitter {
         }
       }
       
-      const currentShots = this.db.listShots();
+      const currentShots = this.activeChunkShots(this.db.listShots());
       const openJobsNow = this.db.listOpenJobs();
       const activeJobsCount = openJobsNow.length;
       let availableConcurrency = this.config.concurrency - activeJobsCount;

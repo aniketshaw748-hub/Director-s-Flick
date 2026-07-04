@@ -2,10 +2,67 @@
  * panels.tsx — SetupPage building blocks (T-28), composed by SetupPage.tsx.
  * Class names come from ui/src/pages/SetupPage.css + shared atoms in index.css.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ElementRef, Shot, ElementCategory } from '../../../app/src/types';
 import type { SetupState } from './useSetupProject';
 import { ELEMENT_CATEGORIES, estimateRunCost, isValidProjectName } from './api';
+import { useProject } from '../project/ProjectContext';
+
+// ------------------------------------------------------- Chunked production
+
+interface ChunkInfo {
+  index: number;
+  title: string;
+  shotCount: number;
+  placed: number;
+  approvedOrBeyond: number;
+  failed: number;
+}
+
+/**
+ * Chunk list + active chunk for the current project (owner-directed chunked
+ * production): the queue only generates the ACTIVE chunk's shots, so the
+ * operator works chunk 1 end-to-end (segments → prompts → images → review),
+ * then advances.
+ */
+function useChunks(projectName: string | null, shotCount: number) {
+  const [chunks, setChunks] = useState<ChunkInfo[]>([]);
+  const [activeChunk, setActive] = useState(0);
+  const [switching, setSwitching] = useState(false);
+
+  const refresh = React.useCallback(() => {
+    if (!projectName) return;
+    fetch(`/api/project/${encodeURIComponent(projectName)}/chunks`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: { chunks: ChunkInfo[]; activeChunk: number }) => {
+        setChunks(data.chunks ?? []);
+        setActive(data.activeChunk ?? 0);
+      })
+      .catch(() => setChunks([]));
+  }, [projectName]);
+
+  useEffect(refresh, [refresh, shotCount]);
+
+  const activate = React.useCallback(
+    async (index: number) => {
+      if (!projectName) return;
+      setSwitching(true);
+      try {
+        await fetch(`/api/project/${encodeURIComponent(projectName)}/config`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activeChunk: index }),
+        });
+        refresh();
+      } finally {
+        setSwitching(false);
+      }
+    },
+    [projectName, refresh],
+  );
+
+  return { chunks, activeChunk, activate, switching };
+}
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -167,10 +224,14 @@ const MAX_SHOT_SECONDS = 8;
 
 export function AlignCard({ state }: { state: SetupState }) {
   const { aligning, alignLines, rerunAlign, mode, busy } = state;
+  const { projectName } = useProject();
   // in draft mode the previous project's rows are irrelevant — show empty
   const shots = mode === 'draft' ? [] : state.shots;
   const totalDuration = shots.length > 0 ? shots[shots.length - 1].line.start + shots[shots.length - 1].line.targetDuration : 0;
-  const canRerun = mode === 'view' && shots.length === 0 && !busy;
+  // Force re-align is server-guarded (refused only if PAID generations exist),
+  // so the button stays available whenever a project is open.
+  const canRerun = mode === 'view' && !busy;
+  const { chunks, activeChunk, activate, switching } = useChunks(mode === 'view' ? projectName : null, shots.length);
   // T-88 sub-rows: lines that split into phrase sub-shots share a lineIndex
   const subCounts = new Map<number, number>();
   for (const s of shots) subCounts.set(s.lineIndex, (subCounts.get(s.lineIndex) ?? 0) + 1);
@@ -192,11 +253,34 @@ export function AlignCard({ state }: { state: SetupState }) {
           className="btn btn-ghost"
           onClick={() => void rerunAlign()}
           disabled={!canRerun}
-          title={shots.length > 0 ? 'Shots already planned — re-align is blocked server-side once shots exist' : 'Run stable-ts alignment'}
+          title={shots.length > 0 ? 'Re-run segmentation + alignment (refused only if paid generations exist)' : 'Run stable-ts alignment'}
         >
-          {aligning ? 'Running…' : shots.length > 0 ? 'Aligned' : 'Run alignment'}
+          {aligning ? 'Running…' : shots.length > 0 ? 'Re-align' : 'Run alignment'}
         </button>
       </div>
+      {chunks.length > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', padding: 'var(--sp-3) var(--sp-5)', borderBottom: '1px solid var(--border-1)' }}>
+          {chunks.map((c) => {
+            const isActive = c.index === activeChunk;
+            const done = c.shotCount > 0 && c.placed === c.shotCount;
+            return (
+              <button
+                key={c.index}
+                className={`chip ${isActive ? 'chip-lime' : ''}`}
+                style={{ cursor: isActive ? 'default' : 'pointer', opacity: switching ? 0.6 : 1 }}
+                disabled={isActive || switching}
+                onClick={() => void activate(c.index)}
+                title={isActive ? 'Active chunk — only these shots generate' : `Switch production to this chunk (${c.shotCount} shots)`}
+              >
+                {done ? '✓ ' : isActive ? '▶ ' : ''}
+                {c.index + 1}. {c.title.replace(/^(section|chunk|part)\s*\d+\s*[-:.]?\s*/i, '') || c.title}
+                {' · '}
+                {c.placed}/{c.shotCount}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {aligning && (
         <div style={{ padding: 'var(--sp-3) var(--sp-5)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', color: 'var(--text-3)' }}>
           {alignLines.length > 0 ? alignLines[alignLines.length - 1] : 'starting stable-ts aligner…'}
@@ -204,12 +288,31 @@ export function AlignCard({ state }: { state: SetupState }) {
       )}
       <div className={`align-list ${shots.length > 8 ? 'align-fade' : ''}`}>
         {shots.length > 0 ? (
-          shots.map((shot: Shot) => {
+          shots.map((shot: Shot, i: number) => {
             const subs = subCounts.get(shot.lineIndex) ?? 1;
             const isSub = subs > 1;
             const over = shot.line.duration > MAX_SHOT_SECONDS;
+            const chunkIdx = shot.line.chunkIndex ?? 0;
+            const prevChunkIdx = i > 0 ? (shots[i - 1].line.chunkIndex ?? 0) : -1;
+            const chunkHeader =
+              chunks.length > 1 && chunkIdx !== prevChunkIdx ? chunks.find((c) => c.index === chunkIdx) : null;
             return (
             <React.Fragment key={shot.id}>
+              {chunkHeader && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 'var(--sp-3)',
+                    padding: 'var(--sp-3) var(--sp-5) var(--sp-2)',
+                    fontSize: 'var(--fs-12)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
+                    color: chunkIdx === activeChunk ? 'var(--lime)' : 'var(--text-3)',
+                  }}
+                >
+                  {chunkIdx === activeChunk ? '▶' : ''} {chunkHeader.title}
+                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                    {chunkIdx === activeChunk ? '· active — generating' : '· waiting'}
+                  </span>
+                </div>
+              )}
               <div
                 className={`align-row${isSub ? ' sub' : ''}${isSub && shot.subIndex === 0 ? ' sub-first' : ''}${isSub && shot.subIndex === subs - 1 ? ' sub-last' : ''}`}
                 data-line={shot.lineIndex}

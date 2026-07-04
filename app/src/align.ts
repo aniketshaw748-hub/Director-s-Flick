@@ -30,7 +30,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AlignedLine, LineTiming, Shot, WordTiming } from './types.js';
+import type { AlignedLine, LineTiming, ScriptChunk, Shot, WordTiming } from './types.js';
 import { LAST_LINE_TAIL_SECONDS, MAX_CLIP_SECONDS } from './types.js';
 import { probeDuration } from './media.js';
 
@@ -309,10 +309,21 @@ export interface AlignOptions {
 
 export interface AlignResultEx {
   lines: AlignedLine[];
+  /** Script chunks derived from `SECTION ...` marker lines (>=1, always). */
+  chunks: ScriptChunk[];
   /** The segmentation source actually used ('llm' may fall back to 'heuristic'). */
   segmentationUsed: 'llm' | 'heuristic';
   /** Present when 'llm' was requested but the heuristic fallback was used. */
   segmentationFallbackReason?: string;
+}
+
+/**
+ * A chunk-boundary marker line: script formatting like
+ * "SECTION 4 - Mars wali sachhai" / "CHUNK 2" / "PART 3: title". Markers
+ * divide the script for chunked production and are never shots themselves.
+ */
+export function isChunkMarker(text: string): boolean {
+  return /^\s*(section|chunk|part)\s*\d+\b/i.test(text);
 }
 
 /** alignScript + which segmentation source actually produced the line boundaries. */
@@ -417,18 +428,35 @@ async function alignScriptInner(
     // other written-but-never-narrated lines align to ~0s — as shots they
     // would each burn a generation on content the video never needs. Any
     // line under 0.3s of aligned audio is dropped with a visible note.
+    // CHUNKED PRODUCTION (owner-directed): `SECTION ...` marker lines divide
+    // the script into chunks BEFORE being dropped as unspoken — every kept
+    // line is stamped with its chunkIndex so the queue can gate on
+    // config.activeChunk and the operator works one chunk at a time.
     const MIN_SPOKEN_SECONDS = 0.3;
-    const lines = aligned.filter((l) => l.end - l.start >= MIN_SPOKEN_SECONDS);
-    for (const dropped of aligned.filter((l) => l.end - l.start < MIN_SPOKEN_SECONDS)) {
-      opts?.onProgress?.(
-        `dropped unspoken line (${(dropped.end - dropped.start).toFixed(2)}s): "${dropped.text.slice(0, 60)}"`,
-      );
+    const chunks: ScriptChunk[] = [];
+    const lines: AlignedLine[] = [];
+    let currentChunk = 0;
+    for (const l of aligned) {
+      if (isChunkMarker(l.text)) {
+        // Content before the first marker becomes its own synthetic chunk 0.
+        if (chunks.length === 0 && lines.length > 0) chunks.push({ index: 0, title: 'Intro (before first SECTION)' });
+        chunks.push({ index: chunks.length, title: l.text.trim() });
+        currentChunk = chunks.length - 1;
+        opts?.onProgress?.(`chunk ${currentChunk + 1}: ${l.text.trim()}`);
+        continue; // markers are never shots
+      }
+      if (l.end - l.start < MIN_SPOKEN_SECONDS) {
+        opts?.onProgress?.(`dropped unspoken line (${(l.end - l.start).toFixed(2)}s): "${l.text.slice(0, 60)}"`);
+        continue;
+      }
+      lines.push({ ...l, chunkIndex: currentChunk });
     }
+    if (chunks.length === 0) chunks.push({ index: 0, title: 'Chunk 1' });
     if (lines.length === 0) {
       throw new Error('alignScript: every line aligned to near-zero duration — do the script and voiceover match?');
     }
     for (const w of detectSmearedLines(lines)) opts?.onProgress?.(w);
-    return { lines, segmentationUsed, segmentationFallbackReason };
+    return { lines, chunks, segmentationUsed, segmentationFallbackReason };
   } finally {
     if (tempScriptPath) {
       try {
@@ -562,6 +590,7 @@ export function computeTimeline(lines: AlignedLine[]): LineTiming[] {
       duration,
       pauseAfter,
       targetDuration,
+      chunkIndex: line.chunkIndex ?? 0,
     };
   });
 }
@@ -703,6 +732,11 @@ export function planShots(
   const shots: Shot[] = [];
   for (const line of timeline) {
     const words = wordsByIndex.get(line.index) ?? [];
+    // NOTE on SMEARED lines (script/VO divergence — see detectSmearedLines):
+    // their multi-sub-shot split looks ugly but is invariant-preserving —
+    // capping a 119s slot to one 15s clip would desync every clip after it
+    // from the voiceover at export. Chunk gating keeps those junk shots from
+    // generating until the operator fixes the script passage and re-aligns.
     const phrasePieces = segmentLineByPhrase(line, words, effectiveMaxShotSeconds);
     let subIndex = 0;
     for (const piece of phrasePieces) {
@@ -832,6 +866,7 @@ function buildSlices(
       duration: round3(end - sliceStart),
       pauseAfter: isLast ? line.pauseAfter : round3(nextStart - end),
       targetDuration: round3(nextStart - sliceStart),
+      chunkIndex: line.chunkIndex ?? 0,
     };
   });
 }

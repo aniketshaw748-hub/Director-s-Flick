@@ -78,7 +78,11 @@ vi.mock('../../src/align.js', async (importOriginal) => {
     alignScriptEx: async (_script: string, _audio: string, _out: string, opts?: { onProgress?: (l: string) => void }) => {
       if (mockAlignFail) throw mockAlignFail;
       opts?.onProgress?.('mock alignment progress');
-      return { lines: fakeLines, segmentationUsed: 'heuristic' as const };
+      return {
+        lines: fakeLines,
+        chunks: [{ index: 0, title: 'Chunk 1' }],
+        segmentationUsed: 'heuristic' as const,
+      };
     },
   };
 });

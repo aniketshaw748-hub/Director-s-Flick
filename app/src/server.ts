@@ -42,6 +42,7 @@ const CONFIG_PATCH_KEYS = new Set([
    'llmModel',
    'segmentation',
    'maxShotSeconds',
+   'activeChunk',
 ]);
 const MODEL_PATCH_KEYS = new Set(['image', 'video', 'videoMode']);
 // T-84 amendment (Opus audit + Fable ruling): the JSON+base64 create-project
@@ -441,6 +442,13 @@ export function startServer(port = 4000) {
            res.status(400).json({ error: 'maxShotSeconds must be a positive number' });
            return;
         }
+        if (
+           body.activeChunk !== undefined &&
+           (typeof body.activeChunk !== 'number' || !Number.isInteger(body.activeChunk) || body.activeChunk < 0)
+        ) {
+           res.status(400).json({ error: 'activeChunk must be a non-negative integer' });
+           return;
+        }
         const accountName = body.accountName;
         if (accountName !== undefined) {
            if (typeof accountName !== 'string' || !accountName) {
@@ -469,6 +477,37 @@ export function startServer(port = 4000) {
         res.json({ config: mergedConfig, accountName: getActiveAccount(req.params.name) });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
+     }
+  });
+
+  // Chunked production (owner-directed, 2026-07-04): the chunk list from the
+  // last alignment + the active chunk + live per-chunk progress, so the UI
+  // can render "Chunk 2 of 6 — 12/17 placed" and gate advancement.
+  app.get('/api/project/:name/chunks', (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const project = db.getProject()!;
+        const chunksPath = path.join(projectDir(req.params.name), 'chunks.json');
+        let chunks: Array<{ index: number; title: string; shotCount?: number }> = [];
+        if (fs.existsSync(chunksPath)) {
+           chunks = JSON.parse(fs.readFileSync(chunksPath, 'utf-8'));
+        }
+        const shots = db.listShots();
+        const withProgress = chunks.map((c) => {
+           const chunkShots = shots.filter((s) => (s.line.chunkIndex ?? 0) === c.index);
+           return {
+              ...c,
+              shotCount: chunkShots.length,
+              placed: chunkShots.filter((s) => s.state === 'PLACED').length,
+              approvedOrBeyond: chunkShots.filter((s) =>
+                 ['APPROVED', 'VIDEO_QUEUED', 'VIDEO_READY', 'PLACED'].includes(s.state),
+              ).length,
+              failed: chunkShots.filter((s) => s.state === 'FAILED').length,
+           };
+        });
+        res.json({ chunks: withProgress, activeChunk: project.config.activeChunk ?? 0 });
+     } catch (e: any) {
+        res.status(404).json({ error: e.message });
      }
   });
 
@@ -654,7 +693,7 @@ export function startServer(port = 4000) {
            broadcast(req.params.name, { type: 'alignProgress', line: `force re-align: cleared ${removed} pending shots` });
         }
         const outJson = path.join(projectDir(project.name), 'alignment.json');
-        const { lines, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
+        const { lines, chunks, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
            onProgress: (line) => broadcast(req.params.name, { type: 'alignProgress', line }),
            segmentation: project.config.segmentation ?? 'llm',
            llmModel: project.config.llmModel,
@@ -666,8 +705,18 @@ export function startServer(port = 4000) {
            segmentationUsed === 'llm' ? Number.POSITIVE_INFINITY : project.config.maxShotSeconds;
         const shots = planShots(project.id, timeline, lines, effectiveMaxShot);
         db.insertShots(shots);
-        broadcast(req.params.name, { type: 'alignProgress', line: `done (${shots.length} shots, segmentation: ${segmentationUsed})` });
-        res.json({ success: true, shotCount: shots.length });
+        // Chunked production: persist the chunk list (with per-chunk shot
+        // counts) beside alignment.json for GET /chunks + the UI.
+        const chunksWithCounts = chunks.map((c) => ({
+           ...c,
+           shotCount: shots.filter((s) => (s.line.chunkIndex ?? 0) === c.index).length,
+        }));
+        fs.writeFileSync(path.join(projectDir(project.name), 'chunks.json'), JSON.stringify(chunksWithCounts, null, 2));
+        broadcast(req.params.name, {
+           type: 'alignProgress',
+           line: `done (${shots.length} shots across ${chunksWithCounts.length} chunk${chunksWithCounts.length === 1 ? '' : 's'}, segmentation: ${segmentationUsed})`,
+        });
+        res.json({ success: true, shotCount: shots.length, chunks: chunksWithCounts });
      } catch (e: any) {
         res.status(500).json({ error: e.message });
      }

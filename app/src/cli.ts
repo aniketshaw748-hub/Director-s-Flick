@@ -168,7 +168,7 @@ function ensureProjectDirs(name: string): void {
 
 async function stepAlign(db: ProjectDb, project: Project): Promise<Shot[]> {
   const outJson = path.join(projectDir(project.name), 'alignment.json');
-  const { lines, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
+  const { lines, chunks, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
     onProgress: (l) => console.log(l),
     segmentation: project.config.segmentation ?? 'llm',
     llmModel: project.config.llmModel,
@@ -180,7 +180,20 @@ async function stepAlign(db: ProjectDb, project: Project): Promise<Shot[]> {
     segmentationUsed === 'llm' ? Number.POSITIVE_INFINITY : project.config.maxShotSeconds;
   const shots = planShots(project.id, timeline, lines, effectiveMaxShot);
   db.insertShots(shots);
+  // Chunked production: persist chunk list (with shot counts) for the server/UI.
+  const chunksWithCounts = chunks.map((c) => ({
+    ...c,
+    shotCount: shots.filter((s) => (s.line.chunkIndex ?? 0) === c.index).length,
+  }));
+  fs.writeFileSync(
+    path.join(projectDir(project.name), 'chunks.json'),
+    JSON.stringify(chunksWithCounts, null, 2),
+  );
   console.log(`aligned ${lines.length} lines -> ${shots.length} shots (segmentation: ${segmentationUsed})`);
+  if (chunksWithCounts.length > 1) {
+    console.log(`chunks (active: ${project.config.activeChunk ?? 0} — only its shots generate):`);
+    for (const c of chunksWithCounts) console.log(`  [${c.index}] ${c.title} — ${c.shotCount} shots`);
+  }
   console.log(
     formatTable(
       ['line', 'sub', 'start', 'end', 'dur', 'pause', 'target'],

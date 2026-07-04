@@ -57,6 +57,12 @@ export interface AlignedLine {
   /** last-word end, seconds */
   end: number;
   words: WordTiming[];
+  /**
+   * Chunk membership (owner-directed chunked production, 2026-07-04): scripts
+   * are divided into chunks at `SECTION ...` marker lines; the pipeline
+   * processes one chunk at a time (config.activeChunk). 0 when no markers.
+   */
+  chunkIndex?: number;
 }
 
 /**
@@ -75,6 +81,17 @@ export interface LineTiming {
   duration: number;
   pauseAfter: number;
   targetDuration: number;
+  /** Chunk membership (see AlignedLine.chunkIndex). 0 when no SECTION markers. */
+  chunkIndex?: number;
+}
+
+/** One script chunk (derived from `SECTION ...` marker lines at align time). */
+export interface ScriptChunk {
+  index: number;
+  /** The marker line's text (e.g. "SECTION 4 - Mars wali sachhai"), or "Chunk 1" when unmarked. */
+  title: string;
+  /** Number of planned shots belonging to this chunk. */
+  shotCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +425,13 @@ export interface PipelineConfig {
    * 'heuristic' (T-88 sentence/phrase splitter) with a logged warning.
    */
   segmentation?: 'llm' | 'heuristic';
+  /**
+   * Chunked production (owner-directed, 2026-07-04): only shots whose
+   * line.chunkIndex equals this value advance through the queue (prompts,
+   * images, review, video). Chunks come from `SECTION ...` script markers.
+   * Default 0 (first chunk). Advance via config PATCH when a chunk is done.
+   */
+  activeChunk?: number;
 }
 
 export const DEFAULT_CONFIG: PipelineConfig = {
