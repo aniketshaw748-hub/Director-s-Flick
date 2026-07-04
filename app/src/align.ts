@@ -372,36 +372,70 @@ async function alignScriptInner(
     throw new Error(`alignScript: cannot create output dir for ${outJsonPath}: ${String(err)}`);
   }
 
-  // ---- Shot-boundary source (owner-directed, 2026-07-04) -----------------
-  // segmentation:'llm' — the LLM cuts the FULL narration (newlines flattened;
-  // no gap/duration heuristics) into one-visual-idea segments, which become
-  // the aligner's lines. Any failure falls back to the script's own lines
-  // (heuristic path) with a warning — the pipeline never stalls.
-  let segmentationUsed: 'llm' | 'heuristic' = 'heuristic';
-  let segmentationFallbackReason: string | undefined;
-  let scriptTextForAligner = normalizedScript;
-  if (opts?.segmentation === 'llm') {
-    const flatNarration = normalizedScript.split('\n').join(' ').replace(/\s+/g, ' ').trim();
-    try {
-      const { llmSegmentScript } = await import('./segment-llm.js');
-      opts.onProgress?.(
-        `segmentation: llm — dividing the narration into one-visual-idea shots (${opts.llmModel ?? 'sonnet'}; ~30-90s for long scripts)…`,
-      );
-      const segments = await llmSegmentScript(flatNarration, {
-        model: opts.llmModel,
-        client: opts.llmClient,
-        warn: opts.onProgress,
-      });
-      scriptTextForAligner = segments.join('\n');
-      segmentationUsed = 'llm';
-      opts.onProgress?.(`segmentation: llm (${segments.length} one-visual-idea segments)`);
-    } catch (err) {
-      segmentationFallbackReason = err instanceof Error ? err.message : String(err);
-      opts.onProgress?.(
-        `segmentation: heuristic FALLBACK — ${segmentationFallbackReason} (set ANTHROPIC_API_KEY and re-run alignment for LLM segmentation)`,
-      );
+  // ---- Chunk parse + shot-boundary source (owner-directed, 2026-07-04) ---
+  // CHUNKS FIRST: `SECTION/CHUNK/PART n` marker lines divide the script
+  // BEFORE segmentation — markers never reach the LLM or the aligner (they
+  // are unspoken formatting, and letting the LLM see them once merged a
+  // marker into a narration segment, erasing the SECTION 1 boundary and
+  // leaking marker text toward prompts). Each chunk is then segmented
+  // SEPARATELY: smaller, faster LLM calls, exact chunk membership, and a
+  // per-chunk fallback that can never take down the whole script.
+  const chunksParsed: Array<{ title: string; lines: string[] }> = [];
+  for (const scriptLine of normalizedScript.split('\n')) {
+    if (isChunkMarker(scriptLine)) {
+      chunksParsed.push({ title: scriptLine.trim(), lines: [] });
+    } else {
+      // Content before the first marker becomes its own "Intro" chunk.
+      if (chunksParsed.length === 0) chunksParsed.push({ title: 'Intro (before first SECTION)', lines: [] });
+      chunksParsed[chunksParsed.length - 1]!.lines.push(scriptLine);
     }
   }
+  if (chunksParsed.length === 1) chunksParsed[0]!.title = 'Chunk 1';
+  const chunks: ScriptChunk[] = chunksParsed.map((c, i) => ({ index: i, title: c.title }));
+
+  let segmentationUsed: 'llm' | 'heuristic' = 'heuristic';
+  let segmentationFallbackReason: string | undefined;
+  const alignerLines: string[] = [];
+  const lineChunk: number[] = [];
+  if (opts?.segmentation === 'llm') {
+    const { llmSegmentScript } = await import('./segment-llm.js');
+    for (let i = 0; i < chunksParsed.length; i++) {
+      const chunk = chunksParsed[i]!;
+      if (chunk.lines.length === 0) continue;
+      const flat = chunk.lines.join(' ').replace(/\s+/g, ' ').trim();
+      opts.onProgress?.(
+        `segmentation: llm — chunk ${i + 1}/${chunksParsed.length} "${chunk.title.slice(0, 40)}" (${opts.llmModel ?? 'sonnet'})…`,
+      );
+      try {
+        const segments = await llmSegmentScript(flat, {
+          model: opts.llmModel,
+          client: opts.llmClient,
+          warn: opts.onProgress,
+        });
+        for (const s of segments) {
+          alignerLines.push(s);
+          lineChunk.push(i);
+        }
+        segmentationUsed = 'llm';
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        segmentationFallbackReason = reason;
+        opts.onProgress?.(`segmentation: chunk ${i + 1} heuristic FALLBACK — ${reason}`);
+        for (const l of chunk.lines) {
+          alignerLines.push(l);
+          lineChunk.push(i);
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < chunksParsed.length; i++) {
+      for (const l of chunksParsed[i]!.lines) {
+        alignerLines.push(l);
+        lineChunk.push(i);
+      }
+    }
+  }
+  const scriptTextForAligner = alignerLines.join('\n');
 
   let scriptForPython = scriptPath;
   let tempScriptPath: string | null = null;
@@ -424,34 +458,20 @@ async function alignScriptInner(
 
   try {
     const aligned = await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
-    // UNSPOKEN-LINE FILTER (owner's script, 2026-07-04): section headers and
-    // other written-but-never-narrated lines align to ~0s — as shots they
-    // would each burn a generation on content the video never needs. Any
-    // line under 0.3s of aligned audio is dropped with a visible note.
-    // CHUNKED PRODUCTION (owner-directed): `SECTION ...` marker lines divide
-    // the script into chunks BEFORE being dropped as unspoken — every kept
-    // line is stamped with its chunkIndex so the queue can gate on
-    // config.activeChunk and the operator works one chunk at a time.
+    // Chunk membership: aligner line index i corresponds 1:1 to alignerLines[i]
+    // (markers never went in), so lineChunk[index] IS the chunk.
+    // UNSPOKEN-LINE FILTER (owner's script, 2026-07-04): written-but-never-
+    // narrated lines align to ~0s — as shots they would each burn a
+    // generation on content the video never needs; dropped with a note.
     const MIN_SPOKEN_SECONDS = 0.3;
-    const chunks: ScriptChunk[] = [];
     const lines: AlignedLine[] = [];
-    let currentChunk = 0;
     for (const l of aligned) {
-      if (isChunkMarker(l.text)) {
-        // Content before the first marker becomes its own synthetic chunk 0.
-        if (chunks.length === 0 && lines.length > 0) chunks.push({ index: 0, title: 'Intro (before first SECTION)' });
-        chunks.push({ index: chunks.length, title: l.text.trim() });
-        currentChunk = chunks.length - 1;
-        opts?.onProgress?.(`chunk ${currentChunk + 1}: ${l.text.trim()}`);
-        continue; // markers are never shots
-      }
       if (l.end - l.start < MIN_SPOKEN_SECONDS) {
         opts?.onProgress?.(`dropped unspoken line (${(l.end - l.start).toFixed(2)}s): "${l.text.slice(0, 60)}"`);
         continue;
       }
-      lines.push({ ...l, chunkIndex: currentChunk });
+      lines.push({ ...l, chunkIndex: lineChunk[l.index] ?? 0 });
     }
-    if (chunks.length === 0) chunks.push({ index: 0, title: 'Chunk 1' });
     if (lines.length === 0) {
       throw new Error('alignScript: every line aligned to near-zero duration — do the script and voiceover match?');
     }
