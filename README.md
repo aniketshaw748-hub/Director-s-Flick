@@ -4,6 +4,30 @@
 
 ---
 
+## 🚀 Start the app (one command)
+
+```powershell
+cd "C:\Coding\Video Automation"
+powershell -File scripts\start-directors-flick.ps1
+```
+
+The launcher checks Node/FFmpeg, installs missing dependencies, builds the UI if stale, starts the server, and opens your browser at the app (default `http://localhost:4000`). Cold start ≈ 20s; warm start a few seconds.
+
+Variations:
+
+```powershell
+powershell -File scripts\start-directors-flick.ps1 -Port 4000     # pick a port
+powershell -File scripts\start-directors-flick.ps1 -NoBrowser     # don't open a browser
+```
+
+Stop with `Ctrl+C` in the terminal running it.
+
+> **Important:** after pulling code updates, **restart via this same script** — the server only picks up changes on restart. A stale server with a fresh browser tab produces confusing errors (e.g. valid form input being rejected).
+
+First-run flow: add your Higgsfield account from the account chip (top right) → **Setup** page → name the project, paste script, choose your voiceover → **Create & align** → review deck.
+
+---
+
 ## 1. Prerequisites
 
 Make sure the following dependencies are installed globally and added to your system `PATH`:
