@@ -333,6 +333,9 @@ async function alignScriptInner(
     const flatNarration = normalizedScript.split('\n').join(' ').replace(/\s+/g, ' ').trim();
     try {
       const { llmSegmentScript } = await import('./segment-llm.js');
+      opts.onProgress?.(
+        `segmentation: llm — dividing the narration into one-visual-idea shots (${opts.llmModel ?? 'sonnet'}; ~30-90s for long scripts)…`,
+      );
       const segments = await llmSegmentScript(flatNarration, {
         model: opts.llmModel,
         client: opts.llmClient,

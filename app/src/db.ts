@@ -329,6 +329,14 @@ export class ProjectDb {
 
   // ---- shots --------------------------------------------------------------
 
+  /**
+   * Delete ALL shots for a project (force re-alignment). Callers must gate on
+   * every shot still being PENDING — this does not touch generated media.
+   */
+  deleteAllShots(projectId: string): number {
+    return this.db.prepare(`DELETE FROM shots WHERE project_id = ?`).run(projectId).changes;
+  }
+
   /** Insert shots (e.g. after alignment + sub-shot split). Idempotent per (line_index, sub_index). */
   insertShots(shots: Shot[]): void {
     const stmt = this.db.prepare(

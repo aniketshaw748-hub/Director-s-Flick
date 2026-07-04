@@ -55,12 +55,16 @@ export async function createProject(
   return (await j<{ project: Project }>(res)).project;
 }
 
-/** Runs stable-ts alignment + shot planning; progress arrives over the
- *  project WS as `{type:'alignProgress', line}` messages. */
-export function alignProject(name: string): Promise<{ success: boolean; shotCount: number }> {
-  return fetch(`/api/project/${encodeURIComponent(name)}/align`, { method: 'POST' }).then((r) =>
-    j<{ success: boolean; shotCount: number }>(r),
-  );
+/** Runs segmentation + stable-ts alignment + shot planning; progress arrives
+ *  over the project WS as `{type:'alignProgress', line}` messages.
+ *  `force` re-aligns an already-planned project — the server only honors it
+ *  while every shot is still PENDING (nothing generated can be lost). */
+export function alignProject(name: string, force = false): Promise<{ success: boolean; shotCount: number }> {
+  return fetch(`/api/project/${encodeURIComponent(name)}/align`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
+  }).then((r) => j<{ success: boolean; shotCount: number }>(r));
 }
 
 export function startRun(name: string): Promise<{ running: boolean }> {

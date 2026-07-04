@@ -21,7 +21,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClaudeCliClient } from './llm-cli.js';
 
-const DEFAULT_LLM_MODEL = 'claude-opus-4-8';
+// Sonnet by default: segmentation re-types the narration verbatim, so output
+// length ≈ script length — on a ~9-min script Opus blew past the CLI timeout
+// (observed live 2026-07-04) while Sonnet finishes in well under a minute.
+// config.llmModel still overrides for callers who want Opus.
+const DEFAULT_LLM_MODEL = 'claude-sonnet-5';
 const MAX_TOKENS = 8192;
 
 /** Minimal client surface (mirrors prompts-llm.ts) so tests can inject a mock. */

@@ -134,7 +134,9 @@ export function useSetupProject(): SetupState {
     setAligning(true);
     setAlignLines([]);
     try {
-      await alignProject(ctx.projectName);
+      // Explicit re-run: force re-planning. Safe — the server refuses force
+      // the moment any shot has left PENDING, so generated media is never lost.
+      await alignProject(ctx.projectName, true);
       await ctx.refreshState();
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e));

@@ -623,9 +623,28 @@ export function startServer(port = 4000) {
            res.status(404).json({ error: 'project not found' });
            return;
         }
-        if (db.listShots().length > 0) {
-           res.status(409).json({ error: 'project already has shots planned' });
-           return;
+        const existing = db.listShots();
+        if (existing.length > 0) {
+           // Re-alignment (owner-directed, segmentation tuning): allowed with
+           // {force:true} ONLY while every shot is still PENDING — once any
+           // generation has started, re-planning would orphan paid media.
+           const force = req.body?.force === true;
+           if (!force) {
+              res.status(409).json({
+                 error: 'project already has shots planned — pass {"force":true} to re-align (allowed while all shots are PENDING)',
+              });
+              return;
+           }
+           if (existing.some((s) => s.state !== 'PENDING')) {
+              res.status(409).json({ error: 'cannot force re-align: some shots have already started generating' });
+              return;
+           }
+           if (runningProjects.has(req.params.name)) {
+              res.status(409).json({ error: 'cannot force re-align while the queue is running — stop it first' });
+              return;
+           }
+           const removed = db.deleteAllShots(project.id);
+           broadcast(req.params.name, { type: 'alignProgress', line: `force re-align: cleared ${removed} pending shots` });
         }
         const outJson = path.join(projectDir(project.name), 'alignment.json');
         const { lines, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {

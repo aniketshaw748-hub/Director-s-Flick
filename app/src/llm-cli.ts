@@ -23,7 +23,9 @@
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 
-const DEFAULT_TIMEOUT_MS = 240_000;
+// 8 min: a long-script verbatim segmentation on a slower model hit the old
+// 240s ceiling live (2026-07-04) and silently fell back to heuristic lines.
+const DEFAULT_TIMEOUT_MS = 480_000;
 
 /** API-style model id -> claude CLI --model value. Unknown ids pass through. */
 export function cliModelAlias(model: string | undefined): string {
