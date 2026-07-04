@@ -67,6 +67,20 @@ export function alignProject(name: string, force = false): Promise<{ success: bo
   }).then((r) => j<{ success: boolean; shotCount: number }>(r));
 }
 
+/** Read the project's actual script.txt (not the segmented shot texts). */
+export function fetchScript(name: string): Promise<{ script: string }> {
+  return fetch(`/api/project/${encodeURIComponent(name)}/script`).then((r) => j<{ script: string }>(r));
+}
+
+/** Overwrite script.txt — takes effect at the next (re-)alignment. */
+export function saveScript(name: string, script: string): Promise<{ success: boolean }> {
+  return fetch(`/api/project/${encodeURIComponent(name)}/script`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script }),
+  }).then((r) => j<{ success: boolean }>(r));
+}
+
 export function startRun(name: string): Promise<{ running: boolean }> {
   return fetch(`/api/project/${encodeURIComponent(name)}/run`, { method: 'POST' }).then((r) =>
     j<{ running: boolean }>(r),

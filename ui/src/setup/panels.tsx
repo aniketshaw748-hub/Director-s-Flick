@@ -87,6 +87,100 @@ function useWaveHeights(count: number): number[] {
   }, [count]);
 }
 
+// ------------------------------------------------------------ Progress bars
+
+/**
+ * Segmentation+alignment percent (owner-directed "progress for everything"):
+ * ACCURATE at milestones the server actually reports (per-chunk LLM calls,
+ * aligner phases), FAKED with a slow crawl between them — the bar always
+ * moves, never lies backwards, and only 'done' reaches 100.
+ */
+function useAlignPct(aligning: boolean, alignLines: string[], hasShots: boolean): number {
+  const [pct, setPct] = useState(0);
+  const wasAligning = useRef(false);
+
+  useEffect(() => {
+    if (aligning && !wasAligning.current) setPct(2); // fresh run
+    wasAligning.current = aligning;
+    if (!aligning) {
+      setPct(hasShots ? 100 : 0);
+      return;
+    }
+    let target = 4;
+    const chunkLines = alignLines.filter((l) => /segmentation: llm — chunk \d+\/\d+/.test(l));
+    const m = /chunk (\d+)\/(\d+)/.exec(chunkLines[chunkLines.length - 1] ?? '');
+    if (m) target = 5 + (parseInt(m[1]!, 10) / parseInt(m[2]!, 10)) * 50;
+    if (alignLines.some((l) => l.includes('stable-ts'))) target = Math.max(target, 62);
+    if (alignLines.some((l) => l.toLowerCase().includes('aligning'))) target = Math.max(target, 68);
+    if (alignLines.some((l) => l.includes('aligned') && l.includes('words'))) target = Math.max(target, 88);
+    setPct((p) => Math.max(p, Math.min(target, 95)));
+  }, [aligning, alignLines, hasShots]);
+
+  // the fake part: crawl toward 95 so long phases still feel alive
+  useEffect(() => {
+    if (!aligning) return;
+    const t = setInterval(() => setPct((p) => Math.min(p + 0.35, 95)), 1000);
+    return () => clearInterval(t);
+  }, [aligning]);
+
+  return pct;
+}
+
+function Bar({ label, pct, active, detail }: { label: string; pct: number; active: boolean; detail?: string }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr 76px', gap: 'var(--sp-3)', alignItems: 'center' }}>
+      <span style={{ fontSize: 'var(--fs-12)', color: active ? 'var(--text-1)' : 'var(--text-3)' }}>{label}</span>
+      <div style={{ height: '6px', borderRadius: '3px', background: 'var(--surface-2)', overflow: 'hidden' }}>
+        <div
+          style={{
+            height: '100%',
+            width: `${Math.min(100, Math.max(0, pct))}%`,
+            borderRadius: '3px',
+            background: pct >= 100 ? 'var(--lime)' : active ? 'var(--lime)' : 'rgba(185,255,59,0.35)',
+            transition: 'width 0.6s ease',
+            boxShadow: active && pct < 100 ? '0 0 8px rgba(185,255,59,0.5)' : 'none',
+          }}
+        />
+      </div>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', color: 'var(--text-3)', textAlign: 'right' }}>
+        {detail ?? `${Math.round(pct)}%`}
+      </span>
+    </div>
+  );
+}
+
+const IMAGE_DONE_STATES = ['IMAGE_READY', 'IN_REVIEW', 'APPROVED', 'VIDEO_QUEUED', 'VIDEO_READY', 'PLACED'];
+const VIDEO_DONE_STATES = ['VIDEO_READY', 'PLACED'];
+
+/** Three-stage production progress for the ACTIVE chunk. */
+function ProgressStrip({
+  aligning,
+  alignPct,
+  shots,
+  chunkLabel,
+}: {
+  aligning: boolean;
+  alignPct: number;
+  shots: Shot[];
+  chunkLabel: string | null;
+}) {
+  const total = shots.length;
+  const imagesDone = shots.filter((s) => IMAGE_DONE_STATES.includes(s.state)).length;
+  const videosDone = shots.filter((s) => VIDEO_DONE_STATES.includes(s.state)).length;
+  const imagesActive = total > 0 && imagesDone < total && shots.some((s) => s.state === 'IMAGE_QUEUED' || s.state === 'PROMPTED');
+  const videosActive = total > 0 && videosDone < total && shots.some((s) => s.state === 'VIDEO_QUEUED');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', padding: 'var(--sp-3) var(--sp-5)', borderBottom: '1px solid var(--border-1)' }}>
+      {chunkLabel && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--text-3)' }}>{chunkLabel}</div>
+      )}
+      <Bar label="Segmentation & alignment" pct={alignPct} active={aligning} />
+      <Bar label="Images" pct={total > 0 ? (imagesDone / total) * 100 : 0} active={imagesActive} detail={total > 0 ? `${imagesDone}/${total}` : '—'} />
+      <Bar label="Videos" pct={total > 0 ? (videosDone / total) * 100 : 0} active={videosActive} detail={total > 0 ? `${videosDone}/${total}` : '—'} />
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- DraftBar
 
 /** New-project controls shown in the page head row. */
@@ -124,13 +218,53 @@ export function DraftBar({ state }: { state: SetupState }) {
 // ------------------------------------------------------------- UploadCards
 
 export function ScriptCard({ state }: { state: SetupState }) {
-  const { mode, project, shots, draft, patchDraft } = state;
+  const { mode, project, shots, draft, patchDraft, rerunAlign, busy } = state;
+  const { projectName } = useProject();
   const fileRef = useRef<HTMLInputElement>(null);
   const isDraft = mode === 'draft';
+  // In-app script editing (owner-directed): expandable + editable in view mode.
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [scriptText, setScriptText] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  useEffect(() => {
+    // Load the REAL script.txt (not shot texts) when a project is open.
+    if (isDraft || !projectName) {
+      setScriptText(null);
+      setEditing(false);
+      setDirty(false);
+      return;
+    }
+    import('./api').then(({ fetchScript }) =>
+      fetchScript(projectName)
+        .then((r) => setScriptText(r.script))
+        .catch(() => setScriptText(null)),
+    );
+  }, [isDraft, projectName]);
 
   const onPickFile = async (file: File | undefined) => {
     if (!file) return;
     patchDraft({ script: await file.text() });
+  };
+
+  const save = async (thenRealign: boolean) => {
+    if (!projectName || scriptText === null) return;
+    setSaveState('saving');
+    try {
+      const { saveScript } = await import('./api');
+      await saveScript(projectName, scriptText);
+      setDirty(false);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2500);
+      if (thenRealign) {
+        setEditing(false);
+        await rerunAlign();
+      }
+    } catch {
+      setSaveState('error');
+    }
   };
 
   return (
@@ -153,16 +287,48 @@ export function ScriptCard({ state }: { state: SetupState }) {
           <>
             <span className="file">{basename(project?.scriptPath) || '—'}</span>
             <span className="meta">{shots.length > 0 ? `${shots.length} shots` : 'not aligned yet'}</span>
+            {saveState === 'saved' && <span className="meta" style={{ color: 'var(--lime)' }}>Saved ✓</span>}
+            {saveState === 'error' && <span className="meta" style={{ color: 'var(--danger)' }}>Save failed</span>}
+            {editing ? (
+              <>
+                <button className="btn btn-ghost" disabled={saveState === 'saving' || !dirty} onClick={() => void save(false)}>
+                  {saveState === 'saving' ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  disabled={saveState === 'saving' || !!busy}
+                  onClick={() => void save(true)}
+                  title="Save the script and re-run segmentation + alignment"
+                >
+                  Save & Re-align
+                </button>
+                <button className="btn btn-ghost" onClick={() => setEditing(false)}>Done</button>
+              </>
+            ) : (
+              <button className="btn btn-ghost" disabled={scriptText === null} onClick={() => { setEditing(true); setExpanded(true); }}>
+                Edit script
+              </button>
+            )}
+            <button className="btn btn-ghost" onClick={() => setExpanded(!expanded)} title={expanded ? 'Collapse' : 'Expand'}>
+              {expanded ? '▾ Collapse' : '▸ Expand'}
+            </button>
           </>
         )}
       </div>
       <textarea
         className="script-box"
         spellCheck={false}
+        style={!isDraft ? { height: expanded ? '60vh' : undefined, transition: 'height 0.2s ease' } : undefined}
         placeholder={isDraft ? 'Paste the narration script here (one line per cut), or load a .txt file.' : ''}
-        value={isDraft ? draft.script : shots.map((s) => s.line.text).join('\n')}
-        readOnly={!isDraft}
-        onChange={(e) => patchDraft({ script: e.target.value })}
+        value={isDraft ? draft.script : editing || scriptText !== null ? (scriptText ?? '') : shots.map((s) => s.line.text).join('\n')}
+        readOnly={!isDraft && !editing}
+        onChange={(e) => {
+          if (isDraft) patchDraft({ script: e.target.value });
+          else if (editing) {
+            setScriptText(e.target.value);
+            setDirty(true);
+          }
+        }}
       />
     </section>
   );
@@ -232,6 +398,11 @@ export function AlignCard({ state }: { state: SetupState }) {
   // so the button stays available whenever a project is open.
   const canRerun = mode === 'view' && !busy;
   const { chunks, activeChunk, activate, switching } = useChunks(mode === 'view' ? projectName : null, shots.length);
+  // Progress bars (owner-directed): align pct is milestone+crawl; image/video
+  // bars are honest per-shot state counts scoped to the active chunk.
+  const alignPct = useAlignPct(aligning, alignLines, shots.length > 0);
+  const activeChunkShots = chunks.length > 1 ? shots.filter((s) => (s.line.chunkIndex ?? 0) === activeChunk) : shots;
+  const activeChunkTitle = chunks.length > 1 ? (chunks.find((c) => c.index === activeChunk)?.title ?? null) : null;
   // T-88 sub-rows: lines that split into phrase sub-shots share a lineIndex
   const subCounts = new Map<number, number>();
   for (const s of shots) subCounts.set(s.lineIndex, (subCounts.get(s.lineIndex) ?? 0) + 1);
@@ -258,6 +429,14 @@ export function AlignCard({ state }: { state: SetupState }) {
           {aligning ? 'Running…' : shots.length > 0 ? 'Re-align' : 'Run alignment'}
         </button>
       </div>
+      {(aligning || shots.length > 0) && (
+        <ProgressStrip
+          aligning={aligning}
+          alignPct={alignPct}
+          shots={activeChunkShots}
+          chunkLabel={activeChunkTitle ? `Active chunk: ${activeChunkTitle}` : null}
+        />
+      )}
       {chunks.length > 1 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', padding: 'var(--sp-3) var(--sp-5)', borderBottom: '1px solid var(--border-1)' }}>
           {chunks.map((c) => {

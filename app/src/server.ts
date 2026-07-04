@@ -480,6 +480,37 @@ export function startServer(port = 4000) {
      }
   });
 
+  // In-app script editing (owner-directed, 2026-07-04): read + overwrite the
+  // project's script.txt. Saving only changes the FILE — the operator then
+  // re-runs alignment (force) to re-segment; nothing generated is touched.
+  app.get('/api/project/:name/script', (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const project = db.getProject()!;
+        const text = fs.existsSync(project.scriptPath) ? fs.readFileSync(project.scriptPath, 'utf-8') : '';
+        res.json({ script: text });
+     } catch (e: any) {
+        res.status(404).json({ error: e.message });
+     }
+  });
+
+  app.put('/api/project/:name/script', (req, res) => {
+     try {
+        const { db } = getOrOpenProject(req.params.name);
+        const project = db.getProject()!;
+        const script = req.body?.script;
+        if (typeof script !== 'string' || script.trim().length === 0) {
+           res.status(400).json({ error: 'script must be a non-empty string' });
+           return;
+        }
+        fs.writeFileSync(project.scriptPath, script, 'utf-8');
+        broadcast(req.params.name, { type: 'alignProgress', line: 'script saved — re-run alignment to apply' });
+        res.json({ success: true });
+     } catch (e: any) {
+        res.status(500).json({ error: e.message });
+     }
+  });
+
   // Chunked production (owner-directed, 2026-07-04): the chunk list from the
   // last alignment + the active chunk + live per-chunk progress, so the UI
   // can render "Chunk 2 of 6 — 12/17 placed" and gate advancement.
