@@ -185,6 +185,34 @@ export function checkScriptAudioLengthMatch(wordCount: number, audioDurationSeco
   );
 }
 
+/**
+ * SMEAR DETECTOR (owner's xsa project, 2026-07-04): when the voiceover
+ * contains narration the script text does not (or vice versa), forced
+ * alignment stretches a neighboring line across the unmatched audio — a
+ * short sentence "spanning" minutes. Observed live: a 10-word line assigned
+ * 119.7s because ~2 min of recorded narration was missing from the script.
+ * Detection: a line whose aligned duration exceeds 10s AND implies a pace
+ * under 0.5 words/sec (normal narration ≈ 2-3 w/s) is almost certainly a
+ * script↔voiceover divergence, not slow speech. Warning only — the operator
+ * fixes the script text for that time range and re-aligns.
+ */
+export function detectSmearedLines(lines: AlignedLine[]): string[] {
+  const warnings: string[] = [];
+  for (const l of lines) {
+    const duration = l.end - l.start;
+    const wordCount = l.text.split(/\s+/).filter(Boolean).length;
+    if (duration > 10 && wordCount / duration < 0.5) {
+      warnings.push(
+        `⚠ script/voiceover mismatch suspected around ${Math.round(l.start)}s-${Math.round(l.end)}s: ` +
+          `"${l.text.slice(0, 50)}…" (${wordCount} words) aligned to ${duration.toFixed(1)}s — ` +
+          'the voiceover likely says something here that the script text does not. ' +
+          'Fix the script for that passage, then re-run alignment.',
+      );
+    }
+  }
+  return warnings;
+}
+
 // ---------------------------------------------------------------------------
 // Alignment result sanity gate
 // ---------------------------------------------------------------------------
@@ -399,6 +427,7 @@ async function alignScriptInner(
     if (lines.length === 0) {
       throw new Error('alignScript: every line aligned to near-zero duration — do the script and voiceover match?');
     }
+    for (const w of detectSmearedLines(lines)) opts?.onProgress?.(w);
     return { lines, segmentationUsed, segmentationFallbackReason };
   } finally {
     if (tempScriptPath) {
