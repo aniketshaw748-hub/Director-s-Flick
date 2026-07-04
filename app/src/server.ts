@@ -635,8 +635,12 @@ export function startServer(port = 4000) {
               });
               return;
            }
-           if (existing.some((s) => s.state !== 'PENDING')) {
-              res.status(409).json({ error: 'cannot force re-align: some shots have already started generating' });
+           // The invariant is "never orphan PAID media": consult the cost
+           // ledger, not shot states — mock-provider progress (0-amount
+           // entries) is free to discard, real spend is not.
+           const paid = db.listLedger().some((e) => (e.chargedCredits ?? e.preflightCredits ?? 0) > 0);
+           if (paid) {
+              res.status(409).json({ error: 'cannot force re-align: this project has PAID generations on its ledger' });
               return;
            }
            if (runningProjects.has(req.params.name)) {
