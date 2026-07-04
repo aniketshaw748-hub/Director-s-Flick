@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeCliClient } from './llm-cli.js';
 import type { ElementRef, LineTiming, PipelineConfig, PromptEngine, Shot } from './types.js';
 import { elementPlaceholder } from './types.js';
 import { TemplatePromptEngine } from './prompts.js';
@@ -292,12 +293,16 @@ export class LlmPromptEngine implements PromptEngine {
   constructor(config: PipelineConfig, opts: LlmPromptEngineOptions = {}) {
     this.model = opts.model ?? config.llmModel ?? DEFAULT_LLM_MODEL;
     this.warn = opts.warn ?? ((m) => console.warn(m));
-    if (opts.client) {
-      this.client = opts.client;
+    if ('client' in opts) {
+      // Explicit injection (tests): null means "no client", full stop.
+      this.client = opts.client ?? null;
     } else if (process.env.ANTHROPIC_API_KEY) {
       this.client = new Anthropic() as unknown as LlmClient;
     } else {
-      this.client = null;
+      // Owner-directed (2026-07-04): no API keys — run prompts through the
+      // headless Claude Code CLI on the owner's subscription. Spawn failures
+      // surface per-call and hit the existing never-stall template fallback.
+      this.client = createClaudeCliClient({ model: this.model }) as unknown as LlmClient;
     }
     // T-89: load the owner's documentary spec at construction (or an override/fallback).
     const spec = 'imageSystemPrompt' in opts ? (opts.imageSystemPrompt ?? null) : loadDocumentarySpec();

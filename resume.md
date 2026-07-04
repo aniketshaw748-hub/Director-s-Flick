@@ -106,6 +106,12 @@ something burned us:
   enforces this with a post-check + template fallback.
 - Uploads: multipart streaming (client FormData → multer disk). The base64
   JSON path survives only for ≤20MB (413 above). Never buffer files in RAM.
+- **LLM transport (owner rule: NO API keys)**: resolution everywhere is
+  injected client (tests) → ANTHROPIC_API_KEY (API) → **headless `claude -p`
+  on the owner's Claude Code subscription** (`app/src/llm-cli.ts`; prompt via
+  STDIN, JSON envelope, cwd=tmp so no repo context loads). Powers both
+  segmentation ('llm' default — one-visual-idea shot division, owner-directed)
+  and the prompt engine. Falls back heuristic/template, never stalls.
 - Windows box: paths contain a space ("Video Automation") — quote everything;
   spawn with array args; ffmpeg 8.1.1 + h264_nvenc on PATH; python + stable-ts
   installed (ctc-forced-aligner does NOT build on Windows).

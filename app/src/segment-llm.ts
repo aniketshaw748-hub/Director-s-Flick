@@ -19,6 +19,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeCliClient } from './llm-cli.js';
 
 const DEFAULT_LLM_MODEL = 'claude-opus-4-8';
 const MAX_TOKENS = 8192;
@@ -90,7 +91,10 @@ function extractText(res: unknown): string | null {
 function resolveClient(opts: LlmSegmentOptions): SegmentLlmClient | null {
   if (opts.client !== undefined) return opts.client;
   if (process.env.ANTHROPIC_API_KEY) return new Anthropic() as unknown as SegmentLlmClient;
-  return null;
+  // Owner-directed (2026-07-04): no API keys — fall through to the headless
+  // Claude Code CLI on the owner's subscription (spawn failures surface at
+  // call time and callers fall back to the heuristic splitter).
+  return createClaudeCliClient({ model: opts.model }) as SegmentLlmClient;
 }
 
 /**

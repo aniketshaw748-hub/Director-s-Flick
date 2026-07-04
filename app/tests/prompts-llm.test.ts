@@ -131,12 +131,15 @@ describe('LlmPromptEngine.imagePromptBatch', () => {
     expect(warn.mock.calls.some((c) => String(c[0]).includes('image batch call failed'))).toBe(true);
   });
 
-  test('missing ANTHROPIC_API_KEY (no injected client) falls back to the template', async () => {
+  test('explicit null client (no LLM transport at all) falls back to the template', async () => {
+    // Policy change (owner-directed 2026-07-04): a missing ANTHROPIC_API_KEY now
+    // resolves to the headless claude-CLI transport instead of "no client", so
+    // the no-transport fallback path is exercised via explicit client: null.
     const saved = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     try {
       const warn = vi.fn();
-      const engine = new LlmPromptEngine(config(), { warn }); // no client
+      const engine = new LlmPromptEngine(config(), { warn, client: null });
       const [out] = await engine.imagePromptBatch([line()], [HAPIE], '');
       expect(out.imagePrompt).toContain('Featuring Hapie');
       expect(warn.mock.calls.some((c) => String(c[0]).includes('ANTHROPIC_API_KEY'))).toBe(true);
@@ -228,12 +231,12 @@ describe('LlmPromptEngine branch coverage (T-82)', () => {
     expect(out[1].imagePrompt).toContain('Featuring Hapie'); // template for the skipped line 1
   });
 
-  test('animationPrompt with no client falls back to the template', async () => {
+  test('animationPrompt with explicit null client falls back to the template', async () => {
     const saved = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     try {
       const warn = vi.fn();
-      const out = await new LlmPromptEngine(config(), { warn }).animationPrompt(shot(), [HAPIE]);
+      const out = await new LlmPromptEngine(config(), { warn, client: null }).animationPrompt(shot(), [HAPIE]);
       expect(out).toContain(TAG);
       expect(warn.mock.calls.some((c) => String(c[0]).includes('ANTHROPIC_API_KEY'))).toBe(true);
     } finally {
