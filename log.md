@@ -1087,3 +1087,5 @@ Owner refused metered API keys; their Claude Code subscription is the compute. N
 
 ### [119] Segmentation timeout postmortem + fixes: sonnet default, 480s timeout, pre-call progress, force re-align
 Live failure: opus verbatim segmentation of the owner's 9-min script exceeded the 240s CLI timeout -> silent heuristic fallback (raw script lines shipped as shots). Fixes: segment default model claude-sonnet-5; CLI timeout 480s; progress line BEFORE the LLM call; POST /align {force:true} re-plans while all shots PENDING (db.deleteAllShots; refuses once generation started or queue running); UI rerunAlign sends force. ui dist rebuilt. 368/368, both tsc clean.
+
+### [120] Re-align hardening from live xsa shakeout: atomic queue-stop in force path (race + stale runningProjects flag), decorative-line filter (no-letter separators), unspoken-line filter (<0.3s aligned = never narrated, e.g. SECTION headers - each would have burned a generation)

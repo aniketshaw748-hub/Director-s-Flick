@@ -131,13 +131,25 @@ function trimmedNonEmptyLines(text: string): string[] {
     .filter((l) => l.length > 0);
 }
 
+/**
+ * Decorative separator lines ("________", "-----", "====", "***") carry no
+ * letters or digits — they are script FORMATTING, not narration, and would
+ * otherwise become 0-second garbage shots (observed live on the owner's
+ * script, 2026-07-04).
+ */
+function isDecorativeLine(line: string): boolean {
+  return !/[\p{L}\p{N}]/u.test(line);
+}
+
 /** Normalize unicode punctuation/whitespace and drop empty lines. Empty in -> empty out (caller checks). */
 export function normalizeScriptText(raw: string): string {
   let text = raw.normalize('NFKC');
   for (const [pattern, replacement] of SMART_PUNCTUATION_MAP) {
     text = text.replace(pattern, replacement);
   }
-  return trimmedNonEmptyLines(text).join('\n');
+  return trimmedNonEmptyLines(text)
+    .filter((l) => !isDecorativeLine(l))
+    .join('\n');
 }
 
 function readScriptFileSane(scriptPath: string): string {
@@ -372,7 +384,21 @@ async function alignScriptInner(
   }
 
   try {
-    const lines = await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
+    const aligned = await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
+    // UNSPOKEN-LINE FILTER (owner's script, 2026-07-04): section headers and
+    // other written-but-never-narrated lines align to ~0s — as shots they
+    // would each burn a generation on content the video never needs. Any
+    // line under 0.3s of aligned audio is dropped with a visible note.
+    const MIN_SPOKEN_SECONDS = 0.3;
+    const lines = aligned.filter((l) => l.end - l.start >= MIN_SPOKEN_SECONDS);
+    for (const dropped of aligned.filter((l) => l.end - l.start < MIN_SPOKEN_SECONDS)) {
+      opts?.onProgress?.(
+        `dropped unspoken line (${(dropped.end - dropped.start).toFixed(2)}s): "${dropped.text.slice(0, 60)}"`,
+      );
+    }
+    if (lines.length === 0) {
+      throw new Error('alignScript: every line aligned to near-zero duration — do the script and voiceover match?');
+    }
     return { lines, segmentationUsed, segmentationFallbackReason };
   } finally {
     if (tempScriptPath) {

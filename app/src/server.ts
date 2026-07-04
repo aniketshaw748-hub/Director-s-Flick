@@ -643,10 +643,13 @@ export function startServer(port = 4000) {
               res.status(409).json({ error: 'cannot force re-align: this project has PAID generations on its ledger' });
               return;
            }
-           if (runningProjects.has(req.params.name)) {
-              res.status(409).json({ error: 'cannot force re-align while the queue is running — stop it first' });
-              return;
-           }
+           // Force re-align stops the queue ITSELF (T-62 awaitable stop) —
+           // a separate stop-then-align sequence loses the race against the
+           // UI's reconnect auto-start, and /stop never cleared the
+           // runningProjects flag anyway.
+           const entry = openProjects.get(req.params.name);
+           if (entry) await entry.queue.stop();
+           runningProjects.delete(req.params.name);
            const removed = db.deleteAllShots(project.id);
            broadcast(req.params.name, { type: 'alignProgress', line: `force re-align: cleared ${removed} pending shots` });
         }
