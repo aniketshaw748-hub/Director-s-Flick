@@ -330,11 +330,19 @@ export class ProjectDb {
   // ---- shots --------------------------------------------------------------
 
   /**
-   * Delete ALL shots for a project (force re-alignment). Callers must gate on
-   * every shot still being PENDING — this does not touch generated media.
+   * Delete ALL shots for a project (force re-alignment), including the rows
+   * that reference them (edl placements, provider job records). The cost
+   * ledger is NOT touched — it references only the project and survives as
+   * the audit trail; callers gate force on the ledger showing zero PAID
+   * amounts, so everything deleted here was free (mock) work.
    */
   deleteAllShots(projectId: string): number {
-    return this.db.prepare(`DELETE FROM shots WHERE project_id = ?`).run(projectId).changes;
+    const tx = this.db.transaction((pid: string): number => {
+      this.db.prepare(`DELETE FROM edl WHERE project_id = ?`).run(pid);
+      this.db.prepare(`DELETE FROM jobs WHERE project_id = ?`).run(pid);
+      return this.db.prepare(`DELETE FROM shots WHERE project_id = ?`).run(pid).changes;
+    });
+    return tx(projectId);
   }
 
   /** Insert shots (e.g. after alignment + sub-shot split). Idempotent per (line_index, sub_index). */
