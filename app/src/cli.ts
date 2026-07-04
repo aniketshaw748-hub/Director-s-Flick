@@ -24,7 +24,7 @@ import { randomUUID } from 'node:crypto';
 import { openProjectDb, projectDir, projectDbPath, ProjectDb } from './db.js';
 import { loadConfig } from './config.js';
 import type { ConfigOverrides } from './config.js';
-import { alignScript, computeTimeline, planShots, AlignInputError } from './align.js';
+import { alignScriptEx, computeTimeline, planShots, AlignInputError } from './align.js';
 import { createStageProviders } from './providers/index.js';
 import { summarizeLedger, formatCostAmount, ledgerUnit, type CostUnit } from './cost-summary.js';
 import { createPromptEngine } from './prompts.js';
@@ -168,11 +168,19 @@ function ensureProjectDirs(name: string): void {
 
 async function stepAlign(db: ProjectDb, project: Project): Promise<Shot[]> {
   const outJson = path.join(projectDir(project.name), 'alignment.json');
-  const lines = await alignScript(project.scriptPath, project.voPath, outJson);
+  const { lines, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
+    onProgress: (l) => console.log(l),
+    segmentation: project.config.segmentation ?? 'llm',
+    llmModel: project.config.llmModel,
+  });
   const timeline = computeTimeline(lines);
-  const shots = planShots(project.id, timeline, lines, project.config.maxShotSeconds);
+  // LLM segments are authoritative one-visual-idea shots — no further phrase
+  // splitting (only the hard 15s model cap inside planShots still applies).
+  const effectiveMaxShot =
+    segmentationUsed === 'llm' ? Number.POSITIVE_INFINITY : project.config.maxShotSeconds;
+  const shots = planShots(project.id, timeline, lines, effectiveMaxShot);
   db.insertShots(shots);
-  console.log(`aligned ${lines.length} lines -> ${shots.length} shots`);
+  console.log(`aligned ${lines.length} lines -> ${shots.length} shots (segmentation: ${segmentationUsed})`);
   console.log(
     formatTable(
       ['line', 'sub', 'start', 'end', 'dur', 'pause', 'target'],

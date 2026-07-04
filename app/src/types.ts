@@ -396,8 +396,18 @@ export interface PipelineConfig {
    * approved by Fable with T-88, 2026-07-04): after alignment, lines split at
    * sentence boundaries, then any segment longer than this splits again at the
    * nearest phrase boundary (word-timestamp based). Default 8.
+   * NOTE: ignored when segmentation:'llm' succeeds — the LLM's one-visual-idea
+   * segments are authoritative (only the hard 15s model cap still applies).
    */
   maxShotSeconds?: number;
+  /**
+   * Shot-boundary source (owner-directed contract change, 2026-07-04):
+   * 'llm' (default) — the LLM divides the narration into one-visual-idea
+   * segments per the owner's documentary spec Rule 1; alignment timestamps
+   * only TIME the segments. Requires ANTHROPIC_API_KEY; falls back to
+   * 'heuristic' (T-88 sentence/phrase splitter) with a logged warning.
+   */
+  segmentation?: 'llm' | 'heuristic';
 }
 
 export const DEFAULT_CONFIG: PipelineConfig = {
@@ -413,6 +423,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   aspectRatio: '16:9',
   soundOff: true,
   styleBible: '',
+  segmentation: 'llm',
 };
 
 // ---------------------------------------------------------------------------

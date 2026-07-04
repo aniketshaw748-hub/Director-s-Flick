@@ -21,7 +21,7 @@ import {
   addAccount,
   credentialsPath,
 } from './accounts.js';
-import { alignScript, computeTimeline, planShots } from './align.js';
+import { alignScriptEx, computeTimeline, planShots } from './align.js';
 import { exportTimeline, type ExportProgressEvent } from './media.js';
 import { exportSrtSidecar } from './srt.js';
 import { summarizeLedger } from './cost-summary.js';
@@ -30,6 +30,7 @@ import type { ElementCategory, ProviderName, Project } from './types.js';
 
 const PROVIDER_NAMES: readonly ProviderName[] = ['mock', 'higgsfield-cli', 'fal', 'replicate'];
 const PROMPT_BACKENDS = ['template', 'llm'] as const;
+const SEGMENTATION_MODES = ['llm', 'heuristic'] as const;
 const CONFIG_PATCH_KEYS = new Set([
    'provider',
    'imageProvider',
@@ -39,6 +40,8 @@ const CONFIG_PATCH_KEYS = new Set([
    'accountName',
    'promptBackend',
    'llmModel',
+   'segmentation',
+   'maxShotSeconds',
 ]);
 const MODEL_PATCH_KEYS = new Set(['image', 'video', 'videoMode']);
 // T-84 amendment (Opus audit + Fable ruling): the JSON+base64 create-project
@@ -427,6 +430,17 @@ export function startServer(port = 4000) {
            res.status(400).json({ error: 'llmModel must be a non-empty string' });
            return;
         }
+        if (body.segmentation !== undefined && !SEGMENTATION_MODES.includes(body.segmentation as 'llm' | 'heuristic')) {
+           res.status(400).json({ error: `segmentation must be one of: ${SEGMENTATION_MODES.join(', ')}` });
+           return;
+        }
+        if (
+           body.maxShotSeconds !== undefined &&
+           (typeof body.maxShotSeconds !== 'number' || !Number.isFinite(body.maxShotSeconds) || body.maxShotSeconds <= 0)
+        ) {
+           res.status(400).json({ error: 'maxShotSeconds must be a positive number' });
+           return;
+        }
         const accountName = body.accountName;
         if (accountName !== undefined) {
            if (typeof accountName !== 'string' || !accountName) {
@@ -614,13 +628,19 @@ export function startServer(port = 4000) {
            return;
         }
         const outJson = path.join(projectDir(project.name), 'alignment.json');
-        const lines = await alignScript(project.scriptPath, project.voPath, outJson, {
+        const { lines, segmentationUsed } = await alignScriptEx(project.scriptPath, project.voPath, outJson, {
            onProgress: (line) => broadcast(req.params.name, { type: 'alignProgress', line }),
+           segmentation: project.config.segmentation ?? 'llm',
+           llmModel: project.config.llmModel,
         });
         const timeline = computeTimeline(lines);
-        const shots = planShots(project.id, timeline, lines, project.config.maxShotSeconds);
+        // LLM one-visual-idea segments are authoritative — skip phrase splitting
+        // (hard 15s model cap inside planShots still applies).
+        const effectiveMaxShot =
+           segmentationUsed === 'llm' ? Number.POSITIVE_INFINITY : project.config.maxShotSeconds;
+        const shots = planShots(project.id, timeline, lines, effectiveMaxShot);
         db.insertShots(shots);
-        broadcast(req.params.name, { type: 'alignProgress', line: `done (${shots.length} shots)` });
+        broadcast(req.params.name, { type: 'alignProgress', line: `done (${shots.length} shots, segmentation: ${segmentationUsed})` });
         res.json({ success: true, shotCount: shots.length });
      } catch (e: any) {
         res.status(500).json({ error: e.message });

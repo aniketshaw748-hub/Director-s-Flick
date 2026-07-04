@@ -1077,3 +1077,7 @@ Result: DONE (commit 39a5b00). AlignCard groups split-line shots: 1-based sub la
 ### [115] WIND-DOWN: owner ordered all loops shut after current tasks. resume.md written (onboarding doc). Opus/Fable-2 stop now; Sonnet stops after T-88; Fable stops after T-88 acceptance.
 
 ### [116] FINAL: T-88 accepted (353/353, owner fixture exact). All work complete. All loops stopped. Session closed.
+
+## Session: Fable (post-wind-down, owner-directed)
+### [117] OWNER-DIRECTED: LLM semantic segmentation replaces heuristic line division
+Owner verdict on T-88 heuristic output: too many issues; cuts must come from MEANING (their Rule 1: one visual idea per prompt), not voiceover gaps/punctuation. Built solo (team down): app/src/segment-llm.ts (one-visual-idea segmentation, exact-partition validation + 1 corrective retry, injectable client, never-stall fallback to heuristic), alignScriptEx in align.ts (LLM segments become the aligner lines; newlines flattened first), cli.ts + server.ts wired (segmentation config, default llm; LLM segments authoritative - phrase splitter bypassed, 15s hard cap stays), PATCH whitelist += segmentation/maxShotSeconds, contract field PipelineConfig.segmentation. Tests: 7 hermetic segment-llm tests + integration mock updated for alignScriptEx. Suite 360/360, both tsc clean.

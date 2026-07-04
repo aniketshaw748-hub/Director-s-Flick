@@ -246,8 +246,42 @@ export async function alignScript(
   scriptPath: string,
   audioPath: string,
   outJsonPath: string,
-  opts?: { onProgress?: (line: string) => void },
+  opts?: AlignOptions,
 ): Promise<AlignedLine[]> {
+  return (await alignScriptEx(scriptPath, audioPath, outJsonPath, opts)).lines;
+}
+
+export interface AlignOptions {
+  onProgress?: (line: string) => void;
+  /**
+   * Shot-boundary source (owner-directed, 2026-07-04). 'llm': divide the
+   * narration into one-visual-idea segments via segment-llm.ts BEFORE the
+   * aligner (the owner's newlines and all duration/pause heuristics are
+   * ignored — meaning decides the cuts, alignment only times them). Falls
+   * back to 'heuristic' (script lines + T-88 splitter) with a warning.
+   */
+  segmentation?: 'llm' | 'heuristic';
+  /** Anthropic model for segmentation:'llm' (default claude-opus-4-8). */
+  llmModel?: string;
+  /** Test injection: mock Anthropic client for segmentation (hermetic tests). */
+  llmClient?: import('./segment-llm.js').SegmentLlmClient | null;
+}
+
+export interface AlignResultEx {
+  lines: AlignedLine[];
+  /** The segmentation source actually used ('llm' may fall back to 'heuristic'). */
+  segmentationUsed: 'llm' | 'heuristic';
+  /** Present when 'llm' was requested but the heuristic fallback was used. */
+  segmentationFallbackReason?: string;
+}
+
+/** alignScript + which segmentation source actually produced the line boundaries. */
+export async function alignScriptEx(
+  scriptPath: string,
+  audioPath: string,
+  outJsonPath: string,
+  opts?: AlignOptions,
+): Promise<AlignResultEx> {
   try {
     return await alignScriptInner(scriptPath, audioPath, outJsonPath, opts);
   } catch (err) {
@@ -262,8 +296,8 @@ async function alignScriptInner(
   scriptPath: string,
   audioPath: string,
   outJsonPath: string,
-  opts?: { onProgress?: (line: string) => void },
-): Promise<AlignedLine[]> {
+  opts?: AlignOptions,
+): Promise<AlignResultEx> {
   const rawScript = readScriptFileSane(scriptPath);
   const normalizedScript = normalizeScriptText(rawScript);
   if (normalizedScript.length === 0) {
@@ -287,11 +321,42 @@ async function alignScriptInner(
     throw new Error(`alignScript: cannot create output dir for ${outJsonPath}: ${String(err)}`);
   }
 
+  // ---- Shot-boundary source (owner-directed, 2026-07-04) -----------------
+  // segmentation:'llm' — the LLM cuts the FULL narration (newlines flattened;
+  // no gap/duration heuristics) into one-visual-idea segments, which become
+  // the aligner's lines. Any failure falls back to the script's own lines
+  // (heuristic path) with a warning — the pipeline never stalls.
+  let segmentationUsed: 'llm' | 'heuristic' = 'heuristic';
+  let segmentationFallbackReason: string | undefined;
+  let scriptTextForAligner = normalizedScript;
+  if (opts?.segmentation === 'llm') {
+    const flatNarration = normalizedScript.split('\n').join(' ').replace(/\s+/g, ' ').trim();
+    try {
+      const { llmSegmentScript } = await import('./segment-llm.js');
+      const segments = await llmSegmentScript(flatNarration, {
+        model: opts.llmModel,
+        client: opts.llmClient,
+        warn: opts.onProgress,
+      });
+      scriptTextForAligner = segments.join('\n');
+      segmentationUsed = 'llm';
+      opts.onProgress?.(`segmentation: llm (${segments.length} one-visual-idea segments)`);
+    } catch (err) {
+      segmentationFallbackReason = err instanceof Error ? err.message : String(err);
+      opts.onProgress?.(
+        `segmentation: heuristic FALLBACK — ${segmentationFallbackReason} (set ANTHROPIC_API_KEY and re-run alignment for LLM segmentation)`,
+      );
+    }
+  }
+
   let scriptForPython = scriptPath;
   let tempScriptPath: string | null = null;
-  if (trimmedNonEmptyLines(rawScript).join('\n') !== normalizedScript) {
+  // Write a temp script only when the aligner's line division differs from the
+  // file's own trimmed lines (always true for LLM segments, and exactly the
+  // original T-78 normalization condition on the heuristic path).
+  if (trimmedNonEmptyLines(rawScript).join('\n') !== scriptTextForAligner) {
     tempScriptPath = path.join(workDir, `align-script.normalized.${randomUUID()}.txt`);
-    fs.writeFileSync(tempScriptPath, normalizedScript, 'utf-8');
+    fs.writeFileSync(tempScriptPath, scriptTextForAligner, 'utf-8');
     scriptForPython = tempScriptPath;
   }
 
@@ -304,7 +369,8 @@ async function alignScriptInner(
   }
 
   try {
-    return await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
+    const lines = await spawnAligner(scriptForPython, audioForPython, outJsonPath, opts);
+    return { lines, segmentationUsed, segmentationFallbackReason };
   } finally {
     if (tempScriptPath) {
       try {

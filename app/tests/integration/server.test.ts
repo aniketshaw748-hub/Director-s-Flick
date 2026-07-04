@@ -62,15 +62,23 @@ vi.mock('../../src/accounts.js', async (importOriginal) => {
 let mockAlignFail: Error | null = null;
 vi.mock('../../src/align.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../src/align.js')>();
+  const fakeLines = [
+    { index: 0, text: 'A line.', start: 0, end: 2, words: [] },
+    { index: 1, text: 'Another line.', start: 3, end: 5, words: [] },
+  ];
   return {
     ...original,
     alignScript: async (_script: string, _audio: string, _out: string, opts?: { onProgress?: (l: string) => void }) => {
       if (mockAlignFail) throw mockAlignFail;
       opts?.onProgress?.('mock alignment progress');
-      return [
-        { index: 0, text: 'A line.', start: 0, end: 2, words: [] },
-        { index: 1, text: 'Another line.', start: 3, end: 5, words: [] },
-      ];
+      return fakeLines;
+    },
+    // server.ts uses the Ex variant (segmentation-aware); mock both so no
+    // real python/LLM path can run inside the suite.
+    alignScriptEx: async (_script: string, _audio: string, _out: string, opts?: { onProgress?: (l: string) => void }) => {
+      if (mockAlignFail) throw mockAlignFail;
+      opts?.onProgress?.('mock alignment progress');
+      return { lines: fakeLines, segmentationUsed: 'heuristic' as const };
     },
   };
 });
